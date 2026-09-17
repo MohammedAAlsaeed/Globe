@@ -1,36 +1,46 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Al-Idrisi Atelier
 
-## Getting Started
+A private, browser-based globe gore converter, built with Next.js, React, TypeScript, and i18next. English is the source language; Arabic includes a mirrored RTL layout and a persisted language preference. Add new languages in `lib/i18n.ts`.
 
-First, run the development server:
+## Run
 
-```bash
+```sh
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open http://localhost:3000. Use the same hostname as the Next.js development server to avoid blocked development assets.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Checks
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```sh
+npm run lint
+node --test tests/projection.test.mjs
+npm run build -- --webpack
+```
 
-## Learn More
+Tests require Node 22.18+ (native TypeScript stripping). Webpack can be used when sandbox restrictions prevent Turbopack's CSS worker from binding a local port.
 
-To learn more about Next.js, take a look at the following resources:
+## Conversion
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- Import a full-world, north-up equirectangular PNG, JPEG, or WebP. The expected aspect ratio is 2:1. Other projections are not automatically detected or reprojected.
+- Set pole-to-pole height and equatorial diameter in millimetres (20–500 mm). Linked dimensions produce a sphere; independent dimensions produce an approximate ellipsoid wrap using parametric latitude and numerically integrated meridian distances.
+- Choose 6–36 even-numbered gores, longitude offset, 0–10 mm gutters, cutting outlines, and latitude guides.
+- The spherical mapping uses `x = R × relativeLongitude × cos(latitude)`, with meridional arc distance for y. Reference: https://proj.org/en/stable/operations/projections/sinu.html.
+- PNG export stores print DPI in a pHYs chunk. SVG export wraps the rendered raster in an SVG with exact millimetre dimensions; it is **not** a vectorized map. Both preserve original colors, and use 150, 300, or 600 DPI output. The preview is rendered separately at a smaller size.
+- Images remain in memory in the browser. No uploads, analytics, or remote font requests are made.
+- Input is limited to 40 MB and 60 megapixels; exports to 40 megapixels and 16,000 pixels per side to bound canvas memory.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Source-resolution estimates are advisory. Upsampling cannot recover missing detail. Gores approximate a curved surface and need a paper-fit test. Export sheets include a 5 mm outer margin and are not automatically split into printer pages. Print at **100% / actual size**.
 
-## Deploy on Vercel
+## Sample map
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+`public/atelier-world.svg` is a contemporary illustration derived from public-domain Natural Earth 1:110m land data: https://www.naturalearthdata.com/about/terms-of-use/. It is not a historical Islamic map. The interface draws on parchment, geometric astronomical instruments, and Islamic cartographic traditions.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Next useful features
+
+- Tiled A4/A3 PDFs with registration marks and calibration ruler.
+- Glue tabs, bleed, individually numbered gores, and separate-gore downloads.
+- Rotatable 3D globe preview.
+- Project saving, additional source projections, and a worker-based export pipeline.
+- A later map editor with layers, brushes, symbols, and terrain tools.
