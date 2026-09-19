@@ -6,23 +6,33 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "node --import tsx --test tests/*.test.mjs",
+    "typecheck": "tsc --noEmit",
+    "format": "prettier --write app components features lib tests",
+    "build:webpack": "next build --webpack"
   },
   "dependencies": {
+    "fflate": "^0.8.3",
     "i18next": "^26.4.2",
     "next": "16.3.5",
+    "pdf-lib": "^1.17.1",
     "react": "19.2.8",
     "react-dom": "19.2.8",
-    "react-i18next": "^17.0.14"
+    "react-i18next": "^17.0.14",
+    "three": "^0.186.0"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@types/three": "^0.186.0",
     "eslint": "^9",
     "eslint-config-next": "16.3.5",
+    "prettier": "^3.9.8",
     "tailwindcss": "^4",
+    "tsx": "^4.23.13",
     "typescript": "^5"
   }
 }
