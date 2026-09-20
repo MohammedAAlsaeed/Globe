@@ -121,3 +121,28 @@ test("PDF generation can be cancelled before any page is built", async () => {
     { name: "AbortError" },
   );
 });
+
+test("direct print document shares physical page sizes and forces page breaks", async () => {
+  const { printHtml } = await import("../features/studio/export/svg.ts");
+  const settings = { ...print, outline: true },
+    plan = planPrint(globe, settings),
+    html = await printHtml(plan.pages, globe, settings, []);
+  assert.ok(
+    html.includes(`size:${plan.pages[0].width}mm ${plan.pages[0].height}mm`),
+  );
+  assert.equal((html.match(/class="sheet"/g) || []).length, plan.pages.length);
+  assert.ok(html.includes("page-break-after:always"));
+  assert.ok(html.includes("print-color-adjust:exact"));
+  assert.ok(!html.includes("<script"));
+});
+
+test("print-page clipping IDs stay unique across tiled sheets", async () => {
+  const { printHtml } = await import("../features/studio/export/svg.ts");
+  const settings = { ...print, outline: true },
+    g = { ...globe, width: 350, height: 350 },
+    plan = planPrint(g, settings);
+  assert.ok(plan.tiled);
+  const html = await printHtml(plan.pages, g, settings, []);
+  const ids = [...html.matchAll(/clipPath id="([^"]+)"/g)].map((m) => m[1]);
+  assert.equal(new Set(ids).size, ids.length);
+});

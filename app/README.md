@@ -97,7 +97,7 @@ The 3D view displays the edited source on the model and seam positions. It is no
 - Editing: 20 layers, 5,000 strokes per layer, 4,000 points per gesture, with a project-wide point budget.
 - Browser: requires Web Workers, createImageBitmap and OffscreenCanvas. WebGL is optional; if unavailable, gore/print previews still work.
 - Source PPI is a conservative estimate based on the source projection and model dimensions. Raising output PPI does not reconstruct missing details.
-- The app prepares measured pages and opens a PDF print preview. Your browser/OS controls printer selection, paper support and final scaling. There is no silent or direct printer-driver access. No physical printer has been calibrated automatically.
+- The app prepares a self-contained HTML print document with the same measured pages, so direct printing does not depend on a PDF plug-in. A measured PDF is also available. Your browser/OS controls printer selection, paper support and final scaling. There is no silent or direct printer-driver access. No physical printer has been calibrated automatically.
 - Outputs use browser RGB colors. ICC proofing, CMYK/PDF-X workflows, TIFF import and arbitrary source projections are not included.
 
 ## Verification

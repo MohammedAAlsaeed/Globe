@@ -118,6 +118,17 @@ export function ExportPanel({
           {t("singleGore")}
         </button>
       </div>
+      {exporter.download && (
+        <p className="help-copy">
+          <a
+            className="secondary-button"
+            href={exporter.download.url}
+            download={exporter.download.name}
+          >
+            {t("downloadReady")} · {exporter.download.name}
+          </a>
+        </p>
+      )}
       {exporter.job && (
         <div className="job-progress" role="status">
           <div>
@@ -130,42 +141,47 @@ export function ExportPanel({
       )}
       <p className="help-copy">{t("formatHelp")}</p>
       <p className="help-copy">{t("testFit")}</p>
-      {exporter.pdfUrl && (
-        <div className="pdf-ready">
-          <div className="section-heading">
-            <h3>{t("pdfReady")}</h3>
-            <button onClick={exporter.dismiss} aria-label={t("dismissPdf")}>
-              ×
-            </button>
+      {exporter.pdfUrl &&
+        exporter.preparedKey === JSON.stringify([d, source?.url]) && (
+          <div className="pdf-ready">
+            <div className="section-heading">
+              <h3>{t("pdfReady")}</h3>
+              <button onClick={exporter.dismiss} aria-label={t("dismissPdf")}>
+                ×
+              </button>
+            </div>
+            <p>{t("actualSize")}</p>
+            <iframe
+              ref={frame}
+              title={t("printStudio")}
+              srcDoc={exporter.printDocument}
+            />
+            <div className="button-row">
+              <button
+                className="export-button"
+                onClick={() => {
+                  try {
+                    frame.current?.contentWindow?.focus();
+                    frame.current?.contentWindow?.print();
+                  } catch {
+                    notify("printUnavailable");
+                  }
+                }}
+              >
+                {t("printNow")}
+              </button>
+              <a
+                className="secondary-button"
+                href={exporter.pdfUrl}
+                target="_blank"
+                rel="noreferrer"
+              >
+                {t("printReady")}
+              </a>
+            </div>
+            <p className="help-copy">{t("browserPrintNote")}</p>
           </div>
-          <p>{t("actualSize")}</p>
-          <iframe ref={frame} title={t("printStudio")} src={exporter.pdfUrl} />
-          <div className="button-row">
-            <button
-              className="export-button"
-              onClick={() => {
-                try {
-                  frame.current?.contentWindow?.focus();
-                  frame.current?.contentWindow?.print();
-                } catch {
-                  notify("printUnavailable");
-                }
-              }}
-            >
-              {t("printNow")}
-            </button>
-            <a
-              className="secondary-button"
-              href={exporter.pdfUrl}
-              target="_blank"
-              rel="noreferrer"
-            >
-              {t("printReady")}
-            </a>
-          </div>
-          <p className="help-copy">{t("browserPrintNote")}</p>
-        </div>
-      )}
+        )}
     </section>
   );
 }

@@ -7,19 +7,26 @@ import { planPrint } from "../domain/layout";
 import { renderInWorker, releaseAssets } from "../rendering/client";
 import { makePrintPdf } from "../export/pdf";
 import { goreArchive, standaloneGore } from "../export/files";
-import { saveBlob } from "../export/svg";
+import { printHtml } from "../export/svg";
 export type ExportKind = "print" | "pdf" | "zip" | "single";
 export function useExport(notify: (message: string) => void) {
   const [job, setJob] = useState<{ stage: string; progress: number } | null>(
       null,
     ),
-    [pdfUrl, setPdfUrl] = useState("");
+    [pdfUrl, setPdfUrl] = useState(""),
+    [printDocument, setPrintDocument] = useState(""),
+    [preparedKey, setPreparedKey] = useState(""),
+    [download, setDownload] = useState<{ url: string; name: string } | null>(
+      null,
+    );
   const abort = useRef<AbortController | null>(null),
-    url = useRef("");
+    url = useRef(""),
+    fileUrl = useRef("");
   useEffect(
     () => () => {
       abort.current?.abort();
       if (url.current) URL.revokeObjectURL(url.current);
+      if (fileUrl.current) URL.revokeObjectURL(fileUrl.current);
     },
     [],
   );
@@ -27,6 +34,19 @@ export function useExport(notify: (message: string) => void) {
     if (url.current) URL.revokeObjectURL(url.current);
     url.current = "";
     setPdfUrl("");
+    setPrintDocument("");
+  }
+  function deliver(blob: Blob, name: string) {
+    if (fileUrl.current) URL.revokeObjectURL(fileUrl.current);
+    fileUrl.current = URL.createObjectURL(blob);
+    setDownload({ url: fileUrl.current, name });
+    const link = document.createElement("a");
+    link.href = fileUrl.current;
+    link.download = name;
+    link.hidden = true;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
   }
   async function run(
     kind: ExportKind,
@@ -36,6 +56,7 @@ export function useExport(notify: (message: string) => void) {
     gore: number,
   ) {
     if (abort.current) return;
+    gore = Math.max(0, Math.min(gore, d.globe.gores - 1));
     if (!source) return notify("missingSource");
     const plan = planPrint(d.globe, d.print);
     if ((kind === "print" || kind === "pdf") && plan.error)
@@ -89,11 +110,16 @@ export function useExport(notify: (message: string) => void) {
         );
         if (controller.signal.aborted)
           throw new DOMException("Cancelled", "AbortError");
-        if (kind === "pdf") saveBlob(blob, `${name}.pdf`);
+        if (kind === "pdf") deliver(blob, `${name}.pdf`);
         else {
+          const html = await printHtml(plan.pages, d.globe, d.print, assets);
+          if (controller.signal.aborted)
+            throw new DOMException("Cancelled", "AbortError");
           dismiss();
           url.current = URL.createObjectURL(blob);
           setPdfUrl(url.current);
+          setPrintDocument(html);
+          setPreparedKey(JSON.stringify([d, source.url]));
           notify("pdfReady");
         }
       } else if (kind === "zip") {
@@ -108,7 +134,7 @@ export function useExport(notify: (message: string) => void) {
         );
         if (controller.signal.aborted)
           throw new DOMException("Cancelled", "AbortError");
-        saveBlob(blob, `${name}.zip`);
+        deliver(blob, `${name}.zip`);
       } else {
         const blob = await standaloneGore(
           assets[0],
@@ -119,7 +145,7 @@ export function useExport(notify: (message: string) => void) {
         );
         if (controller.signal.aborted)
           throw new DOMException("Cancelled", "AbortError");
-        saveBlob(blob, `${name}-${gore + 1}.${format}`);
+        deliver(blob, `${name}-${gore + 1}.${format}`);
       }
       if (kind !== "print") notify("jobComplete");
     } catch (e) {
@@ -136,5 +162,14 @@ export function useExport(notify: (message: string) => void) {
       setJob(null);
     }
   }
-  return { job, pdfUrl, run, cancel: () => abort.current?.abort(), dismiss };
+  return {
+    job,
+    pdfUrl,
+    printDocument,
+    preparedKey,
+    download,
+    run,
+    cancel: () => abort.current?.abort(),
+    dismiss,
+  };
 }

@@ -1,5 +1,6 @@
 import type { studioEn } from "./studio.en";
 export const studioAr: typeof studioEn = {
+  downloadReady: "تنزيل الملف الجاهز",
   printStudio: "استوديو الطباعة",
   editor: "محرّر الخريطة",
   globe3d: "كرة ثلاثية الأبعاد",

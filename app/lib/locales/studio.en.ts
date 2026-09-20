@@ -1,4 +1,5 @@
 export const studioEn = {
+  downloadReady: "Download prepared file",
   printStudio: "Print studio",
   editor: "Map editor",
   globe3d: "3D globe",
