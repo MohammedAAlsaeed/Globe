@@ -1,6 +1,64 @@
-import { DEFAULT_DOCUMENT, type StudioDocument } from "./types";
+import { DEFAULT_DOCUMENT, type StudioDocument, type MapObject } from "./types";
+import { ICON_IDS } from "./icons";
 const finite = (v: unknown, min: number, max: number) =>
   typeof v === "number" && Number.isFinite(v) && v >= min && v <= max;
+const hexColor = (v: unknown) =>
+  typeof v === "string" && /^#[0-9a-f]{6}$/i.test(v);
+const PATH_KINDS = ["river", "road", "border"];
+const BIOMES = ["forest", "mountains", "desert", "water", "grass", "swamp"];
+const ALIGNS = ["start", "center", "end"];
+function validPoints(points: unknown, min: number, max: number): points is Array<{ x: number; y: number }> {
+  return (
+    Array.isArray(points) &&
+    points.length >= min &&
+    points.length <= max &&
+    points.every(
+      (p) =>
+        p && typeof p === "object" && finite(p.x, 0, 1) && finite(p.y, 0, 1),
+    )
+  );
+}
+/** New map-object kinds (icons, paths, regions, labels) added alongside strokes. */
+function validObject(o: unknown): o is MapObject {
+  if (!o || typeof o !== "object") return false;
+  const obj = o as Record<string, unknown>;
+  if (typeof obj.id !== "string") return false;
+  if (obj.kind === "icon")
+    return (
+      ICON_IDS.includes(obj.icon as (typeof ICON_IDS)[number]) &&
+      finite(obj.x, 0, 1) &&
+      finite(obj.y, 0, 1) &&
+      finite(obj.rotation, -3600, 3600) &&
+      finite(obj.scale, 0.1, 8) &&
+      hexColor(obj.color)
+    );
+  if (obj.kind === "path")
+    return (
+      PATH_KINDS.includes(obj.pathKind as string) &&
+      validPoints(obj.points, 2, 4000) &&
+      finite(obj.width, 0.001, 0.08) &&
+      hexColor(obj.color)
+    );
+  if (obj.kind === "region")
+    return (
+      BIOMES.includes(obj.biome as string) &&
+      validPoints(obj.points, 3, 2000) &&
+      finite(obj.opacity, 0, 1)
+    );
+  if (obj.kind === "label")
+    return (
+      typeof obj.text === "string" &&
+      obj.text.length > 0 &&
+      obj.text.length <= 200 &&
+      finite(obj.x, 0, 1) &&
+      finite(obj.y, 0, 1) &&
+      finite(obj.size, 0.005, 0.25) &&
+      hexColor(obj.color) &&
+      ALIGNS.includes(obj.align as string) &&
+      typeof obj.rtl === "boolean"
+    );
+  return false;
+}
 /** Imported projects are untrusted. Reject incompatible versions and unsafe allocations. */
 export function validateDocument(value: unknown): StudioDocument {
   if (!value || typeof value !== "object") throw new Error("invalidProject");
@@ -59,7 +117,9 @@ export function validateDocument(value: unknown): StudioDocument {
       typeof l.visible !== "boolean" ||
       !finite(l.opacity, 0, 1) ||
       !Array.isArray(l.strokes) ||
-      l.strokes.length > 5000
+      l.strokes.length > 5000 ||
+      (l.objects !== undefined &&
+        (!Array.isArray(l.objects) || l.objects.length > 2000))
     )
       throw new Error("invalidProject");
     for (const s of l.strokes) {
@@ -77,7 +137,15 @@ export function validateDocument(value: unknown): StudioDocument {
         throw new Error("invalidProject");
       points += s.points.length;
     }
+    for (const o of l.objects ?? []) {
+      if (!validObject(o)) throw new Error("invalidProject");
+      if (o.kind === "path" || o.kind === "region") points += o.points.length;
+    }
   }
   if (points > 200000) throw new Error("invalidProject");
-  return structuredClone({ ...DEFAULT_DOCUMENT, ...d });
+  return structuredClone({
+    ...DEFAULT_DOCUMENT,
+    ...d,
+    layers: d.layers.map((l) => ({ ...l, objects: l.objects ?? [] })),
+  });
 }

@@ -8,9 +8,15 @@ export interface SourceState {
   width: number;
   height: number;
 }
-export function useSource(onError: (message: string) => void) {
+/**
+ * `autoSample`: when false, the sample world map is never auto-loaded on
+ * mount. Used when the page is about to load a specific source instead
+ * (for example a map handed off from the standalone map creator), so the
+ * sample doesn't race it and win.
+ */
+export function useSource(onError: (message: string) => void, autoSample = true) {
   const [source, setSource] = useState<SourceState | null>(null),
-    [loading, setLoading] = useState(true);
+    [loading, setLoading] = useState(() => autoSample);
   const resources = useRef({ url: "", generation: 0 });
   const assign = useCallback(
     (blob: Blob, filename: string, width: number, height: number) => {
@@ -70,14 +76,22 @@ export function useSource(onError: (message: string) => void) {
       if (id === r.generation) setLoading(false);
     }
   }, [assign, onError]);
+  /** `loading` already starts false when `autoSample` is false (see the lazy
+   * initializer above), so this effect never needs to touch it itself. */
   useEffect(() => {
-    const r = resources.current,
-      timer = setTimeout(() => sample(), 0);
+    const r = resources.current;
+    if (!autoSample) {
+      return () => {
+        r.generation++;
+        if (r.url) URL.revokeObjectURL(r.url);
+      };
+    }
+    const timer = setTimeout(() => sample(), 0);
     return () => {
       clearTimeout(timer);
       r.generation++;
       if (r.url) URL.revokeObjectURL(r.url);
     };
-  }, [sample]);
+  }, [sample, autoSample]);
   return { source, loading, upload, sample };
 }

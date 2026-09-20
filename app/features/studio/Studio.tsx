@@ -13,6 +13,7 @@ import { ProjectToolbar } from "./components/ProjectToolbar";
 import { useDocument } from "./hooks/useDocument";
 import { useSource } from "./hooks/useSource";
 import { planPrint } from "./domain/layout";
+import { loadHandoff, clearHandoff } from "./storage/projects";
 import type { GlobeSettings, PrintSettings } from "./domain/types";
 import type { SavedProject } from "./storage/projects";
 export default function Studio() {
@@ -21,8 +22,13 @@ export default function Studio() {
     [notice, setNotice] = useState(""),
     [modal, setModal] = useState(""),
     dialog = useRef<HTMLDialogElement>(null);
+  const [handoffPending] = useState(
+    () =>
+      typeof window !== "undefined" &&
+      window.location.search.includes("handoff=1"),
+  );
   const notify = useCallback((m: string) => setNotice(m), []),
-    sourceState = useSource(notify),
+    sourceState = useSource(notify, !handoffPending),
     d = state.document;
   const plan = useMemo(() => planPrint(d.globe, d.print), [d.globe, d.print]);
   useEffect(() => {
@@ -39,6 +45,29 @@ export default function Studio() {
     if (modal) dialog.current?.showModal();
     else dialog.current?.close();
   }, [modal]);
+  useEffect(() => {
+    if (!handoffPending) return;
+    let alive = true;
+    (async () => {
+      try {
+        const handoff = await loadHandoff();
+        if (!alive) return;
+        if (handoff && (await sourceState.upload(handoff.source, handoff.filename))) {
+          state.replace(handoff.document);
+          notify("mmPrintReady");
+        } else {
+          await sourceState.sample();
+        }
+      } finally {
+        await clearHandoff().catch(() => {});
+        window.history.replaceState(null, "", "/print");
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [handoffPending]);
   const globe = (patch: Partial<GlobeSettings>) =>
     state.change((old) => ({ ...old, globe: { ...old.globe, ...patch } }));
   const print = (patch: Partial<PrintSettings>) =>

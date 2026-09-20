@@ -122,3 +122,59 @@ export async function loadLocal(): Promise<SavedProject | null> {
     database.close();
   }
 }
+/**
+ * Hands a rasterized map off from the standalone map creator into the
+ * print studio: the drawn map becomes the studio's new source image,
+ * under its own key so it never collides with the "draft" auto-save.
+ */
+export async function saveHandoff(project: SavedProject) {
+  const database = await db();
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const tx = database.transaction("projects", "readwrite");
+      tx.objectStore("projects").put(project, "handoff");
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(new Error("storageError"));
+    });
+  } finally {
+    database.close();
+  }
+}
+export async function loadHandoff(): Promise<SavedProject | null> {
+  const database = await db();
+  try {
+    return await new Promise((resolve, reject) => {
+      const request = database
+        .transaction("projects")
+        .objectStore("projects")
+        .get("handoff");
+      request.onsuccess = () => {
+        try {
+          if (!request.result) return resolve(null);
+          resolve({
+            ...request.result,
+            document: validateDocument(request.result.document),
+          });
+        } catch {
+          reject(new Error("invalidProject"));
+        }
+      };
+      request.onerror = () => reject(new Error("storageError"));
+    });
+  } finally {
+    database.close();
+  }
+}
+export async function clearHandoff() {
+  const database = await db();
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const tx = database.transaction("projects", "readwrite");
+      tx.objectStore("projects").delete("handoff");
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(new Error("storageError"));
+    });
+  } finally {
+    database.close();
+  }
+}

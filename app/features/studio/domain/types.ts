@@ -1,3 +1,4 @@
+import type { IconId } from "./icons";
 /** Millimetres are the canonical unit. UI units never enter projection math. */
 export type Resampling = "bilinear" | "bicubic" | "lanczos";
 export type SourceProjection = "equirectangular" | "mercator";
@@ -41,12 +42,57 @@ export interface Stroke {
   size: number;
   symbol?: string;
 }
+/** A single placeable, transformable map icon (mountain, city, tree…). */
+export interface IconObject {
+  id: string;
+  kind: "icon";
+  icon: IconId;
+  x: number;
+  y: number;
+  rotation: number;
+  scale: number;
+  color: string;
+}
+export type PathKind = "river" | "road" | "border";
+/** A river, road or border, drawn as a normalized polyline. */
+export interface PathObject {
+  id: string;
+  kind: "path";
+  pathKind: PathKind;
+  points: Point[];
+  width: number;
+  color: string;
+}
+export type Biome = "forest" | "mountains" | "desert" | "water" | "grass" | "swamp";
+/** A closed biome region, filled with a per-biome color when rendered. */
+export interface RegionObject {
+  id: string;
+  kind: "region";
+  biome: Biome;
+  points: Point[];
+  opacity: number;
+}
+export type LabelAlign = "start" | "center" | "end";
+/** A bilingual text label; `rtl` drives canvas text direction independent of app language. */
+export interface LabelObject {
+  id: string;
+  kind: "label";
+  text: string;
+  x: number;
+  y: number;
+  size: number;
+  color: string;
+  align: LabelAlign;
+  rtl: boolean;
+}
+export type MapObject = IconObject | PathObject | RegionObject | LabelObject;
 export interface MapLayer {
   id: string;
   name: string;
   visible: boolean;
   opacity: number;
   strokes: Stroke[];
+  objects: MapObject[];
 }
 export interface StudioDocument {
   name: string;

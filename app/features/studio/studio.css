@@ -510,6 +510,81 @@
 .preview-header h2 {
   font-size: 13px;
 }
+/* Konva-based map creator: stage, icon palette, label draft and object inspector. */
+.konva-stage-wrap {
+  display: block;
+  width: 100%;
+  line-height: 0;
+  border: 1px solid #cfd4c2;
+  background: white;
+  touch-action: none;
+  cursor: default;
+}
+.konva-stage-wrap.tool-brush,
+.konva-stage-wrap.tool-icon,
+.konva-stage-wrap.tool-path,
+.konva-stage-wrap.tool-region,
+.konva-stage-wrap.tool-label {
+  cursor: crosshair;
+}
+.konva-stage-wrap:not(.editable) {
+  cursor: not-allowed;
+}
+.icon-palette {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(34px, 1fr));
+  gap: 6px;
+  margin: 4px 0 10px;
+}
+.icon-palette button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px;
+  border: 1px solid #d9dfcc;
+  background: #f9fbf4;
+  border-radius: 4px;
+  color: #52674b;
+}
+.icon-palette button.selected {
+  background: #e9eedc;
+  border-color: #afbd9b;
+  color: #344b3d;
+}
+.label-draft-panel {
+  border: 1px solid #d9dfcc;
+  background: #f9fbf4;
+  border-radius: 5px;
+  padding: 14px;
+  margin: 10px 0;
+}
+.label-draft-panel > .field-label {
+  margin-top: 0;
+}
+.label-draft-panel .editor-tools {
+  margin-top: 10px;
+}
+.object-inspector {
+  margin-top: 16px;
+  border-top: 1px solid #dce1d1;
+  padding-top: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.object-inspector label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 10px;
+  color: #7b886b;
+}
+.object-inspector input[type="range"] {
+  flex: 1;
+}
+.object-inspector .field-label {
+  display: block;
+}
 @media (max-width: 1100px) {
   .studio-workspace {
     grid-template-columns: 280px minmax(0, 1fr);
