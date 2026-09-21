@@ -315,6 +315,8 @@
   background: var(--mm-panel);
   border-bottom: 1px solid var(--mm-border);
   flex: none;
+  position: relative;
+  z-index: 30;
 }
 .mm-back {
   display: flex;
@@ -359,6 +361,77 @@
 }
 .mm-print-btn:hover {
   filter: brightness(1.08);
+}
+
+.mm-edit-menu-wrap {
+  position: relative;
+}
+.mm-edit-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  inset-inline-start: 0;
+  z-index: 40;
+  min-width: 230px;
+  background: var(--mm-panel);
+  border: 1px solid var(--mm-border);
+  border-radius: 8px;
+  padding: 6px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+}
+.mm-menu-heading {
+  font-size: 9.5px;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: var(--mm-muted);
+  padding: 8px 10px 4px;
+}
+.mm-menu-divider {
+  height: 1px;
+  background: var(--mm-border);
+  margin: 6px 2px;
+}
+.mm-menu-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 10px;
+  border-radius: 5px;
+  color: var(--mm-text);
+  font-size: 12px;
+  text-align: start;
+}
+.mm-menu-row > span {
+  flex: 1;
+}
+.mm-menu-row:hover:not(:disabled) {
+  background: var(--mm-panel-2);
+}
+.mm-menu-row:disabled {
+  color: var(--mm-muted);
+  opacity: 0.5;
+  cursor: default;
+}
+.mm-key {
+  font-family: inherit;
+  font-size: 10px;
+  color: var(--mm-muted);
+  background: var(--mm-panel-2);
+  border: 1px solid var(--mm-border);
+  border-radius: 4px;
+  padding: 2px 6px;
+}
+.mm-menu-hint {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 10px 8px;
+  font-size: 10.5px;
+  color: var(--mm-muted);
+}
+.mm-menu-hint > span {
+  color: var(--mm-text);
+  font-size: 12px;
 }
 
 .mm-body {

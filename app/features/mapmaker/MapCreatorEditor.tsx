@@ -1,5 +1,6 @@
 "use client";
-import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
+import type React from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useTranslation } from "react-i18next";
@@ -212,7 +213,14 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
   const containerRef = useRef<HTMLDivElement>(null),
     stageRef = useRef<Konva.Stage>(null),
     transformerRef = useRef<Konva.Transformer>(null),
-    clipboardRef = useRef<{ layerId: string; obj: MMObject } | null>(null);
+    clipboardRef = useRef<{ layerId: string; obj: MMObject } | null>(null),
+    panRef = useRef<{ x: number; y: number; scrollLeft: number; scrollTop: number } | null>(null),
+    zoomAnchorRef = useRef<{ contentX: number; contentY: number; scaleRatio: number; clientX: number; clientY: number } | null>(null),
+    editMenuRef = useRef<HTMLDivElement>(null);
+  const [spaceHeld, setSpaceHeld] = useState(false),
+    [panningActive, setPanningActive] = useState(false),
+    [hasClipboard, setHasClipboard] = useState(false),
+    [showEditMenu, setShowEditMenu] = useState(false);
 
   const active =
     project.layers.find((l) => l.id === activeLayerId) ??
@@ -265,11 +273,40 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
     tr.getLayer()?.batchDraw();
   }, [tool, selectedId, project]);
 
+  /** Keeps whatever content point was under the cursor fixed in place across
+   * a Ctrl/Cmd+scroll (or trackpad-pinch) zoom, instead of zooming from a
+   * fixed corner/center — this is what makes zoom feel right under the
+   * pointer for both mouse and trackpad users. */
+  useLayoutEffect(() => {
+    const anchor = zoomAnchorRef.current,
+      el = containerRef.current;
+    if (!anchor || !el) return;
+    zoomAnchorRef.current = null;
+    el.scrollLeft = anchor.contentX * anchor.scaleRatio - anchor.clientX;
+    el.scrollTop = anchor.contentY * anchor.scaleRatio - anchor.clientY;
+  }, [zoom]);
+
+  useEffect(() => {
+    if (!showEditMenu) return;
+    const onDocPointerDown = (e: PointerEvent) => {
+      if (editMenuRef.current && !editMenuRef.current.contains(e.target as Node)) {
+        setShowEditMenu(false);
+      }
+    };
+    document.addEventListener("pointerdown", onDocPointerDown);
+    return () => document.removeEventListener("pointerdown", onDocPointerDown);
+  }, [showEditMenu]);
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement)?.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA") return;
       const mod = e.metaKey || e.ctrlKey;
+      if (e.code === "Space" && !spaceHeld) {
+        e.preventDefault();
+        setSpaceHeld(true);
+        return;
+      }
       if (mod && e.key.toLowerCase() === "z") {
         e.preventDefault();
         if (e.shiftKey) redo();
@@ -283,7 +320,7 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
       }
       if (mod && e.key.toLowerCase() === "c" && selectedObj) {
         e.preventDefault();
-        clipboardRef.current = { layerId: selectedLayer?.id ?? "", obj: structuredClone(selectedObj) };
+        copySelection();
         return;
       }
       if (mod && e.key.toLowerCase() === "v" && clipboardRef.current) {
@@ -316,9 +353,7 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
         return;
       }
       if (e.key === "Escape") {
-        setPathDraft(null);
-        setRegionDraft(null);
-        setLabelDraft(null);
+        cancelDrafts();
         return;
       }
       const hotkeyIndex = TOOLS.findIndex((tl, i) => String(i + 1) === e.key);
@@ -327,16 +362,31 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
         selectTool(TOOLS[hotkeyIndex].key);
       }
     };
+    const onKeyUp = (e: KeyboardEvent) => {
+      if (e.code === "Space") setSpaceHeld(false);
+    };
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    window.addEventListener("keyup", onKeyUp);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("keyup", onKeyUp);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tool, selectedObj, undo, redo]);
+  }, [tool, selectedObj, undo, redo, spaceHeld]);
 
-  function selectTool(next: Tool) {
+  function cancelDrafts() {
     setPathDraft(null);
     setRegionDraft(null);
     setLabelDraft(null);
+  }
+  function selectTool(next: Tool) {
+    cancelDrafts();
     setTool(next);
+  }
+  function copySelection() {
+    if (!selectedObj) return;
+    clipboardRef.current = { layerId: selectedLayer?.id ?? "", obj: structuredClone(selectedObj) };
+    setHasClipboard(true);
   }
 
   function updateLayer(id: string, patch: Partial<MMLayer>) {
@@ -490,7 +540,35 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
     return { points: newPoints, scaleFactor };
   }
 
+  /** Space+drag or middle-click drag panning: scrolls the canvas wrapper
+   * directly (no React state needed for the scroll itself), so it stays
+   * smooth on both mouse and trackpad. Two-finger trackpad scroll and plain
+   * mouse-wheel already pan natively via the wrapper's `overflow: auto`. */
+  function startPan(e: React.PointerEvent<HTMLDivElement>) {
+    if (e.button !== 1 && !(spaceHeld && e.button === 0)) return;
+    const el = containerRef.current;
+    if (!el) return;
+    e.preventDefault();
+    panRef.current = { x: e.clientX, y: e.clientY, scrollLeft: el.scrollLeft, scrollTop: el.scrollTop };
+    setPanningActive(true);
+    el.setPointerCapture(e.pointerId);
+  }
+  function movePan(e: React.PointerEvent<HTMLDivElement>) {
+    const pan = panRef.current,
+      el = containerRef.current;
+    if (!pan || !el) return;
+    el.scrollLeft = pan.scrollLeft - (e.clientX - pan.x);
+    el.scrollTop = pan.scrollTop - (e.clientY - pan.y);
+  }
+  function endPan(e: React.PointerEvent<HTMLDivElement>) {
+    if (!panRef.current) return;
+    panRef.current = null;
+    setPanningActive(false);
+    containerRef.current?.releasePointerCapture(e.pointerId);
+  }
+
   function handlePointerDown(e: Konva.KonvaEventObject<PointerEvent>) {
+    if (spaceHeld || e.evt.button !== 0) return;
     const stage = e.target.getStage();
     if (!stage) return;
     if (tool === "select") {
@@ -679,6 +757,43 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
         <button className="mm-back" title={t("redo")} disabled={!canRedo} onClick={redo}>
           <Glyph name="redo" size={16} />
         </button>
+        <div className="mm-edit-menu-wrap" ref={editMenuRef}>
+          <button className="mm-back" title={t("mmEditMenu")} onClick={() => setShowEditMenu((v) => !v)}>
+            <Glyph name="keyboard" size={16} />
+          </button>
+          {showEditMenu && (
+            <div className="mm-edit-menu">
+              <div className="mm-menu-heading">{t("mmMenuTools")}</div>
+              {TOOLS.map((tl, i) => (
+                <MenuRow
+                  key={tl.key}
+                  label={t(tl.labelKey)}
+                  shortcut={String(i + 1)}
+                  onClick={() => {
+                    selectTool(tl.key);
+                    setShowEditMenu(false);
+                  }}
+                />
+              ))}
+              <div className="mm-menu-divider" />
+              <div className="mm-menu-heading">{t("mmMenuEdit")}</div>
+              <MenuRow label={t("undo")} shortcut="⌘Z" disabled={!canUndo} onClick={() => { undo(); setShowEditMenu(false); }} />
+              <MenuRow label={t("redo")} shortcut="⌘⇧Z" disabled={!canRedo} onClick={() => { redo(); setShowEditMenu(false); }} />
+              <MenuRow label={t("mmDuplicateObject")} shortcut="⌘D" disabled={!selectedObj} onClick={() => { if (selectedObj) duplicateObject(selectedObj.id); setShowEditMenu(false); }} />
+              <MenuRow label={t("mmCopyObject")} shortcut="⌘C" disabled={!selectedObj} onClick={() => { copySelection(); setShowEditMenu(false); }} />
+              <MenuRow label={t("mmPasteObject")} shortcut="⌘V" disabled={!hasClipboard} onClick={() => { pasteClipboard(); setShowEditMenu(false); }} />
+              <MenuRow label={t("mmDeleteObject")} shortcut="⌫" disabled={!selectedObj} onClick={() => { if (selectedObj) removeObject(selectedObj.id); setShowEditMenu(false); }} />
+              <MenuRow label={t("mmBringToFront")} shortcut="⌘]" disabled={!selectedObj} onClick={() => { if (selectedObj) reorderObject(selectedObj.id, "front"); setShowEditMenu(false); }} />
+              <MenuRow label={t("mmSendToBack")} shortcut="⌘[" disabled={!selectedObj} onClick={() => { if (selectedObj) reorderObject(selectedObj.id, "back"); setShowEditMenu(false); }} />
+              <div className="mm-menu-divider" />
+              <div className="mm-menu-heading">{t("mmMenuView")}</div>
+              <MenuRow label={t("mmFitScreen")} onClick={() => { setZoom(1); setShowEditMenu(false); }} icon="fit" />
+              <MenuHint label={t("mmZoom")} hint={t("mmZoomHint")} />
+              <MenuHint label={t("mmPan")} hint={t("mmPanHint")} />
+              <MenuHint label={t("mmCancelDraft")} hint={t("mmEscapeHint")} />
+            </div>
+          )}
+        </div>
         <div className="mm-appbar-spacer" />
         <button className="mm-print-btn" disabled={printing} onClick={handlePrint}>
           <Glyph name="print" size={16} />
@@ -837,11 +952,31 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
           <div
             className="mm-canvas-wrap"
             ref={containerRef}
-            style={{ cursor: tool === "select" ? undefined : "crosshair" }}
+            style={{
+              cursor: panningActive ? "grabbing" : spaceHeld ? "grab" : tool === "select" ? undefined : "crosshair",
+            }}
+            onPointerDown={startPan}
+            onPointerMove={movePan}
+            onPointerUp={endPan}
+            onPointerCancel={endPan}
             onWheel={(e) => {
               if (!e.ctrlKey && !e.metaKey) return;
               e.preventDefault();
-              setZoom((z) => Math.max(0.25, Math.min(4, z - e.deltaY * 0.0015)));
+              const el = containerRef.current;
+              const nextZoom = Math.max(0.25, Math.min(4, zoom - e.deltaY * 0.0015));
+              if (el) {
+                const rect = el.getBoundingClientRect(),
+                  clientX = e.clientX - rect.left,
+                  clientY = e.clientY - rect.top;
+                zoomAnchorRef.current = {
+                  contentX: el.scrollLeft + clientX,
+                  contentY: el.scrollTop + clientY,
+                  scaleRatio: nextZoom / zoom,
+                  clientX,
+                  clientY,
+                };
+              }
+              setZoom(nextZoom);
             }}
           >
             <Stage
@@ -1330,6 +1465,37 @@ function ObjectQuickBar({
           {t("mmDeleteObject")}
         </button>
       </div>
+    </div>
+  );
+}
+
+function MenuRow({
+  label,
+  shortcut,
+  onClick,
+  disabled,
+  icon,
+}: {
+  label: string;
+  shortcut?: string;
+  onClick: () => void;
+  disabled?: boolean;
+  icon?: string;
+}) {
+  return (
+    <button className="mm-menu-row" disabled={disabled} onClick={onClick}>
+      {icon && <Glyph name={icon} size={13} />}
+      <span>{label}</span>
+      {shortcut && <kbd className="mm-key">{shortcut}</kbd>}
+    </button>
+  );
+}
+
+function MenuHint({ label, hint }: { label: string; hint: string }) {
+  return (
+    <div className="mm-menu-hint">
+      <span>{label}</span>
+      <small>{hint}</small>
     </div>
   );
 }
