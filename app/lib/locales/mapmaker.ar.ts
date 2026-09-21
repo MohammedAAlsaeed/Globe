@@ -102,6 +102,8 @@ export const mapmakerAr: typeof mapmakerEn = {
   mmLayerLimit: "تدعم هذه الخريطة حتى 20 طبقة.",
   mmDeleteObject: "حذف",
   mmDuplicateObject: "تكرار",
+  mmBringToFront: "إحضار للأمام",
+  mmSendToBack: "إرسال للخلف",
   mmVisible: "ظاهرة",
   mmLocked: "مقفلة",
   mmRemoveLayer: "إزالة الطبقة",

@@ -68,6 +68,8 @@ export interface MMLabel {
   color: string;
   align: LabelAlign;
   rtl: boolean;
+  /** Optional: added after v1. Older saved projects lack this field — read as `?? 0`. */
+  rotation?: number;
 }
 export type MMObject = MMBrush | MMIcon | MMPath | MMRegion | MMLabel;
 

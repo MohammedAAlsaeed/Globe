@@ -211,7 +211,8 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
 
   const containerRef = useRef<HTMLDivElement>(null),
     stageRef = useRef<Konva.Stage>(null),
-    transformerRef = useRef<Konva.Transformer>(null);
+    transformerRef = useRef<Konva.Transformer>(null),
+    clipboardRef = useRef<{ layerId: string; obj: MMObject } | null>(null);
 
   const active =
     project.layers.find((l) => l.id === activeLayerId) ??
@@ -260,7 +261,7 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
       tool === "select" && selectedId
         ? stage.findOne(`#${CSS.escape(selectedId)}`)
         : null;
-    tr.nodes(node && node.getClassName() === "Group" ? [node] : []);
+    tr.nodes(node ? [node] : []);
     tr.getLayer()?.batchDraw();
   }, [tool, selectedId, project]);
 
@@ -278,6 +279,26 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
       if (mod && e.key.toLowerCase() === "y") {
         e.preventDefault();
         redo();
+        return;
+      }
+      if (mod && e.key.toLowerCase() === "c" && selectedObj) {
+        e.preventDefault();
+        clipboardRef.current = { layerId: selectedLayer?.id ?? "", obj: structuredClone(selectedObj) };
+        return;
+      }
+      if (mod && e.key.toLowerCase() === "v" && clipboardRef.current) {
+        e.preventDefault();
+        pasteClipboard();
+        return;
+      }
+      if (mod && e.key === "]" && selectedObj) {
+        e.preventDefault();
+        reorderObject(selectedObj.id, "front");
+        return;
+      }
+      if (mod && e.key === "[" && selectedObj) {
+        e.preventDefault();
+        reorderObject(selectedObj.id, "back");
         return;
       }
       if (
@@ -374,19 +395,42 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
     updateLayer(layer.id, { objects: layer.objects.filter((o) => o.id !== id) });
     if (selectedId === id) setSelectedId(null);
   }
+  function cloneWithOffset(o: MMObject): MMObject {
+    const nid = crypto.randomUUID();
+    if (o.kind === "icon" || o.kind === "label")
+      return { ...o, id: nid, x: Math.min(1, o.x + 0.02), y: Math.min(1, o.y + 0.02) };
+    return {
+      ...o,
+      id: nid,
+      points: o.points.map((p) => ({ x: Math.min(1, p.x + 0.02), y: Math.min(1, p.y + 0.02) })),
+    };
+  }
   function duplicateObject(id: string) {
     const layer = project.layers.find((l) => l.objects.some((o) => o.id === id));
     const o = layer?.objects.find((x) => x.id === id);
     if (!layer || !o) return;
-    const nid = crypto.randomUUID();
-    if (o.kind === "icon" || o.kind === "label")
-      addObjectTo(layer.id, { ...o, id: nid, x: Math.min(1, o.x + 0.02), y: Math.min(1, o.y + 0.02) });
-    else
-      addObjectTo(layer.id, {
-        ...o,
-        id: nid,
-        points: o.points.map((p) => ({ x: Math.min(1, p.x + 0.02), y: Math.min(1, p.y + 0.02) })),
-      });
+    addObjectTo(layer.id, cloneWithOffset(o));
+  }
+  function pasteClipboard() {
+    const clip = clipboardRef.current;
+    if (!clip) return;
+    const layer =
+      active && !active.locked ? active : project.layers.find((l) => l.id === clip.layerId);
+    if (!layer || layer.locked) return;
+    addObjectTo(layer.id, cloneWithOffset(clip.obj));
+  }
+  function reorderObject(id: string, dir: "front" | "back" | "forward" | "backward") {
+    const layer = project.layers.find((l) => l.objects.some((o) => o.id === id));
+    if (!layer) return;
+    const idx = layer.objects.findIndex((o) => o.id === id);
+    if (idx < 0) return;
+    const arr = [...layer.objects];
+    const [obj] = arr.splice(idx, 1);
+    if (dir === "front") arr.push(obj);
+    else if (dir === "back") arr.unshift(obj);
+    else if (dir === "forward") arr.splice(Math.min(arr.length, idx + 1), 0, obj);
+    else arr.splice(Math.max(0, idx - 1), 0, obj);
+    updateLayer(layer.id, { objects: arr });
   }
   function addObjectTo(layerId: string, o: MMObject) {
     updateLayer(layerId, {
@@ -428,6 +472,22 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
       id,
       { points: points.map((p) => ({ x: p.x + dx, y: p.y + dy })) },
     );
+  }
+  /** Whole-shape resize/rotate for brush/path/region via the Transformer: bake
+   * the node's full transform matrix into the points, then reset the node so
+   * points stay canonical (mirrors handleShapeDragEnd's approach). Returns the
+   * uniform scale factor too, so callers can scale a stroke/fill width along. */
+  function handleShapeTransformEnd(points: Point[], node: Konva.Node) {
+    const transform = node.getTransform();
+    const newPoints = points.map((p) => {
+      const abs = transform.point({ x: p.x * W, y: p.y * H });
+      return { x: abs.x / W, y: abs.y / H };
+    });
+    const scaleFactor = Math.sqrt(Math.abs(node.scaleX() * node.scaleY())) || 1;
+    node.position({ x: 0, y: 0 });
+    node.scale({ x: 1, y: 1 });
+    node.rotation(0);
+    return { points: newPoints, scaleFactor };
   }
 
   function handlePointerDown(e: Konva.KonvaEventObject<PointerEvent>) {
@@ -770,12 +830,14 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
                 onPatch={(patch) => updateObject(selectedLayer!.id, selectedObj.id, patch)}
                 onDuplicate={() => duplicateObject(selectedObj.id)}
                 onDelete={() => removeObject(selectedObj.id)}
+                onReorder={(dir) => reorderObject(selectedObj.id, dir)}
               />
             )}
           </div>
           <div
             className="mm-canvas-wrap"
             ref={containerRef}
+            style={{ cursor: tool === "select" ? undefined : "crosshair" }}
             onWheel={(e) => {
               if (!e.ctrlKey && !e.metaKey) return;
               e.preventDefault();
@@ -808,58 +870,66 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
               </Layer>
               {project.layers.map((layer) => (
                 <Layer key={layer.id} visible={layer.visible} opacity={layer.opacity} listening={layer.id === active?.id && !layer.locked}>
-                  {layer.objects
-                    .filter((o): o is MMObject & { kind: "region" } => o.kind === "region")
-                    .map((o) => (
-                      <Line
-                        key={o.id}
-                        id={o.id}
-                        points={o.points.flatMap((p) => [p.x * W, p.y * H])}
-                        closed
-                        fillPatternImage={biomeTexture(o.biome) as unknown as HTMLImageElement}
-                        fillPatternScale={{ x: o.textureScale, y: o.textureScale }}
-                        fillPatternRotation={o.textureRotation}
-                        fillPriority="pattern"
-                        opacity={o.opacity}
-                        stroke={selectedId === o.id ? "#f2a65a" : undefined}
-                        strokeWidth={selectedId === o.id ? 2 : 0}
-                        draggable={tool === "select" && !layer.locked}
-                        onClick={() => tool === "select" && setSelectedId(o.id)}
-                        onTap={() => tool === "select" && setSelectedId(o.id)}
-                        onDragEnd={(e) => handleShapeDragEnd(layer.id, o.id, o.points, e.target)}
-                      />
-                    ))}
-                  {layer.objects
-                    .filter((o): o is MMObject & { kind: "brush" } => o.kind === "brush")
-                    .map((s) => (
-                      <Line
-                        key={s.id}
-                        id={s.id}
-                        points={s.points.flatMap((p) => [p.x * W, p.y * H])}
-                        stroke={selectedId === s.id ? "#f2a65a" : s.color}
-                        strokeWidth={Math.max(0.5, s.size * W)}
-                        opacity={s.opacity}
-                        shadowColor={s.color}
-                        shadowBlur={s.softness * 30}
-                        shadowOpacity={s.softness > 0 ? 0.9 : 0}
-                        lineCap="round"
-                        lineJoin="round"
-                        draggable={tool === "select" && !layer.locked}
-                        hitStrokeWidth={Math.max(12, s.size * W)}
-                        onClick={() => tool === "select" && setSelectedId(s.id)}
-                        onTap={() => tool === "select" && setSelectedId(s.id)}
-                        onDragEnd={(e) => handleShapeDragEnd(layer.id, s.id, s.points, e.target)}
-                      />
-                    ))}
-                  {layer.objects
-                    .filter((o): o is MMObject & { kind: "path" } => o.kind === "path")
-                    .map((o) => {
+                  {layer.objects.map((o) => {
+                    if (o.kind === "region")
+                      return (
+                        <Line
+                          key={o.id}
+                          id={o.id}
+                          points={o.points.flatMap((p) => [p.x * W, p.y * H])}
+                          closed
+                          tension={0.3}
+                          fillPatternImage={biomeTexture(o.biome) as unknown as HTMLImageElement}
+                          fillPatternScale={{ x: o.textureScale, y: o.textureScale }}
+                          fillPatternRotation={o.textureRotation}
+                          fillPriority="pattern"
+                          opacity={o.opacity}
+                          stroke={selectedId === o.id ? "#f2a65a" : undefined}
+                          strokeWidth={selectedId === o.id ? 2 : 0}
+                          draggable={tool === "select" && !layer.locked}
+                          onClick={() => tool === "select" && setSelectedId(o.id)}
+                          onTap={() => tool === "select" && setSelectedId(o.id)}
+                          onDragEnd={(e) => handleShapeDragEnd(layer.id, o.id, o.points, e.target)}
+                          onTransformEnd={(e) => {
+                            const { points } = handleShapeTransformEnd(o.points, e.target);
+                            updateObject(layer.id, o.id, { points });
+                          }}
+                        />
+                      );
+                    if (o.kind === "brush")
+                      return (
+                        <Line
+                          key={o.id}
+                          id={o.id}
+                          points={o.points.flatMap((p) => [p.x * W, p.y * H])}
+                          tension={0.4}
+                          stroke={selectedId === o.id ? "#f2a65a" : o.color}
+                          strokeWidth={Math.max(0.5, o.size * W)}
+                          opacity={o.opacity}
+                          shadowColor={o.color}
+                          shadowBlur={o.softness * 30}
+                          shadowOpacity={o.softness > 0 ? 0.9 : 0}
+                          lineCap="round"
+                          lineJoin="round"
+                          draggable={tool === "select" && !layer.locked}
+                          hitStrokeWidth={Math.max(12, o.size * W)}
+                          onClick={() => tool === "select" && setSelectedId(o.id)}
+                          onTap={() => tool === "select" && setSelectedId(o.id)}
+                          onDragEnd={(e) => handleShapeDragEnd(layer.id, o.id, o.points, e.target)}
+                          onTransformEnd={(e) => {
+                            const { points, scaleFactor } = handleShapeTransformEnd(o.points, e.target);
+                            updateObject(layer.id, o.id, { points, size: Math.max(0.001, Math.min(0.08, o.size * scaleFactor)) });
+                          }}
+                        />
+                      );
+                    if (o.kind === "path") {
                       const w = Math.max(0.5, o.width * W);
                       return (
                         <Line
                           key={o.id}
                           id={o.id}
                           points={o.points.flatMap((p) => [p.x * W, p.y * H])}
+                          tension={0.4}
                           stroke={selectedId === o.id ? "#f2a65a" : o.color}
                           strokeWidth={w}
                           opacity={o.opacity}
@@ -873,12 +943,14 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
                           onClick={() => tool === "select" && setSelectedId(o.id)}
                           onTap={() => tool === "select" && setSelectedId(o.id)}
                           onDragEnd={(e) => handleShapeDragEnd(layer.id, o.id, o.points, e.target)}
+                          onTransformEnd={(e) => {
+                            const { points, scaleFactor } = handleShapeTransformEnd(o.points, e.target);
+                            updateObject(layer.id, o.id, { points, width: Math.max(0.0008, Math.min(0.06, o.width * scaleFactor)) });
+                          }}
                         />
                       );
-                    })}
-                  {layer.objects
-                    .filter((o): o is MMObject & { kind: "icon" } => o.kind === "icon")
-                    .map((o) => {
+                    }
+                    if (o.kind === "icon") {
                       const def = ICONS[o.icon],
                         visualSize = Math.max(1, o.scale * W * 0.05),
                         s = visualSize / 24;
@@ -908,16 +980,15 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
                           {def.fill && <KonvaPath data={def.fill} fill={o.color} />}
                         </Group>
                       );
-                    })}
-                  {layer.objects
-                    .filter((o): o is MMObject & { kind: "label" } => o.kind === "label")
-                    .map((o) => (
+                    }
+                    return (
                       <KonvaText
                         key={o.id}
                         id={o.id}
                         text={o.text}
                         x={o.x * W}
                         y={o.y * H}
+                        rotation={o.rotation ?? 0}
                         fontSize={Math.max(1, o.size * W)}
                         fontFamily='Georgia, "Times New Roman", serif'
                         fill={o.color}
@@ -926,8 +997,21 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
                         onClick={() => tool === "select" && setSelectedId(o.id)}
                         onTap={() => tool === "select" && setSelectedId(o.id)}
                         onDragEnd={(e) => updateObject(layer.id, o.id, { x: e.target.x() / W, y: e.target.y() / H })}
+                        onTransformEnd={(e) => {
+                          const node = e.target,
+                            scale = Math.max(0.2, Math.min(6, (node.scaleX() + node.scaleY()) / 2));
+                          node.scaleX(1);
+                          node.scaleY(1);
+                          updateObject(layer.id, o.id, {
+                            size: Math.max(0.005, Math.min(0.3, o.size * scale)),
+                            rotation: node.rotation(),
+                            x: node.x() / W,
+                            y: node.y() / H,
+                          });
+                        }}
                       />
-                    ))}
+                    );
+                  })}
                 </Layer>
               ))}
               <Layer listening={false}>
@@ -960,7 +1044,16 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
                   </>
                 )}
               </Layer>
-              <Layer>{tool === "select" && selectedId && <Transformer ref={transformerRef} rotateEnabled anchorSize={9} />}</Layer>
+              <Layer>
+                {tool === "select" && selectedId && (
+                  <Transformer
+                    ref={transformerRef}
+                    rotateEnabled
+                    anchorSize={9}
+                    keepRatio={selectedObj?.kind === "icon" || selectedObj?.kind === "label"}
+                  />
+                )}
+              </Layer>
             </Stage>
           </div>
           <div className="mm-status-bar">
@@ -1000,7 +1093,7 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
           {shortcutsVisible && (
             <div className="mm-shortcut-hint">
               <span>{t(HINT_KEY[tool])}</span>
-              <span className="mm-shortcut-legend">1–6 {t("mmToolSelect")}/{t("mmToolBrush")}/… · ⌘Z {t("undo")} · ⌘⇧Z {t("redo")} · ⌘ scroll {t("mmZoom")}</span>
+              <span className="mm-shortcut-legend">1–6 {t("mmToolSelect")}/{t("mmToolBrush")}/… · ⌘Z {t("undo")} · ⌘⇧Z {t("redo")} · ⌘D {t("mmDuplicateObject")} · ⌘C/⌘V copy/paste · ⌘] / ⌘[ {t("mmBringToFront")}/{t("mmSendToBack")} · ⌘ scroll {t("mmZoom")}</span>
             </div>
           )}
         </div>
@@ -1179,6 +1272,7 @@ function ObjectQuickBar({
   onPatch,
   onDuplicate,
   onDelete,
+  onReorder,
 }: {
   obj: MMObject;
   layerId: string;
@@ -1186,6 +1280,7 @@ function ObjectQuickBar({
   onPatch: (patch: MMPatch) => void;
   onDuplicate: () => void;
   onDelete: () => void;
+  onReorder: (dir: "front" | "back" | "forward" | "backward") => void;
 }) {
   return (
     <div className="mm-quickbar">
@@ -1201,6 +1296,7 @@ function ObjectQuickBar({
           <input className="mm-inline-text" value={obj.text} onChange={(e) => onPatch({ text: e.target.value })} />
           <ColorControl color={obj.color} recents={[]} onChange={(v) => onPatch({ color: v })} label={t("mmColor")} recentLabel="" />
           <Slider label={t("mmLabelSize")} value={obj.size} min={0.01} max={0.1} step={0.005} onChange={(v) => onPatch({ size: v })} />
+          <Slider label={t("mmIconRotation")} value={obj.rotation ?? 0} min={-180} max={180} step={1} onChange={(v) => onPatch({ rotation: v })} format={(v) => `${v}°`} />
         </>
       )}
       {obj.kind === "path" && (
@@ -1221,6 +1317,12 @@ function ObjectQuickBar({
         </>
       )}
       <div className="button-row">
+        <button className="secondary-button" title={t("mmBringToFront")} onClick={() => onReorder("front")}>
+          <Glyph name="up" size={13} />
+        </button>
+        <button className="secondary-button" title={t("mmSendToBack")} onClick={() => onReorder("back")}>
+          <Glyph name="down" size={13} />
+        </button>
         <button className="secondary-button" onClick={onDuplicate}>
           {t("mmDuplicateObject")}
         </button>

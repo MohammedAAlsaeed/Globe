@@ -102,6 +102,8 @@ export const mapmakerEn = {
   mmLayerLimit: "This map supports up to 20 layers.",
   mmDeleteObject: "Delete",
   mmDuplicateObject: "Duplicate",
+  mmBringToFront: "Bring to front",
+  mmSendToBack: "Send to back",
   mmVisible: "Visible",
   mmLocked: "Locked",
   mmRemoveLayer: "Remove layer",
