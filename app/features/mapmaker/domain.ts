@@ -104,3 +104,9 @@ export function createProject(opts: {
     updatedAt: Date.now(),
   };
 }
+
+/** Pushes a new recent value to the front of a small MRU list (used for
+ * recent colors/icons in the editor's toolbars), capped and de-duplicated. */
+export function pushRecent(list: string[], value: string, cap = 8) {
+  return [value, ...list.filter((v) => v !== value)].slice(0, cap);
+}

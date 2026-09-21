@@ -1,6 +1,6 @@
 "use client";
 import type React from "react";
-import { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useTranslation } from "react-i18next";
@@ -25,8 +25,11 @@ import {
   PATH_KIND_LABEL_KEY,
   PATH_KIND_LIST,
   createLayer,
+  pushRecent,
   resolutionBadge,
 } from "./domain";
+import { useHistory } from "./hooks/useHistory";
+import { ColorControl, MenuHint, MenuRow, ObjectQuickBar, Slider } from "./components/EditorControls";
 import { saveProject } from "./storage";
 import { CreateMapModal } from "./CreateMapModal";
 import { MapGallery } from "./MapGallery";
@@ -39,6 +42,7 @@ import type {
   LabelAlign,
   MMLayer,
   MMObject,
+  MMPatch,
   MMProject,
   PathKind,
   Point,
@@ -61,114 +65,28 @@ const HINT_KEY: Record<Tool, string> = {
   region: "mmShortcutHintRegion",
   label: "mmShortcutHintLabel",
 };
-interface MMPatch {
-  icon?: IconId;
-  x?: number;
-  y?: number;
-  rotation?: number;
-  scale?: number;
-  color?: string;
-  pathKind?: PathKind;
-  points?: Point[];
-  width?: number;
-  biome?: Biome;
-  opacity?: number;
-  textureScale?: number;
-  textureRotation?: number;
-  text?: string;
-  size?: number;
-  align?: LabelAlign;
-  rtl?: boolean;
-  softness?: number;
-}
+// ---------------------------------------------------------------------------
+// Local, editor-only constants/types. Shared, reusable pieces (the object
+// model, resolution/aspect presets, storage, the small toolbar widgets) live
+// in ./types.ts, ./domain.ts, ./storage.ts and ./components/EditorControls —
+// this file is the standalone editor's own page-level orchestration, the
+// same way features/studio/components/MapEditor.tsx stays one big component
+// for the embedded editor rather than being split further.
+// ---------------------------------------------------------------------------
 const ARABIC_RANGE = /[؀-ۿ]/;
 
-function Slider({
-  label,
-  value,
-  min,
-  max,
-  step,
-  onChange,
-  format,
-}: {
-  label: string;
-  value: number;
-  min: number;
-  max: number;
-  step: number;
-  onChange: (v: number) => void;
-  format?: (v: number) => string;
-}) {
-  return (
-    <label className="mm-slider">
-      <span>{label}</span>
-      <input
-        type="range"
-        min={min}
-        max={max}
-        step={step}
-        value={value}
-        onChange={(e) => onChange(+e.target.value)}
-      />
-      <b>{format ? format(value) : value}</b>
-    </label>
-  );
-}
-
-function pushRecent(list: string[], value: string, cap = 8) {
-  return [value, ...list.filter((v) => v !== value)].slice(0, cap);
-}
-
-/** Undo/redo for the project, mirroring the print studio's own useDocument reducer. */
-interface HistoryState {
-  present: MMProject;
-  past: MMProject[];
-  future: MMProject[];
-}
-type HistoryAction =
-  | { type: "update"; updater: (p: MMProject) => MMProject }
-  | { type: "undo" }
-  | { type: "redo" };
-function historyReducer(state: HistoryState, action: HistoryAction): HistoryState {
-  if (action.type === "update") {
-    const next = action.updater(state.present);
-    if (next === state.present) return state;
-    return { present: next, past: [...state.past, state.present].slice(-60), future: [] };
-  }
-  if (action.type === "undo") {
-    if (!state.past.length) return state;
-    return {
-      present: state.past[state.past.length - 1],
-      past: state.past.slice(0, -1),
-      future: [state.present, ...state.future],
-    };
-  }
-  if (action.type === "redo") {
-    if (!state.future.length) return state;
-    return { present: state.future[0], past: [...state.past, state.present], future: state.future.slice(1) };
-  }
-  return state;
-}
-
+// =============================================================================
+// The standalone map-creator page/editor
+// =============================================================================
 export function MapCreatorEditor({ initial }: { initial: MMProject }) {
   const { t, i18n } = useTranslation(),
     router = useRouter();
-  const [history, dispatchHistory] = useReducer(historyReducer, {
-    present: initial,
-    past: [],
-    future: [],
-  });
-  const project = history.present,
-    canUndo = history.past.length > 0,
-    canRedo = history.future.length > 0;
-  const updateProject = useCallback(
-    (updater: (p: MMProject) => MMProject) => dispatchHistory({ type: "update", updater }),
-    [],
-  );
-  const undo = useCallback(() => dispatchHistory({ type: "undo" }), []);
-  const redo = useCallback(() => dispatchHistory({ type: "redo" }), []);
+
+  // ---- Project state (undo/redo history) ----------------------------------
+  const { project, updateProject, undo, redo, canUndo, canRedo } = useHistory(initial);
   const setProject = updateProject;
+
+  // ---- UI state: active layer/tool/selection, panels, view ----------------
   const [activeLayerId, setActiveLayerId] = useState(
     initial.layers[initial.layers.length - 1]?.id ?? "",
   );
@@ -222,6 +140,7 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
     [hasClipboard, setHasClipboard] = useState(false),
     [showEditMenu, setShowEditMenu] = useState(false);
 
+  // ---- Derived values (recomputed from state each render, kept out of state itself) ----
   const active =
     project.layers.find((l) => l.id === activeLayerId) ??
     project.layers[project.layers.length - 1];
@@ -230,6 +149,8 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
   );
   const selectedObj = selectedLayer?.objects.find((o) => o.id === selectedId);
 
+  // ---- Effects: language direction, responsive canvas width, autosave,
+  // selection Transformer, zoom-to-cursor, Edit-menu outside-click, shortcuts ----
   useEffect(() => {
     document.documentElement.lang = i18n.language;
     document.documentElement.dir = i18n.language === "ar" ? "rtl" : "ltr";
@@ -374,6 +295,8 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tool, selectedObj, undo, redo, spaceHeld]);
 
+  // ---- Shared small helpers (used by keyboard shortcuts, the Edit menu and
+  // the toolbars, so all three stay in sync with one implementation) ----
   function cancelDrafts() {
     setPathDraft(null);
     setRegionDraft(null);
@@ -389,6 +312,7 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
     setHasClipboard(true);
   }
 
+  // ---- Layer & object CRUD ----
   function updateLayer(id: string, patch: Partial<MMLayer>) {
     setProject((p) => ({
       ...p,
@@ -508,6 +432,8 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
   /** Whole-shape dragging for brush/path/region: Konva moves the Line's own
    * x/y during the drag, so on release we bake that offset into the points
    * themselves and reset the node back to (0,0), keeping points canonical. */
+  // ---- Konva shape transform helpers: bake a drag/resize/rotate on the
+  // node into the object's normalized points, then reset the node itself ----
   function handleShapeDragEnd(
     layerId: string,
     id: string,
@@ -567,6 +493,7 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
     containerRef.current?.releasePointerCapture(e.pointerId);
   }
 
+  // ---- Drawing: one pointer-handler set per tool, shared across the Stage ----
   function handlePointerDown(e: Konva.KonvaEventObject<PointerEvent>) {
     if (spaceHeld || e.evt.button !== 0) return;
     const stage = e.target.getStage();
@@ -690,6 +617,7 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
     setLabelText("");
   }
 
+  // ---- Handing the finished map off to the print pipeline ----
   async function handlePrint() {
     const stage = stageRef.current;
     if (!stage || printing) return;
@@ -712,6 +640,7 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
     }
   }
 
+  // ---- Derived: the searchable, cross-layer Objects panel list ----
   const searchLower = objectSearch.trim().toLowerCase();
   const objectRows = useMemo(
     () =>
@@ -735,6 +664,7 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
     [project.layers, searchLower, i18n.language],
   );
 
+  // ---- Render ----
   return (
     <div className="mm-shell">
       <header className="mm-appbar">
@@ -1368,134 +1298,6 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
         />
       )}
       {showCreate && <CreateMapModal onClose={() => setShowCreate(false)} />}
-    </div>
-  );
-}
-
-function ColorControl({
-  color,
-  recents,
-  onChange,
-  label,
-  recentLabel,
-}: {
-  color: string;
-  recents: string[];
-  onChange: (v: string) => void;
-  label: string;
-  recentLabel: string;
-}) {
-  return (
-    <div className="mm-color-control">
-      <label className="mm-color-input" title={label}>
-        <input type="color" value={color} onChange={(e) => onChange(e.target.value)} />
-      </label>
-      {recents.length > 0 && (
-        <div className="mm-recents-row" title={recentLabel}>
-          {recents.map((c) => (
-            <button key={c} className="mm-color-chip" style={{ background: c }} onClick={() => onChange(c)} />
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function ObjectQuickBar({
-  obj,
-  t,
-  onPatch,
-  onDuplicate,
-  onDelete,
-  onReorder,
-}: {
-  obj: MMObject;
-  layerId: string;
-  t: (k: string, opts?: Record<string, unknown>) => string;
-  onPatch: (patch: MMPatch) => void;
-  onDuplicate: () => void;
-  onDelete: () => void;
-  onReorder: (dir: "front" | "back" | "forward" | "backward") => void;
-}) {
-  return (
-    <div className="mm-quickbar">
-      {obj.kind === "icon" && (
-        <>
-          <ColorControl color={obj.color} recents={[]} onChange={(v) => onPatch({ color: v })} label={t("mmColor")} recentLabel="" />
-          <Slider label={t("mmIconSize")} value={obj.scale} min={0.3} max={4} step={0.1} onChange={(v) => onPatch({ scale: v })} />
-          <Slider label={t("mmIconRotation")} value={obj.rotation} min={-180} max={180} step={1} onChange={(v) => onPatch({ rotation: v })} format={(v) => `${v}°`} />
-        </>
-      )}
-      {obj.kind === "label" && (
-        <>
-          <input className="mm-inline-text" value={obj.text} onChange={(e) => onPatch({ text: e.target.value })} />
-          <ColorControl color={obj.color} recents={[]} onChange={(v) => onPatch({ color: v })} label={t("mmColor")} recentLabel="" />
-          <Slider label={t("mmLabelSize")} value={obj.size} min={0.01} max={0.1} step={0.005} onChange={(v) => onPatch({ size: v })} />
-          <Slider label={t("mmIconRotation")} value={obj.rotation ?? 0} min={-180} max={180} step={1} onChange={(v) => onPatch({ rotation: v })} format={(v) => `${v}°`} />
-        </>
-      )}
-      {obj.kind === "path" && (
-        <>
-          <ColorControl color={obj.color} recents={[]} onChange={(v) => onPatch({ color: v })} label={t("mmColor")} recentLabel="" />
-          <Slider label={t("mmPathWidth")} value={obj.width} min={0.002} max={0.03} step={0.001} onChange={(v) => onPatch({ width: v })} />
-        </>
-      )}
-      {obj.kind === "region" && (
-        <Slider label={t("mmFillOpacity")} value={obj.opacity} min={0.1} max={1} step={0.05} onChange={(v) => onPatch({ opacity: v })} format={(v) => `${Math.round(v * 100)}%`} />
-      )}
-      {obj.kind === "brush" && (
-        <>
-          <ColorControl color={obj.color} recents={[]} onChange={(v) => onPatch({ color: v })} label={t("mmColor")} recentLabel="" />
-          <Slider label={t("mmBrushSize")} value={obj.size} min={0.002} max={0.05} step={0.001} onChange={(v) => onPatch({ size: v })} />
-          <Slider label={t("mmBrushOpacity")} value={obj.opacity} min={0.1} max={1} step={0.05} onChange={(v) => onPatch({ opacity: v })} format={(v) => `${Math.round(v * 100)}%`} />
-          <Slider label={t("mmBrushSoftness")} value={obj.softness} min={0} max={1} step={0.05} onChange={(v) => onPatch({ softness: v })} format={(v) => `${Math.round(v * 100)}%`} />
-        </>
-      )}
-      <div className="button-row">
-        <button className="secondary-button" title={t("mmBringToFront")} onClick={() => onReorder("front")}>
-          <Glyph name="up" size={13} />
-        </button>
-        <button className="secondary-button" title={t("mmSendToBack")} onClick={() => onReorder("back")}>
-          <Glyph name="down" size={13} />
-        </button>
-        <button className="secondary-button" onClick={onDuplicate}>
-          {t("mmDuplicateObject")}
-        </button>
-        <button className="secondary-button" onClick={onDelete}>
-          {t("mmDeleteObject")}
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function MenuRow({
-  label,
-  shortcut,
-  onClick,
-  disabled,
-  icon,
-}: {
-  label: string;
-  shortcut?: string;
-  onClick: () => void;
-  disabled?: boolean;
-  icon?: string;
-}) {
-  return (
-    <button className="mm-menu-row" disabled={disabled} onClick={onClick}>
-      {icon && <Glyph name={icon} size={13} />}
-      <span>{label}</span>
-      {shortcut && <kbd className="mm-key">{shortcut}</kbd>}
-    </button>
-  );
-}
-
-function MenuHint({ label, hint }: { label: string; hint: string }) {
-  return (
-    <div className="mm-menu-hint">
-      <span>{label}</span>
-      <small>{hint}</small>
     </div>
   );
 }

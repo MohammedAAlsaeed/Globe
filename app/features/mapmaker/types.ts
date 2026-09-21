@@ -103,3 +103,27 @@ export interface MMProject {
 export function objectCount(layer: MMLayer) {
   return layer.objects.length;
 }
+
+/** A loose union of every field any object kind can carry; call sites only
+ * set fields matching the target object's own kind (see MapCreatorEditor's
+ * updateObject/onPatch call sites). */
+export interface MMPatch {
+  icon?: IconId;
+  x?: number;
+  y?: number;
+  rotation?: number;
+  scale?: number;
+  color?: string;
+  pathKind?: PathKind;
+  points?: Point[];
+  width?: number;
+  biome?: Biome;
+  opacity?: number;
+  textureScale?: number;
+  textureRotation?: number;
+  text?: string;
+  size?: number;
+  align?: LabelAlign;
+  rtl?: boolean;
+  softness?: number;
+}
