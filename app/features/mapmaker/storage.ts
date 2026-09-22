@@ -99,3 +99,53 @@ export function takeInitialProject(): MMProject | null {
     return null;
   }
 }
+
+// ---- Export / import a single project as a standalone file ----
+// Lets a map be shared with someone else, or moved to another browser or
+// device, without relying on this browser's IndexedDB (which never leaves
+// the machine that created it).
+const EXPORT_FORMAT = "al-idrisi-mapmaker-project";
+const EXPORT_VERSION = 1;
+
+interface MMProjectFile {
+  format: typeof EXPORT_FORMAT;
+  version: number;
+  project: MMProject;
+}
+
+/** Triggers a browser download of `project` as a `.mapmaker.json` file. */
+export function exportProjectToFile(project: MMProject) {
+  const payload: MMProjectFile = { format: EXPORT_FORMAT, version: EXPORT_VERSION, project };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  try {
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${(project.name || "map").trim().replace(/[^\w-]+/g, "-") || "map"}.mapmaker.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+/** Parses and validates a `.mapmaker.json` file's text back into an
+ * MMProject (see validation.ts — imported data is untrusted). Also accepts
+ * a raw project JSON with no envelope, so a hand-edited or older export
+ * still loads. Always assigns a fresh id/timestamp so importing never
+ * collides with, or silently overwrites, an existing saved project. */
+export async function parseProjectFile(raw: string): Promise<MMProject> {
+  let data: unknown;
+  try {
+    data = JSON.parse(raw);
+  } catch {
+    throw new Error("invalidProject");
+  }
+  const { validateProject } = await import("./validation");
+  const obj = data && typeof data === "object" ? (data as Record<string, unknown>) : null;
+  const candidate =
+    obj && obj.format === EXPORT_FORMAT && obj.project && typeof obj.project === "object" ? obj.project : obj;
+  const project = validateProject(candidate);
+  return { ...project, id: crypto.randomUUID(), updatedAt: Date.now() };
+}

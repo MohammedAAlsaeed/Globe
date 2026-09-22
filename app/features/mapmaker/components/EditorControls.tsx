@@ -121,10 +121,16 @@ export function ObjectQuickBar({
       )}
       <div className="button-row">
         <button className="secondary-button" title={t("mmBringToFront")} onClick={() => onReorder("front")}>
+          <Glyph name="toTop" size={13} />
+        </button>
+        <button className="secondary-button" title={t("mmBringForward")} onClick={() => onReorder("forward")}>
           <Glyph name="up" size={13} />
         </button>
-        <button className="secondary-button" title={t("mmSendToBack")} onClick={() => onReorder("back")}>
+        <button className="secondary-button" title={t("mmSendBackward")} onClick={() => onReorder("backward")}>
           <Glyph name="down" size={13} />
+        </button>
+        <button className="secondary-button" title={t("mmSendToBack")} onClick={() => onReorder("back")}>
+          <Glyph name="toBottom" size={13} />
         </button>
         <button className="secondary-button" onClick={onDuplicate}>
           {t("mmDuplicateObject")}
@@ -164,6 +170,56 @@ export function MenuHint({ label, hint }: { label: string; hint: string }) {
     <div className="mm-menu-hint">
       <span>{label}</span>
       <small>{hint}</small>
+    </div>
+  );
+}
+
+/** Toolbar shown in place of the single-object ObjectQuickBar whenever a
+ * marquee-select or shift-click has more than one object selected: batched
+ * front/back/duplicate/copy/delete rather than the single-object's
+ * per-kind style controls, which don't make sense across mixed kinds. */
+export function MultiSelectionBar({
+  count,
+  t,
+  onDuplicate,
+  onDelete,
+  onCopy,
+  onFront,
+  onBack,
+  onClear,
+}: {
+  count: number;
+  t: (k: string, opts?: Record<string, unknown>) => string;
+  onDuplicate: () => void;
+  onDelete: () => void;
+  onCopy: () => void;
+  onFront: () => void;
+  onBack: () => void;
+  onClear: () => void;
+}) {
+  return (
+    <div className="mm-quickbar">
+      <span className="mm-toolbar-note">{t("mmMultiSelected", { count })}</span>
+      <div className="button-row">
+        <button className="secondary-button" title={t("mmBringToFront")} onClick={onFront}>
+          <Glyph name="toTop" size={13} />
+        </button>
+        <button className="secondary-button" title={t("mmSendToBack")} onClick={onBack}>
+          <Glyph name="toBottom" size={13} />
+        </button>
+        <button className="secondary-button" onClick={onCopy}>
+          {t("mmCopyObject")}
+        </button>
+        <button className="secondary-button" onClick={onDuplicate}>
+          {t("mmDuplicateObject")}
+        </button>
+        <button className="secondary-button" onClick={onDelete}>
+          {t("mmDeleteObject")}
+        </button>
+        <button className="secondary-button" onClick={onClear}>
+          {t("mmClearSelection")}
+        </button>
+      </div>
     </div>
   );
 }

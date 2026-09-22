@@ -107,6 +107,18 @@ const PATHS: Record<string, React.ReactNode> = {
   plus: <path d="M12 5v14M5 12h14" />,
   up: <path d="m6 15 6-6 6 6" />,
   down: <path d="m6 9 6 6 6-6" />,
+  toTop: (
+    <>
+      <path d="m6 16 6-6 6 6" />
+      <path d="M5 5h14" />
+    </>
+  ),
+  toBottom: (
+    <>
+      <path d="m6 8 6 6 6-6" />
+      <path d="M5 19h14" />
+    </>
+  ),
   print: (
     <>
       <path d="M6 9V3h12v6M6 18H4a1 1 0 0 1-1-1v-5a1 1 0 0 1 1-1h16a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1h-2" />
@@ -117,6 +129,20 @@ const PATHS: Record<string, React.ReactNode> = {
   redo: <path d="M17 7l4 4-4 4M21 11H10.5a6.5 6.5 0 1 0 0 13H14" />,
   folder: (
     <path d="M3 7.5A1.5 1.5 0 0 1 4.5 6h4.6l1.8 2H19.5A1.5 1.5 0 0 1 21 9.5v8A1.5 1.5 0 0 1 19.5 19h-15A1.5 1.5 0 0 1 3 17.5Z" />
+  ),
+  download: (
+    <>
+      <path d="M12 3v12" />
+      <path d="m7 10 5 5 5-5" />
+      <path d="M4 19h16" />
+    </>
+  ),
+  upload: (
+    <>
+      <path d="M12 15V3" />
+      <path d="m7 8 5-5 5 5" />
+      <path d="M4 19h16" />
+    </>
   ),
 };
 export function Glyph({ name, size = 18 }: { name: string; size?: number }) {

@@ -1,9 +1,9 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslation } from "react-i18next";
 import { resolutionBadge } from "./domain";
-import { deleteProject, listProjects, stashInitialProject } from "./storage";
+import { deleteProject, exportProjectToFile, listProjects, parseProjectFile, saveProject, stashInitialProject } from "./storage";
 import type { MMProject } from "./types";
 import { Glyph } from "./glyphs";
 
@@ -30,9 +30,12 @@ export function MapGallery({
 }) {
   const { t, i18n } = useTranslation(),
     router = useRouter(),
-    dialog = useRef<HTMLDialogElement>(null);
+    dialog = useRef<HTMLDialogElement>(null),
+    fileInput = useRef<HTMLInputElement>(null);
   const [projects, setProjects] = useState<MMProject[] | null>(null);
   const [confirmId, setConfirmId] = useState<string | null>(null);
+  const [importError, setImportError] = useState(false);
+  const [importing, setImporting] = useState(false);
 
   useEffect(() => {
     dialog.current?.showModal();
@@ -52,6 +55,24 @@ export function MapGallery({
     await deleteProject(id);
     setProjects((p) => (p ? p.filter((x) => x.id !== id) : p));
     setConfirmId(null);
+  }
+
+  async function handleImportFile(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setImportError(false);
+    setImporting(true);
+    try {
+      const text = await file.text();
+      const project = await parseProjectFile(text);
+      await saveProject(project);
+      setProjects((p) => [project, ...(p ?? [])]);
+    } catch {
+      setImportError(true);
+    } finally {
+      setImporting(false);
+    }
   }
 
   return (
@@ -96,15 +117,26 @@ export function MapGallery({
                   </button>
                 </div>
               ) : (
-                <button title={t("mmDeleteObject")} onClick={() => setConfirmId(p.id)}>
-                  <Glyph name="trash" size={14} />
-                </button>
+                <>
+                  <button title={t("mmExportMap")} onClick={() => exportProjectToFile(p)}>
+                    <Glyph name="download" size={14} />
+                  </button>
+                  <button title={t("mmDeleteObject")} onClick={() => setConfirmId(p.id)}>
+                    <Glyph name="trash" size={14} />
+                  </button>
+                </>
               )}
             </div>
           ))}
         </div>
       )}
+      {importError && <p className="mm-empty-note mm-import-error">{t("mmImportError")}</p>}
+      <input ref={fileInput} type="file" accept=".json,application/json" className="mm-visually-hidden" onChange={handleImportFile} />
       <div className="button-row mm-modal-actions">
+        <button className="secondary-button" disabled={importing} onClick={() => fileInput.current?.click()}>
+          <Glyph name="upload" size={14} />
+          {t("mmImportMap")}
+        </button>
         <button className="export-button" onClick={onCreate}>
           {t("mmCreateCardButton")}
         </button>

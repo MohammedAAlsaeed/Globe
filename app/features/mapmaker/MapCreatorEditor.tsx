@@ -29,8 +29,8 @@ import {
   resolutionBadge,
 } from "./domain";
 import { useHistory } from "./hooks/useHistory";
-import { ColorControl, MenuHint, MenuRow, ObjectQuickBar, Slider } from "./components/EditorControls";
-import { saveProject } from "./storage";
+import { ColorControl, MenuHint, MenuRow, MultiSelectionBar, ObjectQuickBar, Slider } from "./components/EditorControls";
+import { exportProjectToFile, saveProject } from "./storage";
 import { CreateMapModal } from "./CreateMapModal";
 import { MapGallery } from "./MapGallery";
 import { ICONS, ICON_IDS, type IconId } from "../studio/domain/icons";
@@ -91,7 +91,7 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
     initial.layers[initial.layers.length - 1]?.id ?? "",
   );
   const [tool, setTool] = useState<Tool>("select");
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [panelTab, setPanelTab] = useState<"objects" | "layers">("layers");
   const [objectSearch, setObjectSearch] = useState("");
   const [shortcutsVisible, setShortcutsVisible] = useState(true);
@@ -131,23 +131,32 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
   const containerRef = useRef<HTMLDivElement>(null),
     stageRef = useRef<Konva.Stage>(null),
     transformerRef = useRef<Konva.Transformer>(null),
-    clipboardRef = useRef<{ layerId: string; obj: MMObject } | null>(null),
+    clipboardRef = useRef<{ layerId: string; objs: MMObject[] } | null>(null),
     panRef = useRef<{ x: number; y: number; scrollLeft: number; scrollTop: number } | null>(null),
     zoomAnchorRef = useRef<{ contentX: number; contentY: number; scaleRatio: number; clientX: number; clientY: number } | null>(null),
-    editMenuRef = useRef<HTMLDivElement>(null);
+    editMenuRef = useRef<HTMLDivElement>(null),
+    contextMenuRef = useRef<HTMLDivElement>(null),
+    marqueeAdditiveRef = useRef(false),
+    groupDragRef = useRef<{ ids: string[]; starts: Record<string, { x: number; y: number }> } | null>(null);
   const [spaceHeld, setSpaceHeld] = useState(false),
     [panningActive, setPanningActive] = useState(false),
     [hasClipboard, setHasClipboard] = useState(false),
-    [showEditMenu, setShowEditMenu] = useState(false);
+    [showEditMenu, setShowEditMenu] = useState(false),
+    [marquee, setMarquee] = useState<{ x0: number; y0: number; x1: number; y1: number } | null>(null),
+    [contextMenu, setContextMenu] = useState<{ x: number; y: number; targetId: string | null } | null>(null);
 
   // ---- Derived values (recomputed from state each render, kept out of state itself) ----
   const active =
     project.layers.find((l) => l.id === activeLayerId) ??
     project.layers[project.layers.length - 1];
+  const selectedIdSet = useMemo(() => new Set(selectedIds), [selectedIds]);
   const selectedLayer = project.layers.find((l) =>
-    l.objects.some((o) => o.id === selectedId),
+    l.objects.some((o) => selectedIdSet.has(o.id)),
   );
-  const selectedObj = selectedLayer?.objects.find((o) => o.id === selectedId);
+  const selectedObjs = selectedLayer
+    ? selectedLayer.objects.filter((o) => selectedIdSet.has(o.id))
+    : [];
+  const selectedObj = selectedObjs.length === 1 ? selectedObjs[0] : undefined;
 
   // ---- Effects: language direction, responsive canvas width, autosave,
   // selection Transformer, zoom-to-cursor, Edit-menu outside-click, shortcuts ----
@@ -186,13 +195,15 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
     const tr = transformerRef.current,
       stage = stageRef.current;
     if (!tr || !stage) return;
-    const node =
-      tool === "select" && selectedId
-        ? stage.findOne(`#${CSS.escape(selectedId)}`)
-        : null;
-    tr.nodes(node ? [node] : []);
+    const nodes =
+      tool === "select"
+        ? selectedIds
+            .map((id) => stage.findOne(`#${CSS.escape(id)}`))
+            .filter((n): n is Konva.Node => !!n)
+        : [];
+    tr.nodes(nodes);
     tr.getLayer()?.batchDraw();
-  }, [tool, selectedId, project]);
+  }, [tool, selectedIds, project]);
 
   /** Keeps whatever content point was under the cursor fixed in place across
    * a Ctrl/Cmd+scroll (or trackpad-pinch) zoom, instead of zooming from a
@@ -219,6 +230,17 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
   }, [showEditMenu]);
 
   useEffect(() => {
+    if (!contextMenu) return;
+    const onDocPointerDown = (e: PointerEvent) => {
+      if (contextMenuRef.current && !contextMenuRef.current.contains(e.target as Node)) {
+        setContextMenu(null);
+      }
+    };
+    document.addEventListener("pointerdown", onDocPointerDown);
+    return () => document.removeEventListener("pointerdown", onDocPointerDown);
+  }, [contextMenu]);
+
+  useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement)?.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA") return;
@@ -239,7 +261,7 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
         redo();
         return;
       }
-      if (mod && e.key.toLowerCase() === "c" && selectedObj) {
+      if (mod && e.key.toLowerCase() === "c" && selectedObjs.length) {
         e.preventDefault();
         copySelection();
         return;
@@ -249,32 +271,33 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
         pasteClipboard();
         return;
       }
-      if (mod && e.key === "]" && selectedObj) {
+      if (mod && e.key === "]" && selectedIds.length) {
         e.preventDefault();
-        reorderObject(selectedObj.id, "front");
+        reorderObjects(selectedIds, "front");
         return;
       }
-      if (mod && e.key === "[" && selectedObj) {
+      if (mod && e.key === "[" && selectedIds.length) {
         e.preventDefault();
-        reorderObject(selectedObj.id, "back");
+        reorderObjects(selectedIds, "back");
         return;
       }
       if (
         tool === "select" &&
-        selectedObj &&
+        selectedIds.length &&
         (e.key === "Delete" || e.key === "Backspace")
       ) {
         e.preventDefault();
-        removeObject(selectedObj.id);
+        removeObjects(selectedIds);
         return;
       }
-      if (mod && e.key.toLowerCase() === "d" && selectedObj) {
+      if (mod && e.key.toLowerCase() === "d" && selectedIds.length) {
         e.preventDefault();
-        duplicateObject(selectedObj.id);
+        duplicateObjects(selectedIds);
         return;
       }
       if (e.key === "Escape") {
         cancelDrafts();
+        setContextMenu(null);
         return;
       }
       const hotkeyIndex = TOOLS.findIndex((tl, i) => String(i + 1) === e.key);
@@ -293,7 +316,7 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
       window.removeEventListener("keyup", onKeyUp);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tool, selectedObj, undo, redo, spaceHeld]);
+  }, [tool, selectedIds, selectedObjs, undo, redo, spaceHeld]);
 
   // ---- Shared small helpers (used by keyboard shortcuts, the Edit menu and
   // the toolbars, so all three stay in sync with one implementation) ----
@@ -306,9 +329,21 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
     cancelDrafts();
     setTool(next);
   }
+  function selectOnly(id: string) {
+    setSelectedIds([id]);
+  }
+  function toggleSelect(id: string) {
+    setSelectedIds((ids) => (ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id]));
+  }
+  function clearSelection() {
+    setSelectedIds([]);
+  }
   function copySelection() {
-    if (!selectedObj) return;
-    clipboardRef.current = { layerId: selectedLayer?.id ?? "", obj: structuredClone(selectedObj) };
+    if (!selectedObjs.length) return;
+    clipboardRef.current = {
+      layerId: selectedLayer?.id ?? "",
+      objs: selectedObjs.map((o) => structuredClone(o)),
+    };
     setHasClipboard(true);
   }
 
@@ -350,7 +385,7 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
     if (!active || active.locked) return;
     if (active.objects.length >= 3000) return;
     updateLayer(active.id, { objects: [...active.objects, o] });
-    setSelectedId(o.id);
+    setSelectedIds([o.id]);
     if (o.kind === "icon") setRecentIcons((r) => [o.icon, ...r.filter((i) => i !== o.icon)].slice(0, 10));
   }
   function updateObject(layerId: string, id: string, patch: MMPatch) {
@@ -363,11 +398,15 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
       },
     );
   }
-  function removeObject(id: string) {
-    const layer = project.layers.find((l) => l.objects.some((o) => o.id === id));
+  function removeObjects(ids: string[]) {
+    const idSet = new Set(ids);
+    const layer = project.layers.find((l) => l.objects.some((o) => idSet.has(o.id)));
     if (!layer) return;
-    updateLayer(layer.id, { objects: layer.objects.filter((o) => o.id !== id) });
-    if (selectedId === id) setSelectedId(null);
+    updateLayer(layer.id, { objects: layer.objects.filter((o) => !idSet.has(o.id)) });
+    setSelectedIds((cur) => cur.filter((id) => !idSet.has(id)));
+  }
+  function removeObject(id: string) {
+    removeObjects([id]);
   }
   function cloneWithOffset(o: MMObject): MMObject {
     const nid = crypto.randomUUID();
@@ -379,19 +418,27 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
       points: o.points.map((p) => ({ x: Math.min(1, p.x + 0.02), y: Math.min(1, p.y + 0.02) })),
     };
   }
+  function duplicateObjects(ids: string[]) {
+    const idSet = new Set(ids);
+    const layer = project.layers.find((l) => l.objects.some((o) => idSet.has(o.id)));
+    if (!layer) return;
+    const clones = layer.objects.filter((o) => idSet.has(o.id)).map(cloneWithOffset);
+    if (!clones.length) return;
+    updateLayer(layer.id, { objects: [...layer.objects, ...clones] });
+    setSelectedIds(clones.map((c) => c.id));
+  }
   function duplicateObject(id: string) {
-    const layer = project.layers.find((l) => l.objects.some((o) => o.id === id));
-    const o = layer?.objects.find((x) => x.id === id);
-    if (!layer || !o) return;
-    addObjectTo(layer.id, cloneWithOffset(o));
+    duplicateObjects([id]);
   }
   function pasteClipboard() {
     const clip = clipboardRef.current;
-    if (!clip) return;
+    if (!clip || !clip.objs.length) return;
     const layer =
       active && !active.locked ? active : project.layers.find((l) => l.id === clip.layerId);
     if (!layer || layer.locked) return;
-    addObjectTo(layer.id, cloneWithOffset(clip.obj));
+    const clones = clip.objs.map(cloneWithOffset);
+    updateLayer(layer.id, { objects: [...layer.objects, ...clones] });
+    setSelectedIds(clones.map((c) => c.id));
   }
   function reorderObject(id: string, dir: "front" | "back" | "forward" | "backward") {
     const layer = project.layers.find((l) => l.objects.some((o) => o.id === id));
@@ -406,11 +453,17 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
     else arr.splice(Math.max(0, idx - 1), 0, obj);
     updateLayer(layer.id, { objects: arr });
   }
-  function addObjectTo(layerId: string, o: MMObject) {
-    updateLayer(layerId, {
-      objects: [...(project.layers.find((l) => l.id === layerId)?.objects ?? []), o],
-    });
-    setSelectedId(o.id);
+  /** Batched front/back for one or many objects at once (keyboard shortcut,
+   * Edit menu, context menu, multi-select toolbar) — a single array rebuild
+   * instead of calling reorderObject in a loop, since each call there would
+   * otherwise read the same stale `project` closure and clobber the others. */
+  function reorderObjects(ids: string[], dir: "front" | "back") {
+    const idSet = new Set(ids);
+    const layer = project.layers.find((l) => l.objects.some((o) => idSet.has(o.id)));
+    if (!layer) return;
+    const moving = layer.objects.filter((o) => idSet.has(o.id));
+    const staying = layer.objects.filter((o) => !idSet.has(o.id));
+    updateLayer(layer.id, { objects: dir === "front" ? [...staying, ...moving] : [...moving, ...staying] });
   }
 
   function commitColor(v: string) {
@@ -465,6 +518,62 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
     node.rotation(0);
     return { points: newPoints, scaleFactor };
   }
+  /** Multi-select group dragging: Konva only moves the one node the pointer
+   * is actually dragging, so while several objects are selected we mirror
+   * that node's live delta onto every other selected node's own position
+   * (beginGroupDrag captures each one's starting position, syncGroupDrag
+   * re-applies the delta on every move), then bake all of *their* final
+   * positions into the data too once the drag ends — the dragged node keeps
+   * baking itself via its own existing onDragEnd, exactly as with a single
+   * selection. */
+  function beginGroupDrag(e: Konva.KonvaEventObject<DragEvent>, id: string) {
+    if (selectedIds.length < 2 || !selectedIds.includes(id)) {
+      groupDragRef.current = null;
+      return;
+    }
+    const stage = e.target.getStage();
+    if (!stage) return;
+    const starts: Record<string, { x: number; y: number }> = {};
+    for (const sid of selectedIds) {
+      const n = stage.findOne(`#${CSS.escape(sid)}`);
+      if (n) starts[sid] = { x: n.x(), y: n.y() };
+    }
+    groupDragRef.current = { ids: selectedIds, starts };
+  }
+  function syncGroupDrag(e: Konva.KonvaEventObject<DragEvent>, id: string) {
+    const g = groupDragRef.current;
+    if (!g || !g.starts[id]) return;
+    const stage = e.target.getStage();
+    if (!stage) return;
+    const dx = e.target.x() - g.starts[id].x,
+      dy = e.target.y() - g.starts[id].y;
+    for (const sid of g.ids) {
+      if (sid === id) continue;
+      const n = stage.findOne(`#${CSS.escape(sid)}`),
+        start = g.starts[sid];
+      if (n && start) n.position({ x: start.x + dx, y: start.y + dy });
+    }
+    stage.batchDraw();
+  }
+  function finishGroupDrag(e: Konva.KonvaEventObject<DragEvent>, excludeId: string) {
+    const g = groupDragRef.current;
+    groupDragRef.current = null;
+    if (!g) return;
+    const stage = e.target.getStage();
+    if (!stage) return;
+    for (const sid of g.ids) {
+      if (sid === excludeId) continue;
+      const layer = project.layers.find((l) => l.objects.some((o) => o.id === sid));
+      const obj = layer?.objects.find((o) => o.id === sid);
+      const node = stage.findOne(`#${CSS.escape(sid)}`);
+      if (!layer || !obj || !node) continue;
+      if (obj.kind === "icon" || obj.kind === "label") {
+        updateObject(layer.id, obj.id, { x: node.x() / W, y: node.y() / H });
+      } else {
+        handleShapeDragEnd(layer.id, obj.id, obj.points, node);
+      }
+    }
+  }
 
   /** Space+drag or middle-click drag panning: scrolls the canvas wrapper
    * directly (no React state needed for the scroll itself), so it stays
@@ -493,13 +602,42 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
     containerRef.current?.releasePointerCapture(e.pointerId);
   }
 
+  /** Right-click context menu: walk up from whatever Konva node was clicked
+   * (an icon's inner Path, say) to find the ancestor carrying the object's
+   * own `id` (set on the Line/Group/Text root of each rendered object). */
+  function findObjectId(node: Konva.Node, stage: Konva.Stage): string | null {
+    let n: Konva.Node | null = node;
+    while (n && n !== stage) {
+      const id = n.id();
+      if (id) return id;
+      n = n.getParent();
+    }
+    return null;
+  }
+  function handleContextMenu(e: Konva.KonvaEventObject<PointerEvent>) {
+    e.evt.preventDefault();
+    if (tool !== "select") return;
+    const stage = e.target.getStage();
+    if (!stage) return;
+    const targetId = findObjectId(e.target, stage);
+    if (targetId && !selectedIds.includes(targetId)) selectOnly(targetId);
+    else if (!targetId) clearSelection();
+    setContextMenu({ x: e.evt.clientX, y: e.evt.clientY, targetId });
+  }
+
   // ---- Drawing: one pointer-handler set per tool, shared across the Stage ----
   function handlePointerDown(e: Konva.KonvaEventObject<PointerEvent>) {
     if (spaceHeld || e.evt.button !== 0) return;
     const stage = e.target.getStage();
     if (!stage) return;
     if (tool === "select") {
-      if (e.target === stage) setSelectedId(null);
+      if (e.target === stage) {
+        const pos = stage.getPointerPosition();
+        if (pos) {
+          marqueeAdditiveRef.current = e.evt.shiftKey;
+          setMarquee({ x0: pos.x, y0: pos.y, x1: pos.x, y1: pos.y });
+        }
+      }
       return;
     }
     if (!active || active.locked) return;
@@ -556,6 +694,12 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
     }
   }
   function handlePointerMove(e: Konva.KonvaEventObject<PointerEvent>) {
+    if (marquee) {
+      const stage = e.target.getStage();
+      const pos = stage?.getPointerPosition();
+      if (pos) setMarquee((m) => (m ? { ...m, x1: pos.x, y1: pos.y } : m));
+      return;
+    }
     if (!brushDraft && !pathDraft) return;
     const stage = e.target.getStage();
     if (!stage) return;
@@ -567,7 +711,30 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
     else if (pathDraft && pathDraft.length < 6000)
       setPathDraft((old) => (old ? [...old, p] : old));
   }
-  function handlePointerUp() {
+  function handlePointerUp(e: Konva.KonvaEventObject<PointerEvent>) {
+    if (marquee) {
+      const dx = Math.abs(marquee.x1 - marquee.x0),
+        dy = Math.abs(marquee.y1 - marquee.y0);
+      const stage = e.target.getStage();
+      if (dx < 4 && dy < 4) {
+        if (!marqueeAdditiveRef.current) clearSelection();
+      } else if (stage && active) {
+        const rx0 = Math.min(marquee.x0, marquee.x1),
+          rx1 = Math.max(marquee.x0, marquee.x1),
+          ry0 = Math.min(marquee.y0, marquee.y1),
+          ry1 = Math.max(marquee.y0, marquee.y1);
+        const hits: string[] = [];
+        for (const o of active.objects) {
+          const node = stage.findOne(`#${CSS.escape(o.id)}`);
+          if (!node) continue;
+          const r = node.getClientRect({ relativeTo: stage });
+          if (r.x < rx1 && r.x + r.width > rx0 && r.y < ry1 && r.y + r.height > ry0) hits.push(o.id);
+        }
+        setSelectedIds((cur) => (marqueeAdditiveRef.current ? Array.from(new Set([...cur, ...hits])) : hits));
+      }
+      setMarquee(null);
+      return;
+    }
     if (brushDraft) {
       addObject(brushDraft);
       setBrushDraft(null);
@@ -674,6 +841,9 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
         <button className="mm-back" title={t("mmMyMaps")} onClick={() => setShowGallery(true)}>
           <Glyph name="folder" size={16} />
         </button>
+        <button className="mm-back" title={t("mmExportMap")} onClick={() => exportProjectToFile(project)}>
+          <Glyph name="download" size={16} />
+        </button>
         <input
           className="mm-title-input"
           value={project.name}
@@ -709,18 +879,21 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
               <div className="mm-menu-heading">{t("mmMenuEdit")}</div>
               <MenuRow label={t("undo")} shortcut="⌘Z" disabled={!canUndo} onClick={() => { undo(); setShowEditMenu(false); }} />
               <MenuRow label={t("redo")} shortcut="⌘⇧Z" disabled={!canRedo} onClick={() => { redo(); setShowEditMenu(false); }} />
-              <MenuRow label={t("mmDuplicateObject")} shortcut="⌘D" disabled={!selectedObj} onClick={() => { if (selectedObj) duplicateObject(selectedObj.id); setShowEditMenu(false); }} />
-              <MenuRow label={t("mmCopyObject")} shortcut="⌘C" disabled={!selectedObj} onClick={() => { copySelection(); setShowEditMenu(false); }} />
+              <MenuRow label={t("mmDuplicateObject")} shortcut="⌘D" disabled={!selectedObjs.length} onClick={() => { duplicateObjects(selectedIds); setShowEditMenu(false); }} />
+              <MenuRow label={t("mmCopyObject")} shortcut="⌘C" disabled={!selectedObjs.length} onClick={() => { copySelection(); setShowEditMenu(false); }} />
               <MenuRow label={t("mmPasteObject")} shortcut="⌘V" disabled={!hasClipboard} onClick={() => { pasteClipboard(); setShowEditMenu(false); }} />
-              <MenuRow label={t("mmDeleteObject")} shortcut="⌫" disabled={!selectedObj} onClick={() => { if (selectedObj) removeObject(selectedObj.id); setShowEditMenu(false); }} />
-              <MenuRow label={t("mmBringToFront")} shortcut="⌘]" disabled={!selectedObj} onClick={() => { if (selectedObj) reorderObject(selectedObj.id, "front"); setShowEditMenu(false); }} />
-              <MenuRow label={t("mmSendToBack")} shortcut="⌘[" disabled={!selectedObj} onClick={() => { if (selectedObj) reorderObject(selectedObj.id, "back"); setShowEditMenu(false); }} />
+              <MenuRow label={t("mmDeleteObject")} shortcut="⌫" disabled={!selectedObjs.length} onClick={() => { removeObjects(selectedIds); setShowEditMenu(false); }} />
+              <MenuRow label={t("mmBringToFront")} shortcut="⌘]" disabled={!selectedObjs.length} onClick={() => { reorderObjects(selectedIds, "front"); setShowEditMenu(false); }} />
+              <MenuRow label={t("mmBringForward")} disabled={selectedObjs.length !== 1} onClick={() => { if (selectedObj) reorderObject(selectedObj.id, "forward"); setShowEditMenu(false); }} />
+              <MenuRow label={t("mmSendBackward")} disabled={selectedObjs.length !== 1} onClick={() => { if (selectedObj) reorderObject(selectedObj.id, "backward"); setShowEditMenu(false); }} />
+              <MenuRow label={t("mmSendToBack")} shortcut="⌘[" disabled={!selectedObjs.length} onClick={() => { reorderObjects(selectedIds, "back"); setShowEditMenu(false); }} />
               <div className="mm-menu-divider" />
               <div className="mm-menu-heading">{t("mmMenuView")}</div>
               <MenuRow label={t("mmFitScreen")} onClick={() => { setZoom(1); setShowEditMenu(false); }} icon="fit" />
               <MenuHint label={t("mmZoom")} hint={t("mmZoomHint")} />
               <MenuHint label={t("mmPan")} hint={t("mmPanHint")} />
               <MenuHint label={t("mmCancelDraft")} hint={t("mmEscapeHint")} />
+              <MenuHint label={t("mmMultiSelect")} hint={t("mmMultiSelectHint")} />
             </div>
           )}
         </div>
@@ -745,8 +918,20 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
         </nav>
         <div className="mm-canvas-column">
           <div className="mm-top-toolbar">
-            {tool === "select" && !selectedObj && (
+            {tool === "select" && selectedObjs.length === 0 && (
               <span className="mm-toolbar-note">{t("mmNoSelection")}</span>
+            )}
+            {tool === "select" && selectedObjs.length > 1 && (
+              <MultiSelectionBar
+                count={selectedObjs.length}
+                t={t}
+                onDuplicate={() => duplicateObjects(selectedIds)}
+                onDelete={() => removeObjects(selectedIds)}
+                onCopy={copySelection}
+                onFront={() => reorderObjects(selectedIds, "front")}
+                onBack={() => reorderObjects(selectedIds, "back")}
+                onClear={clearSelection}
+              />
             )}
             {tool === "brush" && (
               <>
@@ -919,8 +1104,10 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
               onPointerCancel={() => {
                 setBrushDraft(null);
                 setPathDraft(null);
+                setMarquee(null);
               }}
               onDblClick={finishRegion}
+              onContextMenu={handleContextMenu}
             >
               <Layer listening={false}>
                 <Rect x={0} y={0} width={W} height={H} fill={project.background} />
@@ -949,12 +1136,21 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
                           fillPatternRotation={o.textureRotation}
                           fillPriority="pattern"
                           opacity={o.opacity}
-                          stroke={selectedId === o.id ? "#f2a65a" : undefined}
-                          strokeWidth={selectedId === o.id ? 2 : 0}
+                          stroke={selectedIdSet.has(o.id) ? "#f2a65a" : undefined}
+                          strokeWidth={selectedIdSet.has(o.id) ? 2 : 0}
                           draggable={tool === "select" && !layer.locked}
-                          onClick={() => tool === "select" && setSelectedId(o.id)}
-                          onTap={() => tool === "select" && setSelectedId(o.id)}
-                          onDragEnd={(e) => handleShapeDragEnd(layer.id, o.id, o.points, e.target)}
+                          onClick={(e) => {
+                            if (tool !== "select") return;
+                            if (e.evt.shiftKey) toggleSelect(o.id);
+                            else selectOnly(o.id);
+                          }}
+                          onTap={() => tool === "select" && selectOnly(o.id)}
+                          onDragStart={(e) => beginGroupDrag(e, o.id)}
+                          onDragMove={(e) => syncGroupDrag(e, o.id)}
+                          onDragEnd={(e) => {
+                            handleShapeDragEnd(layer.id, o.id, o.points, e.target);
+                            finishGroupDrag(e, o.id);
+                          }}
                           onTransformEnd={(e) => {
                             const { points } = handleShapeTransformEnd(o.points, e.target);
                             updateObject(layer.id, o.id, { points });
@@ -968,7 +1164,7 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
                           id={o.id}
                           points={o.points.flatMap((p) => [p.x * W, p.y * H])}
                           tension={0.4}
-                          stroke={selectedId === o.id ? "#f2a65a" : o.color}
+                          stroke={selectedIdSet.has(o.id) ? "#f2a65a" : o.color}
                           strokeWidth={Math.max(0.5, o.size * W)}
                           opacity={o.opacity}
                           shadowColor={o.color}
@@ -978,9 +1174,18 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
                           lineJoin="round"
                           draggable={tool === "select" && !layer.locked}
                           hitStrokeWidth={Math.max(12, o.size * W)}
-                          onClick={() => tool === "select" && setSelectedId(o.id)}
-                          onTap={() => tool === "select" && setSelectedId(o.id)}
-                          onDragEnd={(e) => handleShapeDragEnd(layer.id, o.id, o.points, e.target)}
+                          onClick={(e) => {
+                            if (tool !== "select") return;
+                            if (e.evt.shiftKey) toggleSelect(o.id);
+                            else selectOnly(o.id);
+                          }}
+                          onTap={() => tool === "select" && selectOnly(o.id)}
+                          onDragStart={(e) => beginGroupDrag(e, o.id)}
+                          onDragMove={(e) => syncGroupDrag(e, o.id)}
+                          onDragEnd={(e) => {
+                            handleShapeDragEnd(layer.id, o.id, o.points, e.target);
+                            finishGroupDrag(e, o.id);
+                          }}
                           onTransformEnd={(e) => {
                             const { points, scaleFactor } = handleShapeTransformEnd(o.points, e.target);
                             updateObject(layer.id, o.id, { points, size: Math.max(0.001, Math.min(0.08, o.size * scaleFactor)) });
@@ -995,7 +1200,7 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
                           id={o.id}
                           points={o.points.flatMap((p) => [p.x * W, p.y * H])}
                           tension={0.4}
-                          stroke={selectedId === o.id ? "#f2a65a" : o.color}
+                          stroke={selectedIdSet.has(o.id) ? "#f2a65a" : o.color}
                           strokeWidth={w}
                           opacity={o.opacity}
                           shadowColor={o.color}
@@ -1005,9 +1210,18 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
                           lineJoin="round"
                           draggable={tool === "select" && !layer.locked}
                           hitStrokeWidth={Math.max(12, w)}
-                          onClick={() => tool === "select" && setSelectedId(o.id)}
-                          onTap={() => tool === "select" && setSelectedId(o.id)}
-                          onDragEnd={(e) => handleShapeDragEnd(layer.id, o.id, o.points, e.target)}
+                          onClick={(e) => {
+                            if (tool !== "select") return;
+                            if (e.evt.shiftKey) toggleSelect(o.id);
+                            else selectOnly(o.id);
+                          }}
+                          onTap={() => tool === "select" && selectOnly(o.id)}
+                          onDragStart={(e) => beginGroupDrag(e, o.id)}
+                          onDragMove={(e) => syncGroupDrag(e, o.id)}
+                          onDragEnd={(e) => {
+                            handleShapeDragEnd(layer.id, o.id, o.points, e.target);
+                            finishGroupDrag(e, o.id);
+                          }}
                           onTransformEnd={(e) => {
                             const { points, scaleFactor } = handleShapeTransformEnd(o.points, e.target);
                             updateObject(layer.id, o.id, { points, width: Math.max(0.0008, Math.min(0.06, o.width * scaleFactor)) });
@@ -1031,9 +1245,18 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
                           offsetX={12}
                           offsetY={12}
                           draggable={tool === "select" && !layer.locked}
-                          onClick={() => tool === "select" && setSelectedId(o.id)}
-                          onTap={() => tool === "select" && setSelectedId(o.id)}
-                          onDragEnd={(e) => updateObject(layer.id, o.id, { x: e.target.x() / W, y: e.target.y() / H })}
+                          onClick={(e) => {
+                            if (tool !== "select") return;
+                            if (e.evt.shiftKey) toggleSelect(o.id);
+                            else selectOnly(o.id);
+                          }}
+                          onTap={() => tool === "select" && selectOnly(o.id)}
+                          onDragStart={(e) => beginGroupDrag(e, o.id)}
+                          onDragMove={(e) => syncGroupDrag(e, o.id)}
+                          onDragEnd={(e) => {
+                            updateObject(layer.id, o.id, { x: e.target.x() / W, y: e.target.y() / H });
+                            finishGroupDrag(e, o.id);
+                          }}
                           onTransformEnd={(e) => {
                             const node = e.target,
                               k = (W * 0.05) / 24,
@@ -1059,9 +1282,18 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
                         fill={o.color}
                         align={o.align === "center" ? "center" : o.align === "end" ? "right" : "left"}
                         draggable={tool === "select" && !layer.locked}
-                        onClick={() => tool === "select" && setSelectedId(o.id)}
-                        onTap={() => tool === "select" && setSelectedId(o.id)}
-                        onDragEnd={(e) => updateObject(layer.id, o.id, { x: e.target.x() / W, y: e.target.y() / H })}
+                        onClick={(e) => {
+                          if (tool !== "select") return;
+                          if (e.evt.shiftKey) toggleSelect(o.id);
+                          else selectOnly(o.id);
+                        }}
+                        onTap={() => tool === "select" && selectOnly(o.id)}
+                        onDragStart={(e) => beginGroupDrag(e, o.id)}
+                        onDragMove={(e) => syncGroupDrag(e, o.id)}
+                        onDragEnd={(e) => {
+                          updateObject(layer.id, o.id, { x: e.target.x() / W, y: e.target.y() / H });
+                          finishGroupDrag(e, o.id);
+                        }}
                         onTransformEnd={(e) => {
                           const node = e.target,
                             scale = Math.max(0.2, Math.min(6, (node.scaleX() + node.scaleY()) / 2));
@@ -1108,14 +1340,26 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
                     ))}
                   </>
                 )}
+                {marquee && (
+                  <Rect
+                    x={Math.min(marquee.x0, marquee.x1)}
+                    y={Math.min(marquee.y0, marquee.y1)}
+                    width={Math.abs(marquee.x1 - marquee.x0)}
+                    height={Math.abs(marquee.y1 - marquee.y0)}
+                    fill="rgba(242,166,90,0.12)"
+                    stroke="#f2a65a"
+                    strokeWidth={1}
+                    dash={[4, 3]}
+                  />
+                )}
               </Layer>
               <Layer>
-                {tool === "select" && selectedId && (
+                {tool === "select" && selectedIds.length > 0 && (
                   <Transformer
                     ref={transformerRef}
                     rotateEnabled
                     anchorSize={9}
-                    keepRatio={selectedObj?.kind === "icon" || selectedObj?.kind === "label"}
+                    keepRatio={selectedObjs.length === 1 && (selectedObj?.kind === "icon" || selectedObj?.kind === "label")}
                   />
                 )}
               </Layer>
@@ -1158,7 +1402,7 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
           {shortcutsVisible && (
             <div className="mm-shortcut-hint">
               <span>{t(HINT_KEY[tool])}</span>
-              <span className="mm-shortcut-legend">1–6 {t("mmToolSelect")}/{t("mmToolBrush")}/… · ⌘Z {t("undo")} · ⌘⇧Z {t("redo")} · ⌘D {t("mmDuplicateObject")} · ⌘C/⌘V copy/paste · ⌘] / ⌘[ {t("mmBringToFront")}/{t("mmSendToBack")} · ⌘ scroll {t("mmZoom")}</span>
+              <span className="mm-shortcut-legend">1–6 {t("mmToolSelect")}/{t("mmToolBrush")}/… · {t("mmMultiSelectHint")} · ⌘Z {t("undo")} · ⌘⇧Z {t("redo")} · ⌘D {t("mmDuplicateObject")} · ⌘C/⌘V copy/paste · ⌘] / ⌘[ {t("mmBringToFront")}/{t("mmSendToBack")} · ⌘ scroll {t("mmZoom")}</span>
             </div>
           )}
         </div>
@@ -1182,12 +1426,12 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
               {objectRows.length === 0 && <p className="mm-empty-note">{t("mmNoObjects")}</p>}
               <div className="mm-object-list">
                 {objectRows.map(({ layer, o }) => (
-                  <div key={o.id} className={`mm-object-row ${selectedId === o.id ? "selected" : ""}`}>
+                  <div key={o.id} className={`mm-object-row ${selectedIdSet.has(o.id) ? "selected" : ""}`}>
                     <button
                       className="mm-object-main"
                       onClick={() => {
                         setActiveLayerId(layer.id);
-                        setSelectedId(o.id);
+                        selectOnly(o.id);
                         setTool("select");
                       }}
                     >
@@ -1298,6 +1542,23 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
         />
       )}
       {showCreate && <CreateMapModal onClose={() => setShowCreate(false)} />}
+      {contextMenu && (
+        <div
+          ref={contextMenuRef}
+          className="mm-edit-menu mm-context-menu"
+          style={{ left: contextMenu.x, top: contextMenu.y }}
+        >
+          <MenuRow label={t("mmDuplicateObject")} shortcut="⌘D" disabled={!selectedObjs.length} onClick={() => { duplicateObjects(selectedIds); setContextMenu(null); }} />
+          <MenuRow label={t("mmCopyObject")} shortcut="⌘C" disabled={!selectedObjs.length} onClick={() => { copySelection(); setContextMenu(null); }} />
+          <MenuRow label={t("mmPasteObject")} shortcut="⌘V" disabled={!hasClipboard} onClick={() => { pasteClipboard(); setContextMenu(null); }} />
+          <MenuRow label={t("mmDeleteObject")} shortcut="⌫" disabled={!selectedObjs.length} onClick={() => { removeObjects(selectedIds); setContextMenu(null); }} />
+          <div className="mm-menu-divider" />
+          <MenuRow label={t("mmBringToFront")} shortcut="⌘]" disabled={!selectedObjs.length} onClick={() => { reorderObjects(selectedIds, "front"); setContextMenu(null); }} />
+          <MenuRow label={t("mmBringForward")} disabled={selectedObjs.length !== 1} onClick={() => { if (selectedObj) reorderObject(selectedObj.id, "forward"); setContextMenu(null); }} />
+          <MenuRow label={t("mmSendBackward")} disabled={selectedObjs.length !== 1} onClick={() => { if (selectedObj) reorderObject(selectedObj.id, "backward"); setContextMenu(null); }} />
+          <MenuRow label={t("mmSendToBack")} shortcut="⌘[" disabled={!selectedObjs.length} onClick={() => { reorderObjects(selectedIds, "back"); setContextMenu(null); }} />
+        </div>
+      )}
     </div>
   );
 }
