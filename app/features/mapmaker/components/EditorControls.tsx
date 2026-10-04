@@ -5,7 +5,9 @@
  * they're only ever used from MapCreatorEditor.tsx — mirrors how the print
  * studio keeps its own editor UI self-contained (features/studio/components). */
 import { Glyph } from "../glyphs";
-import type { MMObject, MMPatch } from "../types";
+import { ARABIC_RANGE } from "../domain";
+import { SelectField } from "../../../components/ui/fields";
+import type { LabelAlign, MMObject, MMPatch } from "../types";
 
 export function Slider({
   label,
@@ -96,10 +98,24 @@ export function ObjectQuickBar({
       )}
       {obj.kind === "label" && (
         <>
-          <input className="mm-inline-text" value={obj.text} onChange={(e) => onPatch({ text: e.target.value })} />
+          <input
+            className="mm-inline-text"
+            value={obj.text}
+            dir={obj.rtl ? "rtl" : "ltr"}
+            onChange={(e) => {
+              const text = e.target.value,
+                rtl = ARABIC_RANGE.test(text);
+              onPatch(rtl !== obj.rtl ? { text, rtl } : { text });
+            }}
+          />
           <ColorControl color={obj.color} recents={[]} onChange={(v) => onPatch({ color: v })} label={t("mmColor")} recentLabel="" />
           <Slider label={t("mmLabelSize")} value={obj.size} min={0.01} max={0.1} step={0.005} onChange={(v) => onPatch({ size: v })} />
           <Slider label={t("mmIconRotation")} value={obj.rotation ?? 0} min={-180} max={180} step={1} onChange={(v) => onPatch({ rotation: v })} format={(v) => `${v}°`} />
+          <SelectField label={t("mmLabelAlign")} value={obj.align} onChange={(v) => onPatch({ align: v as LabelAlign })}>
+            <option value="start">{t("mmAlignStart")}</option>
+            <option value="center">{t("mmAlignCenter")}</option>
+            <option value="end">{t("mmAlignEnd")}</option>
+          </SelectField>
         </>
       )}
       {obj.kind === "path" && (

@@ -69,6 +69,9 @@ export const PATH_KIND_LABEL_KEY: Record<PathKind, string> = {
 
 export const DEFAULT_BACKGROUND = "#2c5678";
 
+/** Arabic script block — used to auto-detect right-to-left label text. */
+export const ARABIC_RANGE = /[\u0600-\u06FF]/;
+
 export function createLayer(name: string): MMLayer {
   return {
     id: crypto.randomUUID(),

@@ -1,6 +1,7 @@
 "use client";
 import type React from "react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useTranslation } from "react-i18next";
@@ -18,8 +19,9 @@ import {
 } from "react-konva";
 import "../../lib/i18n";
 import { Glyph } from "./glyphs";
-import { biomeTexture } from "./textures";
+import { biomeSwatchDataUrl, biomeTexture } from "./textures";
 import {
+  ARABIC_RANGE,
   BIOME_LABEL_KEY,
   BIOME_LIST,
   PATH_KIND_LABEL_KEY,
@@ -40,9 +42,12 @@ import { SelectField } from "../../components/ui/fields";
 import type {
   Biome,
   LabelAlign,
+  MMBrush,
+  MMLabel,
   MMLayer,
   MMObject,
   MMPatch,
+  MMPath,
   MMProject,
   PathKind,
   Point,
@@ -73,7 +78,149 @@ const HINT_KEY: Record<Tool, string> = {
 // same way features/studio/components/MapEditor.tsx stays one big component
 // for the embedded editor rather than being split further.
 // ---------------------------------------------------------------------------
-const ARABIC_RANGE = /[؀-ۿ]/;
+// -----------------------------------------------------------------------------
+// Drawing limits & tuning
+// -----------------------------------------------------------------------------
+const MAX_LAYERS = 20,
+  MAX_OBJECTS_PER_LAYER = 3000,
+  MAX_STROKE_POINTS = 6000,
+  MAX_REGION_POINTS = 300,
+  /** Freehand samples closer than this (screen px) to the previous one are
+   * dropped — keeps strokes light without visibly changing their shape. */
+  MIN_STROKE_GAP_PX = 1,
+  /** Clicking within this distance of a region's first vertex closes it. */
+  REGION_CLOSE_PX = 10,
+  /** A click this close to the last vertex is ignored (double-click, jitter). */
+  REGION_DUPLICATE_PX = 4,
+  /** An icon at scale 1 is this fraction of the map width. */
+  ICON_BASE = 0.05,
+  /** Display width that stroke softness and texture sizes were tuned at. Both
+   * are scaled by `W / EFFECT_REF_WIDTH`, so they stay proportional to the
+   * map at every zoom level and in the full-resolution print export. */
+  EFFECT_REF_WIDTH = 900,
+  LABEL_FONT = 'Georgia, "Times New Roman", serif',
+  /** Stable empty array for the live stroke preview: its points are pushed
+   * imperatively, and a constant prop means React never resets them. */
+  NO_POINTS: number[] = [];
+
+type StrokeDraft = Omit<MMBrush, "points"> | Omit<MMPath, "points">;
+type ObjUpdater = (o: MMObject) => MMPatch;
+type StagePoint = { x: number; y: number };
+
+/** Konva's `#id` selector compares the raw string, so ids must never be
+ * CSS-escaped: `CSS.escape` turns a UUID's leading digit into `\3X `, which
+ * then never matches (≈10 in 16 objects). A predicate lookup sidesteps
+ * selector parsing entirely. */
+function findNode(stage: Konva.Stage, id: string): Konva.Node | null {
+  return stage.findOne((n: Konva.Node) => n.id() === id) ?? null;
+}
+function clamp(v: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, v));
+}
+/** Wraps any angle into [-180, 180) to match the rotation sliders. */
+function normalizeAngle(deg: number) {
+  return ((((deg + 180) % 360) + 360) % 360) - 180;
+}
+function flattenPoints(points: Point[], w: number, h: number) {
+  const out = new Array<number>(points.length * 2);
+  for (let i = 0; i < points.length; i++) {
+    out[i * 2] = points[i].x * w;
+    out[i * 2 + 1] = points[i].y * h;
+  }
+  return out;
+}
+
+/** Applies `fn` to one layer; returns the same project object when nothing
+ * changed, so the history reducer records no empty undo step. */
+function mapLayer(p: MMProject, layerId: string, fn: (l: MMLayer) => MMLayer): MMProject {
+  let changed = false;
+  const layers = p.layers.map((l) => {
+    if (l.id !== layerId) return l;
+    const next = fn(l);
+    if (next !== l) changed = true;
+    return next;
+  });
+  return changed ? { ...p, layers, updatedAt: Date.now() } : p;
+}
+/** Patches many objects (in any layers) in one immutable update. Updaters
+ * receive the object's *current* value, never a stale render-time copy. */
+function applyObjectPatches(p: MMProject, updaters: Map<string, ObjUpdater>): MMProject {
+  if (!updaters.size) return p;
+  let changed = false;
+  const layers = p.layers.map((l) => {
+    if (!l.objects.some((o) => updaters.has(o.id))) return l;
+    changed = true;
+    return {
+      ...l,
+      objects: l.objects.map((o) => {
+        const update = updaters.get(o.id);
+        return update ? ({ ...o, ...update(o) } as MMObject) : o;
+      }),
+    };
+  });
+  return changed ? { ...p, layers, updatedAt: Date.now() } : p;
+}
+
+/** Shared look for brush strokes and paths — used by both the committed
+ * object and the live preview, so what you see while drawing is exactly what
+ * lands on the map (no jump in smoothing/softness on release). */
+function strokeAppearance(o: StrokeDraft, W: number) {
+  const width = Math.max(0.5, (o.kind === "brush" ? o.size : o.width) * W),
+    soft = o.softness > 0;
+  return {
+    stroke: o.color,
+    strokeWidth: width,
+    opacity: o.opacity,
+    tension: 0.4,
+    lineCap: "round" as const,
+    lineJoin: "round" as const,
+    shadowEnabled: soft,
+    shadowColor: o.color,
+    shadowBlur: o.softness * (o.kind === "brush" ? 30 : 24) * (W / EFFECT_REF_WIDTH),
+    shadowOpacity: soft ? 0.9 : 0,
+    hitStrokeWidth: Math.max(12, width),
+    perfectDrawEnabled: false,
+  };
+}
+/** Biome texture fill, sized relative to the map (not to screen pixels). */
+function regionFill(biome: Biome, textureScale: number, textureRotation: number, W: number) {
+  const s = textureScale * (W / EFFECT_REF_WIDTH);
+  return {
+    fillPatternImage: biomeTexture(biome) as unknown as HTMLImageElement,
+    fillPatternScale: { x: s, y: s },
+    fillPatternRotation: textureRotation,
+    fillPriority: "pattern",
+    perfectDrawEnabled: false,
+  };
+}
+
+let measureCtx: CanvasRenderingContext2D | null = null;
+/** Width (canvas px) of a label's widest line at the given font size. */
+function measureLabel(text: string, fontSize: number) {
+  measureCtx ??= document.createElement("canvas").getContext("2d");
+  if (!measureCtx) return 0;
+  measureCtx.font = `${fontSize}px ${LABEL_FONT}`;
+  let max = 0;
+  for (const line of text.split("\n")) max = Math.max(max, measureCtx.measureText(line).width);
+  return max;
+}
+/** Logical start/end → physical side, honouring the label's direction. */
+function physicalAlign(o: Pick<MMLabel, "align" | "rtl">): "left" | "center" | "right" {
+  if (o.align === "center") return "center";
+  return (o.align === "end") !== o.rtl ? "right" : "left";
+}
+/** Konva only aligns text inside an explicit width, so labels get a measured
+ * block width, and `offsetX` turns the label's (x, y) into a true anchor:
+ * left edge for start, middle for center, right edge for end (mirrored for
+ * RTL). Labels saved before anchoring existed (`anchored` unset) keep their
+ * original top-left placement, so existing maps never shift. */
+function labelLayout(o: MMLabel, W: number) {
+  const fontSize = Math.max(1, o.size * W),
+    width = Math.ceil(measureLabel(o.text, fontSize)) + 1,
+    align = physicalAlign(o),
+    offsetX = !o.anchored ? 0 : align === "center" ? width / 2 : align === "right" ? width : 0;
+  return { fontSize, width, align, offsetX };
+}
 
 // =============================================================================
 // The standalone map-creator page/editor
@@ -124,25 +271,36 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
     [labelRtl, setLabelRtl] = useState(false),
     [labelText, setLabelText] = useState(""),
     [labelDraft, setLabelDraft] = useState<Point | null>(null);
-  const [brushDraft, setBrushDraft] = useState<MMObject & { kind: "brush" } | null>(null),
-    [pathDraft, setPathDraft] = useState<Point[] | null>(null),
+  /** In-flight brush/path stroke. Only its *style* lives in React state (set
+   * once at pointer-down); the points stream straight into the Konva preview
+   * node, so drawing never re-renders the whole editor per pointer move. */
+  const [stroke, setStroke] = useState<StrokeDraft | null>(null),
     [regionDraft, setRegionDraft] = useState<Point[] | null>(null);
 
   const containerRef = useRef<HTMLDivElement>(null),
     stageRef = useRef<Konva.Stage>(null),
     transformerRef = useRef<Konva.Transformer>(null),
+    gridGroupRef = useRef<Konva.Group>(null),
+    overlayLayerRef = useRef<Konva.Layer>(null),
+    uiLayerRef = useRef<Konva.Layer>(null),
+    strokeLineRef = useRef<Konva.Line>(null),
+    strokePointsRef = useRef<Point[]>([]),
+    marqueeRectRef = useRef<Konva.Rect>(null),
+    /** Aborts the active window-level pointer gesture (stroke/marquee). */
+    pointerSessionRef = useRef<(() => void) | null>(null),
+    pendingPatchesRef = useRef<Map<string, ObjUpdater> | null>(null),
+    /** Current canvas size, readable from long-lived pointer listeners. */
+    viewRef = useRef({ w: 0, h: 0 }),
     clipboardRef = useRef<{ layerId: string; objs: MMObject[] } | null>(null),
     panRef = useRef<{ x: number; y: number; scrollLeft: number; scrollTop: number } | null>(null),
     zoomAnchorRef = useRef<{ contentX: number; contentY: number; scaleRatio: number; clientX: number; clientY: number } | null>(null),
     editMenuRef = useRef<HTMLDivElement>(null),
-    contextMenuRef = useRef<HTMLDivElement>(null),
-    marqueeAdditiveRef = useRef(false),
-    groupDragRef = useRef<{ ids: string[]; starts: Record<string, { x: number; y: number }> } | null>(null);
+    contextMenuRef = useRef<HTMLDivElement>(null);
   const [spaceHeld, setSpaceHeld] = useState(false),
     [panningActive, setPanningActive] = useState(false),
     [hasClipboard, setHasClipboard] = useState(false),
     [showEditMenu, setShowEditMenu] = useState(false),
-    [marquee, setMarquee] = useState<{ x0: number; y0: number; x1: number; y1: number } | null>(null),
+    [marqueeStart, setMarqueeStart] = useState<StagePoint | null>(null),
     [contextMenu, setContextMenu] = useState<{ x: number; y: number; targetId: string | null } | null>(null);
 
   // ---- Derived values (recomputed from state each render, kept out of state itself) ----
@@ -191,19 +349,36 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
     tileW = W / project.tileCols,
     tileH = H / project.tileRows;
 
+  useLayoutEffect(() => {
+    viewRef.current = { w: W, h: H };
+  }, [W, H]);
+  // Seed the live stroke preview when it mounts, and re-project it if the
+  // view is zoomed mid-stroke (its points are otherwise pushed imperatively).
+  useLayoutEffect(() => {
+    const line = strokeLineRef.current;
+    if (!stroke || !line) return;
+    line.points(flattenPoints(strokePointsRef.current, W, H));
+    line.getLayer()?.batchDraw();
+  }, [stroke, W, H]);
+  // Never leave window-level pointer listeners behind on unmount.
+  useEffect(() => {
+    const session = pointerSessionRef;
+    return () => session.current?.();
+  }, []);
+
+  // Objects on a hidden or locked layer stay selected but get no handles.
+  const selectionEditable = !!selectedLayer && selectedLayer.visible && !selectedLayer.locked;
   useEffect(() => {
     const tr = transformerRef.current,
       stage = stageRef.current;
     if (!tr || !stage) return;
     const nodes =
-      tool === "select"
-        ? selectedIds
-            .map((id) => stage.findOne(`#${CSS.escape(id)}`))
-            .filter((n): n is Konva.Node => !!n)
+      tool === "select" && selectionEditable
+        ? selectedIds.map((id) => findNode(stage, id)).filter((n): n is Konva.Node => !!n)
         : [];
     tr.nodes(nodes);
     tr.getLayer()?.batchDraw();
-  }, [tool, selectedIds, project]);
+  }, [tool, selectedIds, project, selectionEditable]);
 
   /** Keeps whatever content point was under the cursor fixed in place across
    * a Ctrl/Cmd+scroll (or trackpad-pinch) zoom, instead of zooming from a
@@ -321,7 +496,8 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
   // ---- Shared small helpers (used by keyboard shortcuts, the Edit menu and
   // the toolbars, so all three stay in sync with one implementation) ----
   function cancelDrafts() {
-    setPathDraft(null);
+    // Aborts an in-flight stroke/marquee gesture without committing it.
+    pointerSessionRef.current?.();
     setRegionDraft(null);
     setLabelDraft(null);
   }
@@ -348,61 +524,78 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
   }
 
   // ---- Layer & object CRUD ----
-  function updateLayer(id: string, patch: Partial<MMLayer>) {
-    setProject((p) => ({
-      ...p,
-      layers: p.layers.map((l) => (l.id === id ? { ...l, ...patch } : l)),
-      updatedAt: Date.now(),
-    }));
+  // Every write is a functional update against the *latest* project (never
+  // the render-time `project` closure), so several writes landing in the
+  // same tick compose instead of silently overwriting one another.
+  function updateLayer(id: string, patch: Partial<Omit<MMLayer, "id" | "objects">>) {
+    setProject((p) => mapLayer(p, id, (l) => ({ ...l, ...patch })));
   }
   function addLayer() {
-    if (project.layers.length >= 20) return;
+    if (project.layers.length >= MAX_LAYERS) return;
     const layer = createLayer(`Layer ${project.layers.length + 1}`);
-    setProject((p) => ({ ...p, layers: [...p.layers, layer], updatedAt: Date.now() }));
+    setProject((p) =>
+      p.layers.length >= MAX_LAYERS
+        ? p
+        : { ...p, layers: [...p.layers, layer], updatedAt: Date.now() },
+    );
     setActiveLayerId(layer.id);
   }
   function removeLayer(id: string) {
     if (project.layers.length <= 1) return;
-    setProject((p) => ({
-      ...p,
-      layers: p.layers.filter((l) => l.id !== id),
-      updatedAt: Date.now(),
-    }));
+    const removed = project.layers.find((l) => l.id === id);
+    setProject((p) =>
+      p.layers.length <= 1
+        ? p
+        : { ...p, layers: p.layers.filter((l) => l.id !== id), updatedAt: Date.now() },
+    );
+    if (removed) {
+      const gone = new Set(removed.objects.map((o) => o.id));
+      setSelectedIds((cur) => cur.filter((sid) => !gone.has(sid)));
+    }
     if (activeLayerId === id) {
       const remaining = project.layers.filter((l) => l.id !== id);
       setActiveLayerId(remaining[remaining.length - 1]?.id ?? "");
     }
   }
   function moveLayer(id: string, delta: number) {
-    const index = project.layers.findIndex((l) => l.id === id),
-      to = index + delta;
-    if (index < 0 || to < 0 || to >= project.layers.length) return;
-    const next = [...project.layers];
-    [next[index], next[to]] = [next[to], next[index]];
-    setProject((p) => ({ ...p, layers: next, updatedAt: Date.now() }));
+    setProject((p) => {
+      const index = p.layers.findIndex((l) => l.id === id),
+        to = index + delta;
+      if (index < 0 || to < 0 || to >= p.layers.length) return p;
+      const layers = [...p.layers];
+      [layers[index], layers[to]] = [layers[to], layers[index]];
+      return { ...p, layers, updatedAt: Date.now() };
+    });
   }
   function addObject(o: MMObject) {
-    if (!active || active.locked) return;
-    if (active.objects.length >= 3000) return;
-    updateLayer(active.id, { objects: [...active.objects, o] });
+    if (!active || active.locked || active.objects.length >= MAX_OBJECTS_PER_LAYER) return;
+    const layerId = active.id;
+    setProject((p) =>
+      mapLayer(p, layerId, (l) =>
+        l.locked || l.objects.length >= MAX_OBJECTS_PER_LAYER ? l : { ...l, objects: [...l.objects, o] },
+      ),
+    );
     setSelectedIds([o.id]);
     if (o.kind === "icon") setRecentIcons((r) => [o.icon, ...r.filter((i) => i !== o.icon)].slice(0, 10));
   }
-  function updateObject(layerId: string, id: string, patch: MMPatch) {
-    updateLayer(
-      layerId,
-      {
-        objects: (project.layers.find((l) => l.id === layerId)?.objects ?? []).map(
-          (o) => (o.id === id ? ({ ...o, ...patch } as MMObject) : o),
-        ),
-      },
-    );
+  function updateObject(id: string, patch: MMPatch) {
+    setProject((p) => applyObjectPatches(p, new Map([[id, () => patch]])));
   }
   function removeObjects(ids: string[]) {
+    if (!ids.length) return;
     const idSet = new Set(ids);
-    const layer = project.layers.find((l) => l.objects.some((o) => idSet.has(o.id)));
-    if (!layer) return;
-    updateLayer(layer.id, { objects: layer.objects.filter((o) => !idSet.has(o.id)) });
+    setProject((p) => {
+      if (!p.layers.some((l) => l.objects.some((o) => idSet.has(o.id)))) return p;
+      return {
+        ...p,
+        updatedAt: Date.now(),
+        layers: p.layers.map((l) =>
+          l.objects.some((o) => idSet.has(o.id))
+            ? { ...l, objects: l.objects.filter((o) => !idSet.has(o.id)) }
+            : l,
+        ),
+      };
+    });
     setSelectedIds((cur) => cur.filter((id) => !idSet.has(id)));
   }
   function removeObject(id: string) {
@@ -421,10 +614,10 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
   function duplicateObjects(ids: string[]) {
     const idSet = new Set(ids);
     const layer = project.layers.find((l) => l.objects.some((o) => idSet.has(o.id)));
-    if (!layer) return;
+    if (!layer || layer.locked) return;
     const clones = layer.objects.filter((o) => idSet.has(o.id)).map(cloneWithOffset);
     if (!clones.length) return;
-    updateLayer(layer.id, { objects: [...layer.objects, ...clones] });
+    setProject((p) => mapLayer(p, layer.id, (l) => ({ ...l, objects: [...l.objects, ...clones] })));
     setSelectedIds(clones.map((c) => c.id));
   }
   function duplicateObject(id: string) {
@@ -437,33 +630,39 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
       active && !active.locked ? active : project.layers.find((l) => l.id === clip.layerId);
     if (!layer || layer.locked) return;
     const clones = clip.objs.map(cloneWithOffset);
-    updateLayer(layer.id, { objects: [...layer.objects, ...clones] });
+    setProject((p) => mapLayer(p, layer.id, (l) => ({ ...l, objects: [...l.objects, ...clones] })));
     setSelectedIds(clones.map((c) => c.id));
   }
   function reorderObject(id: string, dir: "front" | "back" | "forward" | "backward") {
-    const layer = project.layers.find((l) => l.objects.some((o) => o.id === id));
-    if (!layer) return;
-    const idx = layer.objects.findIndex((o) => o.id === id);
-    if (idx < 0) return;
-    const arr = [...layer.objects];
-    const [obj] = arr.splice(idx, 1);
-    if (dir === "front") arr.push(obj);
-    else if (dir === "back") arr.unshift(obj);
-    else if (dir === "forward") arr.splice(Math.min(arr.length, idx + 1), 0, obj);
-    else arr.splice(Math.max(0, idx - 1), 0, obj);
-    updateLayer(layer.id, { objects: arr });
+    setProject((p) => {
+      const layer = p.layers.find((l) => l.objects.some((o) => o.id === id));
+      if (!layer) return p;
+      return mapLayer(p, layer.id, (l) => {
+        const idx = l.objects.findIndex((o) => o.id === id);
+        const arr = [...l.objects];
+        const [obj] = arr.splice(idx, 1);
+        if (dir === "front") arr.push(obj);
+        else if (dir === "back") arr.unshift(obj);
+        else if (dir === "forward") arr.splice(Math.min(arr.length, idx + 1), 0, obj);
+        else arr.splice(Math.max(0, idx - 1), 0, obj);
+        return arr.every((o, i) => o === l.objects[i]) ? l : { ...l, objects: arr };
+      });
+    });
   }
   /** Batched front/back for one or many objects at once (keyboard shortcut,
-   * Edit menu, context menu, multi-select toolbar) — a single array rebuild
-   * instead of calling reorderObject in a loop, since each call there would
-   * otherwise read the same stale `project` closure and clobber the others. */
+   * Edit menu, context menu, multi-select toolbar) — one array rebuild. */
   function reorderObjects(ids: string[], dir: "front" | "back") {
     const idSet = new Set(ids);
-    const layer = project.layers.find((l) => l.objects.some((o) => idSet.has(o.id)));
-    if (!layer) return;
-    const moving = layer.objects.filter((o) => idSet.has(o.id));
-    const staying = layer.objects.filter((o) => !idSet.has(o.id));
-    updateLayer(layer.id, { objects: dir === "front" ? [...staying, ...moving] : [...moving, ...staying] });
+    setProject((p) => {
+      const layer = p.layers.find((l) => l.objects.some((o) => idSet.has(o.id)));
+      if (!layer) return p;
+      return mapLayer(p, layer.id, (l) => {
+        const moving = l.objects.filter((o) => idSet.has(o.id)),
+          staying = l.objects.filter((o) => !idSet.has(o.id)),
+          arr = dir === "front" ? [...staying, ...moving] : [...moving, ...staying];
+        return arr.every((o, i) => o === l.objects[i]) ? l : { ...l, objects: arr };
+      });
+    });
   }
 
   function commitColor(v: string) {
@@ -478,101 +677,113 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
           y: Math.round(p.y * project.tileRows) / project.tileRows,
         }
       : p;
-  const toNorm = (pos: { x: number; y: number }): Point => ({
-    x: Math.max(0, Math.min(1, pos.x / W)),
-    y: Math.max(0, Math.min(1, pos.y / H)),
+  const toNorm = (pos: StagePoint): Point => ({
+    x: clamp(pos.x / W, 0, 1),
+    y: clamp(pos.y / H, 0, 1),
   });
-  /** Whole-shape dragging for brush/path/region: Konva moves the Line's own
-   * x/y during the drag, so on release we bake that offset into the points
-   * themselves and reset the node back to (0,0), keeping points canonical. */
-  // ---- Konva shape transform helpers: bake a drag/resize/rotate on the
-  // node into the object's normalized points, then reset the node itself ----
-  function handleShapeDragEnd(
-    layerId: string,
-    id: string,
-    points: Point[],
-    node: Konva.Node,
-  ) {
+
+  // ---- Committing Konva-side drags/transforms back into the document ----
+  /** Konva fires `dragend` / `transformend` once *per node*. With a
+   * multi-selection the Transformer drags or transforms every attached node,
+   * so several of these land in the same tick: each one queues its patch
+   * here and the queue is flushed as a single update. One gesture becomes
+   * one undo step, and no handler can overwrite another's result. The flush
+   * is synchronous (before the next paint) so baked nodes never flicker. */
+  function queuePatch(id: string, updater: ObjUpdater) {
+    let pending = pendingPatchesRef.current;
+    if (!pending) {
+      const batch = new Map<string, ObjUpdater>();
+      pending = batch;
+      pendingPatchesRef.current = batch;
+      queueMicrotask(() => {
+        pendingPatchesRef.current = null;
+        flushSync(() => setProject((p) => applyObjectPatches(p, batch)));
+      });
+    }
+    pending.set(id, updater);
+  }
+  function onObjectDragEnd(o: MMObject, node: Konva.Node) {
+    if (o.kind === "icon" || o.kind === "label") {
+      const x = node.x() / W,
+        y = node.y() / H;
+      queuePatch(o.id, () => ({ x, y }));
+      return;
+    }
+    // Line-based shapes: bake the node's offset into the points and put the
+    // node back at (0,0), so the stored points always stay canonical.
     const dx = node.x() / W,
       dy = node.y() / H;
     node.position({ x: 0, y: 0 });
-    updateObject(
-      layerId,
-      id,
-      { points: points.map((p) => ({ x: p.x + dx, y: p.y + dy })) },
+    queuePatch(o.id, (cur) =>
+      cur.kind === "icon" || cur.kind === "label"
+        ? {}
+        : { points: cur.points.map((p) => ({ x: p.x + dx, y: p.y + dy })) },
     );
   }
-  /** Whole-shape resize/rotate for brush/path/region via the Transformer: bake
-   * the node's full transform matrix into the points, then reset the node so
-   * points stay canonical (mirrors handleShapeDragEnd's approach). Returns the
-   * uniform scale factor too, so callers can scale a stroke/fill width along. */
-  function handleShapeTransformEnd(points: Point[], node: Konva.Node) {
-    const transform = node.getTransform();
-    const newPoints = points.map((p) => {
-      const abs = transform.point({ x: p.x * W, y: p.y * H });
-      return { x: abs.x / W, y: abs.y / H };
-    });
-    const scaleFactor = Math.sqrt(Math.abs(node.scaleX() * node.scaleY())) || 1;
+  function onObjectTransformEnd(o: MMObject, node: Konva.Node) {
+    const uniform = Math.sqrt(Math.abs(node.scaleX() * node.scaleY())) || 1;
+    if (o.kind === "icon") {
+      const k = (W * ICON_BASE) / 24,
+        scale = clamp(uniform / k, 0.1, 8),
+        rotation = normalizeAngle(node.rotation()),
+        x = node.x() / W,
+        y = node.y() / H,
+        s = Math.max(1, scale * W * ICON_BASE) / 24;
+      node.scale({ x: s, y: s }); // exactly what the next render will set
+      queuePatch(o.id, () => ({ scale, rotation, x, y }));
+      return;
+    }
+    if (o.kind === "label") {
+      const rotation = normalizeAngle(node.rotation()),
+        x = node.x() / W,
+        y = node.y() / H;
+      node.scale({ x: 1, y: 1 });
+      queuePatch(o.id, (cur) =>
+        cur.kind === "label" ? { size: clamp(cur.size * uniform, 0.005, 0.3), rotation, x, y } : {},
+      );
+      return;
+    }
+    // Line-based shapes: bake the full transform matrix into the points, scale
+    // the stroke width along, then reset the node.
+    const m = node.getTransform().copy(),
+      w = W,
+      h = H;
     node.position({ x: 0, y: 0 });
     node.scale({ x: 1, y: 1 });
     node.rotation(0);
-    return { points: newPoints, scaleFactor };
+    node.skew({ x: 0, y: 0 });
+    queuePatch(o.id, (cur) => {
+      if (cur.kind === "icon" || cur.kind === "label") return {};
+      const points = cur.points.map((p) => {
+        const a = m.point({ x: p.x * w, y: p.y * h });
+        return { x: a.x / w, y: a.y / h };
+      });
+      if (cur.kind === "brush") return { points, size: clamp(cur.size * uniform, 0.001, 0.08) };
+      if (cur.kind === "path") return { points, width: clamp(cur.width * uniform, 0.0008, 0.06) };
+      return { points };
+    });
   }
-  /** Multi-select group dragging: Konva only moves the one node the pointer
-   * is actually dragging, so while several objects are selected we mirror
-   * that node's live delta onto every other selected node's own position
-   * (beginGroupDrag captures each one's starting position, syncGroupDrag
-   * re-applies the delta on every move), then bake all of *their* final
-   * positions into the data too once the drag ends — the dragged node keeps
-   * baking itself via its own existing onDragEnd, exactly as with a single
-   * selection. */
-  function beginGroupDrag(e: Konva.KonvaEventObject<DragEvent>, id: string) {
-    if (selectedIds.length < 2 || !selectedIds.includes(id)) {
-      groupDragRef.current = null;
-      return;
-    }
-    const stage = e.target.getStage();
-    if (!stage) return;
-    const starts: Record<string, { x: number; y: number }> = {};
-    for (const sid of selectedIds) {
-      const n = stage.findOne(`#${CSS.escape(sid)}`);
-      if (n) starts[sid] = { x: n.x(), y: n.y() };
-    }
-    groupDragRef.current = { ids: selectedIds, starts };
-  }
-  function syncGroupDrag(e: Konva.KonvaEventObject<DragEvent>, id: string) {
-    const g = groupDragRef.current;
-    if (!g || !g.starts[id]) return;
-    const stage = e.target.getStage();
-    if (!stage) return;
-    const dx = e.target.x() - g.starts[id].x,
-      dy = e.target.y() - g.starts[id].y;
-    for (const sid of g.ids) {
-      if (sid === id) continue;
-      const n = stage.findOne(`#${CSS.escape(sid)}`),
-        start = g.starts[sid];
-      if (n && start) n.position({ x: start.x + dx, y: start.y + dy });
-    }
-    stage.batchDraw();
-  }
-  function finishGroupDrag(e: Konva.KonvaEventObject<DragEvent>, excludeId: string) {
-    const g = groupDragRef.current;
-    groupDragRef.current = null;
-    if (!g) return;
-    const stage = e.target.getStage();
-    if (!stage) return;
-    for (const sid of g.ids) {
-      if (sid === excludeId) continue;
-      const layer = project.layers.find((l) => l.objects.some((o) => o.id === sid));
-      const obj = layer?.objects.find((o) => o.id === sid);
-      const node = stage.findOne(`#${CSS.escape(sid)}`);
-      if (!layer || !obj || !node) continue;
-      if (obj.kind === "icon" || obj.kind === "label") {
-        updateObject(layer.id, obj.id, { x: node.x() / W, y: node.y() / H });
-      } else {
-        handleShapeDragEnd(layer.id, obj.id, obj.points, node);
-      }
-    }
+  /** Selection + drag/transform wiring shared by every rendered object. */
+  function objectHandlers(o: MMObject, layer: MMLayer) {
+    return {
+      id: o.id,
+      draggable: tool === "select" && !layer.locked,
+      onClick: (e: Konva.KonvaEventObject<MouseEvent>) => {
+        if (tool !== "select") return;
+        if (e.evt.shiftKey) toggleSelect(o.id);
+        else selectOnly(o.id);
+      },
+      onTap: () => {
+        if (tool === "select") selectOnly(o.id);
+      },
+      // Dragging an unselected object selects it first, so the drag never
+      // moves a different, stale selection along with it.
+      onDragStart: () => {
+        if (!selectedIdSet.has(o.id)) selectOnly(o.id);
+      },
+      onDragEnd: (e: Konva.KonvaEventObject<DragEvent>) => onObjectDragEnd(o, e.target),
+      onTransformEnd: (e: Konva.KonvaEventObject<Event>) => onObjectTransformEnd(o, e.target),
+    };
   }
 
   /** Space+drag or middle-click drag panning: scrolls the canvas wrapper
@@ -625,147 +836,220 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
     setContextMenu({ x: e.evt.clientX, y: e.evt.clientY, targetId });
   }
 
-  // ---- Drawing: one pointer-handler set per tool, shared across the Stage ----
-  function handlePointerDown(e: Konva.KonvaEventObject<PointerEvent>) {
-    if (spaceHeld || e.evt.button !== 0) return;
-    const stage = e.target.getStage();
+  // ---- Drawing ----
+  /** Follows one pointer gesture at the *window* level, so a stroke or
+   * marquee keeps tracking — and always ends — even when the pointer leaves
+   * the canvas, is released outside it, or the window loses focus. Positions
+   * are mapped to stage coordinates by Konva itself; coalesced events are
+   * used where available for smooth, high-frequency strokes. */
+  function trackPointer(
+    pointerId: number,
+    onMove: (pos: StagePoint) => void,
+    onEnd: (commit: boolean) => void,
+  ) {
+    const stage = stageRef.current;
     if (!stage) return;
-    if (tool === "select") {
-      if (e.target === stage) {
-        const pos = stage.getPointerPosition();
-        if (pos) {
-          marqueeAdditiveRef.current = e.evt.shiftKey;
-          setMarquee({ x0: pos.x, y0: pos.y, x1: pos.x, y1: pos.y });
-        }
+    const s: Konva.Stage = stage;
+    pointerSessionRef.current?.();
+    function read(ev: PointerEvent) {
+      s.setPointersPositions(ev);
+      return s.getPointerPosition();
+    }
+    function move(ev: PointerEvent) {
+      if (ev.pointerId !== pointerId) return;
+      const samples = ev.getCoalescedEvents?.() ?? [];
+      for (const sample of samples.length ? samples : [ev]) {
+        const pos = read(sample);
+        if (pos) onMove(pos);
       }
+    }
+    function up(ev: PointerEvent) {
+      if (ev.pointerId !== pointerId) return;
+      const pos = read(ev);
+      if (pos) onMove(pos);
+      stop(true);
+    }
+    function cancel(ev: PointerEvent) {
+      if (ev.pointerId === pointerId) stop(false);
+    }
+    function blur() {
+      stop(true);
+    }
+    function abort() {
+      stop(false);
+    }
+    function stop(commit: boolean) {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      window.removeEventListener("pointercancel", cancel);
+      window.removeEventListener("blur", blur);
+      if (pointerSessionRef.current === abort) pointerSessionRef.current = null;
+      onEnd(commit);
+    }
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+    window.addEventListener("pointercancel", cancel);
+    window.addEventListener("blur", blur);
+    pointerSessionRef.current = abort;
+  }
+
+  function handlePointerDown(e: Konva.KonvaEventObject<PointerEvent>) {
+    if (spaceHeld || e.evt.button !== 0 || pointerSessionRef.current) return;
+    const stage = e.target.getStage(),
+      pos = stage?.getPointerPosition();
+    if (!stage || !pos) return;
+    if (tool === "select") {
+      if (e.target === stage) startMarquee(pos, e.evt.pointerId, e.evt.shiftKey);
       return;
     }
     if (!active || active.locked) return;
-    const pos = stage.getPointerPosition();
-    if (!pos) return;
     const p = toNorm(pos);
-    if (tool === "brush") {
-      setBrushDraft({
-        id: crypto.randomUUID(),
-        kind: "brush",
-        points: [p],
-        color,
-        size: brushSize,
-        opacity: brushOpacity,
-        softness: brushSoftness,
-      });
-    } else if (tool === "path") {
-      setPathDraft([p]);
+    if (tool === "brush" || tool === "path") {
+      startStroke(p, e.evt.pointerId);
     } else if (tool === "icon") {
+      const sp = snap(p);
       addObject({
         id: crypto.randomUUID(),
         kind: "icon",
         icon: iconId,
-        x: snap(p).x,
-        y: snap(p).y,
+        x: sp.x,
+        y: sp.y,
         rotation: iconRotation,
         scale: iconScale,
         color,
       });
     } else if (tool === "region") {
-      setRegionDraft((old) => {
-        const sp = snap(p);
-        if (!old) return [sp];
-        const first = old[0],
-          dx = (first.x - sp.x) * W,
-          dy = (first.y - sp.y) * H;
-        if (old.length >= 3 && Math.hypot(dx, dy) < 10) {
-          addObject({
-            id: crypto.randomUUID(),
-            kind: "region",
-            biome,
-            points: old,
-            opacity: fillOpacity,
-            textureScale,
-            textureRotation,
-          });
-          return null;
-        }
-        return old.length >= 300 ? old : [...old, sp];
-      });
+      addRegionPoint(snap(p));
     } else if (tool === "label") {
+      // Suppress the follow-up mousedown's default focus change, which would
+      // otherwise immediately steal focus from the auto-focused text input.
+      e.evt.preventDefault();
       setLabelDraft(snap(p));
       setLabelText("");
     }
   }
-  function handlePointerMove(e: Konva.KonvaEventObject<PointerEvent>) {
-    if (marquee) {
-      const stage = e.target.getStage();
-      const pos = stage?.getPointerPosition();
-      if (pos) setMarquee((m) => (m ? { ...m, x1: pos.x, y1: pos.y } : m));
-      return;
-    }
-    if (!brushDraft && !pathDraft) return;
-    const stage = e.target.getStage();
-    if (!stage) return;
-    const pos = stage.getPointerPosition();
-    if (!pos) return;
-    const p = toNorm(pos);
-    if (brushDraft && brushDraft.points.length < 6000)
-      setBrushDraft((old) => (old ? { ...old, points: [...old.points, p] } : old));
-    else if (pathDraft && pathDraft.length < 6000)
-      setPathDraft((old) => (old ? [...old, p] : old));
-  }
-  function handlePointerUp(e: Konva.KonvaEventObject<PointerEvent>) {
-    if (marquee) {
-      const dx = Math.abs(marquee.x1 - marquee.x0),
-        dy = Math.abs(marquee.y1 - marquee.y0);
-      const stage = e.target.getStage();
-      if (dx < 4 && dy < 4) {
-        if (!marqueeAdditiveRef.current) clearSelection();
-      } else if (stage && active) {
-        const rx0 = Math.min(marquee.x0, marquee.x1),
-          rx1 = Math.max(marquee.x0, marquee.x1),
-          ry0 = Math.min(marquee.y0, marquee.y1),
-          ry1 = Math.max(marquee.y0, marquee.y1);
-        const hits: string[] = [];
-        for (const o of active.objects) {
-          const node = stage.findOne(`#${CSS.escape(o.id)}`);
-          if (!node) continue;
-          const r = node.getClientRect({ relativeTo: stage });
-          if (r.x < rx1 && r.x + r.width > rx0 && r.y < ry1 && r.y + r.height > ry0) hits.push(o.id);
+
+  /** Freehand brush/path: the points live in a ref and are streamed into the
+   * preview Line directly (no React render per pointer move); React only
+   * hears about the stroke when it starts and when it's committed. */
+  function startStroke(start: Point, pointerId: number) {
+    const id = crypto.randomUUID();
+    const style: StrokeDraft =
+      tool === "brush"
+        ? { id, kind: "brush", color, size: brushSize, opacity: brushOpacity, softness: brushSoftness }
+        : { id, kind: "path", pathKind, color, width: pathWidth, opacity: pathOpacity, softness: pathSoftness };
+    const points: Point[] = [start];
+    strokePointsRef.current = points;
+    setStroke(style);
+    trackPointer(
+      pointerId,
+      (pos) => {
+        if (points.length >= MAX_STROKE_POINTS) return;
+        const { w, h } = viewRef.current,
+          last = points[points.length - 1],
+          next = { x: clamp(pos.x / w, 0, 1), y: clamp(pos.y / h, 0, 1) };
+        if (Math.hypot((next.x - last.x) * w, (next.y - last.y) * h) < MIN_STROKE_GAP_PX) return;
+        points.push(next);
+        const line = strokeLineRef.current;
+        if (line) {
+          line.points(flattenPoints(points, w, h));
+          line.getLayer()?.batchDraw();
         }
-        setSelectedIds((cur) => (marqueeAdditiveRef.current ? Array.from(new Set([...cur, ...hits])) : hits));
-      }
-      setMarquee(null);
+      },
+      (commit) => {
+        strokePointsRef.current = [];
+        setStroke(null);
+        if (!commit) return;
+        if (style.kind === "brush")
+          // A single click leaves a round dot (a zero-length, round-capped line).
+          addObject({ ...style, points: points.length > 1 ? points : [start, start] });
+        else if (points.length >= 2) addObject({ ...style, points });
+      },
+    );
+  }
+
+  /** Rubber-band selection, drawn imperatively like strokes. */
+  function startMarquee(start: StagePoint, pointerId: number, additive: boolean) {
+    let end = start;
+    setMarqueeStart(start);
+    trackPointer(
+      pointerId,
+      (pos) => {
+        end = pos;
+        const rect = marqueeRectRef.current;
+        if (!rect) return;
+        rect.setAttrs({
+          x: Math.min(start.x, pos.x),
+          y: Math.min(start.y, pos.y),
+          width: Math.abs(pos.x - start.x),
+          height: Math.abs(pos.y - start.y),
+        });
+        rect.getLayer()?.batchDraw();
+      },
+      (commit) => {
+        setMarqueeStart(null);
+        if (commit) selectInRect(start, end, additive);
+      },
+    );
+  }
+  function selectInRect(a: StagePoint, b: StagePoint, additive: boolean) {
+    const x0 = Math.min(a.x, b.x),
+      x1 = Math.max(a.x, b.x),
+      y0 = Math.min(a.y, b.y),
+      y1 = Math.max(a.y, b.y);
+    if (x1 - x0 < 4 && y1 - y0 < 4) {
+      if (!additive) clearSelection();
       return;
     }
-    if (brushDraft) {
-      addObject(brushDraft);
-      setBrushDraft(null);
+    const stage = stageRef.current;
+    if (!stage || !active || active.locked || !active.visible) return;
+    // One tree walk for all ids instead of one lookup per object.
+    const nodes = new Map(stage.find((n: Konva.Node) => !!n.id()).map((n) => [n.id(), n]));
+    const hits = active.objects
+      .filter((o) => {
+        const node = nodes.get(o.id);
+        if (!node) return false;
+        const r = node.getClientRect({ relativeTo: stage });
+        return r.x < x1 && r.x + r.width > x0 && r.y < y1 && r.y + r.height > y0;
+      })
+      .map((o) => o.id);
+    setSelectedIds((cur) => (additive ? Array.from(new Set([...cur, ...hits])) : hits));
+  }
+
+  /** Region (polygon) tool: click to add vertices; click the first vertex,
+   * double-click, or press "Finish shape" to close it. */
+  function addRegionPoint(p: Point) {
+    const draft = regionDraft;
+    if (!draft) {
+      setRegionDraft([p]);
+      return;
     }
-    if (pathDraft && pathDraft.length >= 2) {
-      addObject({
-        id: crypto.randomUUID(),
-        kind: "path",
-        pathKind,
-        points: pathDraft,
-        width: pathWidth,
-        color,
-        opacity: pathOpacity,
-        softness: pathSoftness,
-      });
+    const distPx = (a: Point, b: Point) => Math.hypot((a.x - b.x) * W, (a.y - b.y) * H);
+    if (draft.length >= 3 && distPx(draft[0], p) < REGION_CLOSE_PX) {
+      commitRegion(draft);
+      return;
     }
-    setPathDraft(null);
+    // The two pointer-downs of a double-click (or a shaky click) land on the
+    // same spot — never turn them into duplicate vertices.
+    if (distPx(draft[draft.length - 1], p) < REGION_DUPLICATE_PX) return;
+    if (draft.length >= MAX_REGION_POINTS) return;
+    setRegionDraft([...draft, p]);
+  }
+  function commitRegion(points: Point[]) {
+    if (points.length < 3) return;
+    addObject({
+      id: crypto.randomUUID(),
+      kind: "region",
+      biome,
+      points,
+      opacity: fillOpacity,
+      textureScale,
+      textureRotation,
+    });
+    setRegionDraft(null);
   }
   function finishRegion() {
-    if (regionDraft && regionDraft.length >= 3) {
-      addObject({
-        id: crypto.randomUUID(),
-        kind: "region",
-        biome,
-        points: regionDraft,
-        opacity: fillOpacity,
-        textureScale,
-        textureRotation,
-      });
-      setRegionDraft(null);
-    }
+    if (tool === "region" && regionDraft) commitRegion(regionDraft);
   }
   function confirmLabel() {
     if (!labelDraft || !labelText.trim()) return;
@@ -779,19 +1063,55 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
       color,
       align: labelAlign,
       rtl: labelRtl,
+      anchored: true,
     });
     setLabelDraft(null);
     setLabelText("");
   }
+  /** Inspector edits for the single selected object. Changing a label's
+   * alignment or direction re-anchors it so its text stays exactly where it
+   * is on the map (as design tools do) instead of jumping by its own width. */
+  function patchSelected(patch: MMPatch) {
+    const o = selectedObj;
+    if (!o) return;
+    if (o.kind === "label" && (patch.align !== undefined || patch.rtl !== undefined)) {
+      const next = { ...o, ...patch, anchored: true } as MMLabel,
+        d = labelLayout(next, W).offsetX - labelLayout(o, W).offsetX,
+        r = ((o.rotation ?? 0) * Math.PI) / 180;
+      updateObject(o.id, {
+        ...patch,
+        anchored: true,
+        x: o.x + (d * Math.cos(r)) / W,
+        y: o.y + (d * Math.sin(r)) / H,
+      });
+      return;
+    }
+    updateObject(o.id, patch);
+  }
 
   // ---- Handing the finished map off to the print pipeline ----
+  /** Rasterises just the map at the project's native resolution. Editor-only
+   * chrome (snap grid, drafts/marquee, selection Transformer) is hidden for
+   * the capture and restored synchronously, so it never ends up in the print
+   * and never flashes on screen. */
+  function renderMapCanvas(stage: Konva.Stage) {
+    const chrome = [gridGroupRef.current, overlayLayerRef.current, uiLayerRef.current].filter(
+      (n): n is Konva.Group | Konva.Layer => !!n,
+    );
+    const wasVisible = chrome.map((n) => n.visible());
+    chrome.forEach((n) => n.visible(false));
+    try {
+      return stage.toCanvas({ pixelRatio: project.width / W });
+    } finally {
+      chrome.forEach((n, i) => n.visible(wasVisible[i]));
+    }
+  }
   async function handlePrint() {
     const stage = stageRef.current;
     if (!stage || printing) return;
     setPrinting(true);
     try {
-      const ratio = project.width / W;
-      const canvas = stage.toCanvas({ pixelRatio: ratio });
+      const canvas = renderMapCanvas(stage);
       const blob = await new Promise<Blob | null>((resolve) =>
         canvas.toBlob((b) => resolve(b), "image/png"),
       );
@@ -1001,7 +1321,7 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
                       key={b}
                       className={`mm-texture-swatch ${biome === b ? "selected" : ""}`}
                       title={t(BIOME_LABEL_KEY[b])}
-                      style={{ backgroundImage: `url(${biomeTexture(b).toDataURL()})` }}
+                      style={{ backgroundImage: `url(${biomeSwatchDataUrl(b)})` }}
                       onClick={() => setBiome(b)}
                     />
                   ))}
@@ -1057,7 +1377,7 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
                 obj={selectedObj}
                 layerId={selectedLayer!.id}
                 t={t}
-                onPatch={(patch) => updateObject(selectedLayer!.id, selectedObj.id, patch)}
+                onPatch={patchSelected}
                 onDuplicate={() => duplicateObject(selectedObj.id)}
                 onDelete={() => removeObject(selectedObj.id)}
                 onReorder={(dir) => reorderObject(selectedObj.id, dir)}
@@ -1099,144 +1419,55 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
               width={W}
               height={H}
               onPointerDown={handlePointerDown}
-              onPointerMove={handlePointerMove}
-              onPointerUp={handlePointerUp}
-              onPointerCancel={() => {
-                setBrushDraft(null);
-                setPathDraft(null);
-                setMarquee(null);
-              }}
               onDblClick={finishRegion}
+              onDblTap={finishRegion}
               onContextMenu={handleContextMenu}
             >
               <Layer listening={false}>
                 <Rect x={0} y={0} width={W} height={H} fill={project.background} />
-                {project.snapToGrid &&
-                  Array.from({ length: project.tileCols + 1 }, (_, i) => (
-                    <Line key={`v${i}`} points={[i * tileW, 0, i * tileW, H]} stroke="rgba(255,255,255,0.14)" strokeWidth={1} />
-                  ))}
-                {project.snapToGrid &&
-                  Array.from({ length: project.tileRows + 1 }, (_, i) => (
-                    <Line key={`h${i}`} points={[0, i * tileH, W, i * tileH]} stroke="rgba(255,255,255,0.14)" strokeWidth={1} />
-                  ))}
+                {project.snapToGrid && (
+                  <Group ref={gridGroupRef}>
+                    {Array.from({ length: project.tileCols + 1 }, (_, i) => (
+                      <Line key={`v${i}`} points={[i * tileW, 0, i * tileW, H]} stroke="rgba(255,255,255,0.14)" strokeWidth={1} />
+                    ))}
+                    {Array.from({ length: project.tileRows + 1 }, (_, i) => (
+                      <Line key={`h${i}`} points={[0, i * tileH, W, i * tileH]} stroke="rgba(255,255,255,0.14)" strokeWidth={1} />
+                    ))}
+                  </Group>
+                )}
               </Layer>
               {project.layers.map((layer) => (
                 <Layer key={layer.id} visible={layer.visible} opacity={layer.opacity} listening={layer.id === active?.id && !layer.locked}>
                   {layer.objects.map((o) => {
+                    const handlers = objectHandlers(o, layer);
                     if (o.kind === "region")
                       return (
                         <Line
                           key={o.id}
-                          id={o.id}
-                          points={o.points.flatMap((p) => [p.x * W, p.y * H])}
+                          {...handlers}
+                          points={flattenPoints(o.points, W, H)}
                           closed
                           tension={0.3}
-                          fillPatternImage={biomeTexture(o.biome) as unknown as HTMLImageElement}
-                          fillPatternScale={{ x: o.textureScale, y: o.textureScale }}
-                          fillPatternRotation={o.textureRotation}
-                          fillPriority="pattern"
+                          {...regionFill(o.biome, o.textureScale, o.textureRotation, W)}
                           opacity={o.opacity}
-                          stroke={selectedIdSet.has(o.id) ? "#f2a65a" : undefined}
-                          strokeWidth={selectedIdSet.has(o.id) ? 2 : 0}
-                          draggable={tool === "select" && !layer.locked}
-                          onClick={(e) => {
-                            if (tool !== "select") return;
-                            if (e.evt.shiftKey) toggleSelect(o.id);
-                            else selectOnly(o.id);
-                          }}
-                          onTap={() => tool === "select" && selectOnly(o.id)}
-                          onDragStart={(e) => beginGroupDrag(e, o.id)}
-                          onDragMove={(e) => syncGroupDrag(e, o.id)}
-                          onDragEnd={(e) => {
-                            handleShapeDragEnd(layer.id, o.id, o.points, e.target);
-                            finishGroupDrag(e, o.id);
-                          }}
-                          onTransformEnd={(e) => {
-                            const { points } = handleShapeTransformEnd(o.points, e.target);
-                            updateObject(layer.id, o.id, { points });
-                          }}
                         />
                       );
-                    if (o.kind === "brush")
+                    if (o.kind === "brush" || o.kind === "path")
                       return (
                         <Line
                           key={o.id}
-                          id={o.id}
-                          points={o.points.flatMap((p) => [p.x * W, p.y * H])}
-                          tension={0.4}
-                          stroke={selectedIdSet.has(o.id) ? "#f2a65a" : o.color}
-                          strokeWidth={Math.max(0.5, o.size * W)}
-                          opacity={o.opacity}
-                          shadowColor={o.color}
-                          shadowBlur={o.softness * 30}
-                          shadowOpacity={o.softness > 0 ? 0.9 : 0}
-                          lineCap="round"
-                          lineJoin="round"
-                          draggable={tool === "select" && !layer.locked}
-                          hitStrokeWidth={Math.max(12, o.size * W)}
-                          onClick={(e) => {
-                            if (tool !== "select") return;
-                            if (e.evt.shiftKey) toggleSelect(o.id);
-                            else selectOnly(o.id);
-                          }}
-                          onTap={() => tool === "select" && selectOnly(o.id)}
-                          onDragStart={(e) => beginGroupDrag(e, o.id)}
-                          onDragMove={(e) => syncGroupDrag(e, o.id)}
-                          onDragEnd={(e) => {
-                            handleShapeDragEnd(layer.id, o.id, o.points, e.target);
-                            finishGroupDrag(e, o.id);
-                          }}
-                          onTransformEnd={(e) => {
-                            const { points, scaleFactor } = handleShapeTransformEnd(o.points, e.target);
-                            updateObject(layer.id, o.id, { points, size: Math.max(0.001, Math.min(0.08, o.size * scaleFactor)) });
-                          }}
+                          {...handlers}
+                          points={flattenPoints(o.points, W, H)}
+                          {...strokeAppearance(o, W)}
                         />
                       );
-                    if (o.kind === "path") {
-                      const w = Math.max(0.5, o.width * W);
-                      return (
-                        <Line
-                          key={o.id}
-                          id={o.id}
-                          points={o.points.flatMap((p) => [p.x * W, p.y * H])}
-                          tension={0.4}
-                          stroke={selectedIdSet.has(o.id) ? "#f2a65a" : o.color}
-                          strokeWidth={w}
-                          opacity={o.opacity}
-                          shadowColor={o.color}
-                          shadowBlur={o.softness * 24}
-                          shadowOpacity={o.softness > 0 ? 0.9 : 0}
-                          lineCap="round"
-                          lineJoin="round"
-                          draggable={tool === "select" && !layer.locked}
-                          hitStrokeWidth={Math.max(12, w)}
-                          onClick={(e) => {
-                            if (tool !== "select") return;
-                            if (e.evt.shiftKey) toggleSelect(o.id);
-                            else selectOnly(o.id);
-                          }}
-                          onTap={() => tool === "select" && selectOnly(o.id)}
-                          onDragStart={(e) => beginGroupDrag(e, o.id)}
-                          onDragMove={(e) => syncGroupDrag(e, o.id)}
-                          onDragEnd={(e) => {
-                            handleShapeDragEnd(layer.id, o.id, o.points, e.target);
-                            finishGroupDrag(e, o.id);
-                          }}
-                          onTransformEnd={(e) => {
-                            const { points, scaleFactor } = handleShapeTransformEnd(o.points, e.target);
-                            updateObject(layer.id, o.id, { points, width: Math.max(0.0008, Math.min(0.06, o.width * scaleFactor)) });
-                          }}
-                        />
-                      );
-                    }
                     if (o.kind === "icon") {
                       const def = ICONS[o.icon],
-                        visualSize = Math.max(1, o.scale * W * 0.05),
-                        s = visualSize / 24;
+                        s = Math.max(1, o.scale * W * ICON_BASE) / 24;
                       return (
                         <Group
                           key={o.id}
-                          id={o.id}
+                          {...handlers}
                           x={o.x * W}
                           y={o.y * H}
                           rotation={o.rotation}
@@ -1244,108 +1475,72 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
                           scaleY={s}
                           offsetX={12}
                           offsetY={12}
-                          draggable={tool === "select" && !layer.locked}
-                          onClick={(e) => {
-                            if (tool !== "select") return;
-                            if (e.evt.shiftKey) toggleSelect(o.id);
-                            else selectOnly(o.id);
-                          }}
-                          onTap={() => tool === "select" && selectOnly(o.id)}
-                          onDragStart={(e) => beginGroupDrag(e, o.id)}
-                          onDragMove={(e) => syncGroupDrag(e, o.id)}
-                          onDragEnd={(e) => {
-                            updateObject(layer.id, o.id, { x: e.target.x() / W, y: e.target.y() / H });
-                            finishGroupDrag(e, o.id);
-                          }}
-                          onTransformEnd={(e) => {
-                            const node = e.target,
-                              k = (W * 0.05) / 24,
-                              scale = Math.max(0.1, Math.min(8, node.scaleX() / k));
-                            updateObject(layer.id, o.id, { scale, rotation: node.rotation(), x: node.x() / W, y: node.y() / H });
-                          }}
                         >
+                          {/* Invisible hit area: the whole 24×24 icon cell is
+                              clickable/draggable, not just its thin strokes. */}
+                          <Rect width={24} height={24} fill="rgba(0,0,0,0)" />
                           {def.stroke && <KonvaPath data={def.stroke} stroke={o.color} strokeWidth={1.6} lineCap="round" lineJoin="round" />}
                           {def.fill && <KonvaPath data={def.fill} fill={o.color} />}
                         </Group>
                       );
                     }
+                    const label = labelLayout(o, W);
                     return (
                       <KonvaText
                         key={o.id}
-                        id={o.id}
+                        {...handlers}
                         text={o.text}
                         x={o.x * W}
                         y={o.y * H}
                         rotation={o.rotation ?? 0}
-                        fontSize={Math.max(1, o.size * W)}
-                        fontFamily='Georgia, "Times New Roman", serif'
+                        fontSize={label.fontSize}
+                        fontFamily={LABEL_FONT}
                         fill={o.color}
-                        align={o.align === "center" ? "center" : o.align === "end" ? "right" : "left"}
-                        draggable={tool === "select" && !layer.locked}
-                        onClick={(e) => {
-                          if (tool !== "select") return;
-                          if (e.evt.shiftKey) toggleSelect(o.id);
-                          else selectOnly(o.id);
-                        }}
-                        onTap={() => tool === "select" && selectOnly(o.id)}
-                        onDragStart={(e) => beginGroupDrag(e, o.id)}
-                        onDragMove={(e) => syncGroupDrag(e, o.id)}
-                        onDragEnd={(e) => {
-                          updateObject(layer.id, o.id, { x: e.target.x() / W, y: e.target.y() / H });
-                          finishGroupDrag(e, o.id);
-                        }}
-                        onTransformEnd={(e) => {
-                          const node = e.target,
-                            scale = Math.max(0.2, Math.min(6, (node.scaleX() + node.scaleY()) / 2));
-                          node.scaleX(1);
-                          node.scaleY(1);
-                          updateObject(layer.id, o.id, {
-                            size: Math.max(0.005, Math.min(0.3, o.size * scale)),
-                            rotation: node.rotation(),
-                            x: node.x() / W,
-                            y: node.y() / H,
-                          });
-                        }}
+                        width={label.width}
+                        wrap="none"
+                        align={label.align}
+                        direction={o.rtl ? "rtl" : "ltr"}
+                        offsetX={label.offsetX}
                       />
                     );
                   })}
                 </Layer>
               ))}
-              <Layer listening={false}>
-                {brushDraft && (
-                  <Line
-                    points={brushDraft.points.flatMap((p) => [p.x * W, p.y * H])}
-                    stroke={brushDraft.color}
-                    strokeWidth={Math.max(0.5, brushDraft.size * W)}
-                    opacity={brushDraft.opacity}
-                    lineCap="round"
-                    lineJoin="round"
-                  />
-                )}
-                {pathDraft && pathDraft.length > 1 && (
-                  <Line
-                    points={pathDraft.flatMap((p) => [p.x * W, p.y * H])}
-                    stroke={color}
-                    strokeWidth={Math.max(0.5, pathWidth * W)}
-                    lineCap="round"
-                    lineJoin="round"
-                    opacity={0.85}
-                  />
-                )}
+              {/* Editor-only overlays: live drafts and the marquee. Hidden
+                  when rendering the map for print. */}
+              <Layer ref={overlayLayerRef} listening={false}>
+                {stroke && <Line ref={strokeLineRef} points={NO_POINTS} {...strokeAppearance(stroke, W)} />}
                 {regionDraft && (
                   <>
-                    <Line points={regionDraft.flatMap((p) => [p.x * W, p.y * H])} stroke="#f2a65a" strokeWidth={1.5} dash={[4, 3]} />
+                    {regionDraft.length >= 3 && (
+                      <Line
+                        points={flattenPoints(regionDraft, W, H)}
+                        closed
+                        tension={0.3}
+                        {...regionFill(biome, textureScale, textureRotation, W)}
+                        opacity={fillOpacity * 0.6}
+                      />
+                    )}
+                    <Line
+                      points={flattenPoints(regionDraft, W, H)}
+                      closed={regionDraft.length >= 3}
+                      tension={0.3}
+                      stroke="#f2a65a"
+                      strokeWidth={1.5}
+                      dash={[4, 3]}
+                    />
                     {regionDraft.map((p, i) => (
-                      <Circle key={i} x={p.x * W} y={p.y * H} radius={4} fill={i === 0 ? "#f2a65a" : "#cfd7de"} />
+                      <Circle key={i} x={p.x * W} y={p.y * H} radius={i === 0 ? 5 : 4} fill={i === 0 ? "#f2a65a" : "#cfd7de"} />
                     ))}
                   </>
                 )}
-                {marquee && (
+                {marqueeStart && (
                   <Rect
-                    x={Math.min(marquee.x0, marquee.x1)}
-                    y={Math.min(marquee.y0, marquee.y1)}
-                    width={Math.abs(marquee.x1 - marquee.x0)}
-                    height={Math.abs(marquee.y1 - marquee.y0)}
+                    ref={marqueeRectRef}
+                    x={marqueeStart.x}
+                    y={marqueeStart.y}
+                    width={0}
+                    height={0}
                     fill="rgba(242,166,90,0.12)"
                     stroke="#f2a65a"
                     strokeWidth={1}
@@ -1353,7 +1548,7 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
                   />
                 )}
               </Layer>
-              <Layer>
+              <Layer ref={uiLayerRef}>
                 {tool === "select" && selectedIds.length > 0 && (
                   <Transformer
                     ref={transformerRef}

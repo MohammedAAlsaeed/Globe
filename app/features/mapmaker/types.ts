@@ -70,6 +70,11 @@ export interface MMLabel {
   rtl: boolean;
   /** Optional: added after v1. Older saved projects lack this field — read as `?? 0`. */
   rotation?: number;
+  /** Optional: true when (x, y) is the alignment anchor — the left edge,
+   * middle or right edge of the text for start/center/end (mirrored for RTL).
+   * Labels saved before this existed lack it and keep their original
+   * top-left placement so existing maps never shift. */
+  anchored?: boolean;
 }
 export type MMObject = MMBrush | MMIcon | MMPath | MMRegion | MMLabel;
 
@@ -125,5 +130,6 @@ export interface MMPatch {
   size?: number;
   align?: LabelAlign;
   rtl?: boolean;
+  anchored?: boolean;
   softness?: number;
 }
