@@ -147,7 +147,9 @@ export function MapEditor({
     if (!tr || !stage) return;
     const node =
       tool === "select" && selectedId
-        ? stage.findOne(`#${CSS.escape(selectedId)}`)
+        ? // Predicate lookup: Konva's "#id" selector compares raw strings, so a
+          // CSS-escaped UUID (leading digit → "\3X ") would never match.
+          stage.findOne((n: Konva.Node) => n.id() === selectedId)
         : null;
     tr.nodes(node && node.getClassName() === "Group" ? [node] : []);
     tr.getLayer()?.batchDraw();

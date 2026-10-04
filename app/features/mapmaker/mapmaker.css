@@ -640,6 +640,12 @@
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
 }
 
+/* Pen/touch input draws on the canvas instead of scrolling or zooming the
+   page; panning stays available via Space+drag / middle-click. */
+.mm-canvas-wrap .konvajs-content {
+  touch-action: none;
+}
+
 .mm-status-bar {
   display: flex;
   align-items: center;

@@ -53,6 +53,15 @@ export function biomeTexture(biome: Biome): HTMLCanvasElement {
   return canvas;
 }
 
+const swatchUrls = new Map<Biome, string>();
+
+/** Cached data URL of a biome swatch, for CSS backgrounds in the toolbar —
+ * encoding a PNG on every render would be wasted work. */
 export function biomeSwatchDataUrl(biome: Biome): string {
-  return biomeTexture(biome).toDataURL("image/png");
+  let url = swatchUrls.get(biome);
+  if (!url) {
+    url = biomeTexture(biome).toDataURL("image/png");
+    swatchUrls.set(biome, url);
+  }
+  return url;
 }

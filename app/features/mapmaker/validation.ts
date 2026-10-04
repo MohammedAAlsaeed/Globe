@@ -69,7 +69,8 @@ function validObject(o: unknown): o is MMObject {
       hexColor(obj.color) &&
       ALIGNS.includes(obj.align as string) &&
       typeof obj.rtl === "boolean" &&
-      (obj.rotation === undefined || finite(obj.rotation, -3600, 3600))
+      (obj.rotation === undefined || finite(obj.rotation, -3600, 3600)) &&
+      (obj.anchored === undefined || typeof obj.anchored === "boolean")
     );
   if (obj.kind === "brush")
     return (
