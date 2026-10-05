@@ -1,6 +1,7 @@
 import type {
   AspectPreset,
   Biome,
+  LayerRole,
   MMLayer,
   MMProject,
   PathKind,
@@ -72,7 +73,7 @@ export const DEFAULT_BACKGROUND = "#2c5678";
 /** Arabic script block — used to auto-detect right-to-left label text. */
 export const ARABIC_RANGE = /[\u0600-\u06FF]/;
 
-export function createLayer(name: string): MMLayer {
+export function createLayer(name: string, role: LayerRole = "custom"): MMLayer {
   return {
     id: crypto.randomUUID(),
     name,
@@ -80,6 +81,7 @@ export function createLayer(name: string): MMLayer {
     locked: false,
     opacity: 1,
     objects: [],
+    role,
   };
 }
 
@@ -103,7 +105,8 @@ export function createProject(opts: {
     aspect: opts.aspect,
     background: DEFAULT_BACKGROUND,
     snapToGrid: false,
-    layers: [createLayer("Layer 1")],
+    // Brush layers first (Water below Land), then a layer for stamps & labels.
+    layers: [createLayer("Water", "water"), createLayer("Land", "land"), createLayer("Layer 1")],
     updatedAt: Date.now(),
   };
 }

@@ -15,10 +15,18 @@ import {
   Text as KonvaText,
   Circle,
   Group,
+  Image as KonvaImage,
   Transformer,
 } from "react-konva";
 import "../../lib/i18n";
 import { Glyph } from "./glyphs";
+import { BrushPanel, PAINT_MODES } from "./brush/BrushPanel";
+import { PaintNode, paintRasterAt } from "./brush/PaintNode";
+import { LiveStroke, gridCellAt, renderPaint, type RenderedPaint } from "./brush/engine";
+import { newSeed } from "./brush/noise";
+import { loadFavorites, saveFavorites, type FavoriteBrush } from "./brush/presets";
+import { loadBrushState, saveBrushState, type BrushState } from "./brush/state";
+import { textureDef } from "./brush/textures";
 import { biomeSwatchDataUrl, biomeTexture } from "./textures";
 import {
   ARABIC_RANGE,
@@ -42,13 +50,17 @@ import { SelectField } from "../../components/ui/fields";
 import type {
   Biome,
   LabelAlign,
+  LayerRole,
   MMBrush,
   MMLabel,
   MMLayer,
   MMObject,
+  MMPaint,
   MMPatch,
   MMPath,
   MMProject,
+  PaintMode,
+  PaintPoint,
   PathKind,
   Point,
 } from "./types";
@@ -106,6 +118,16 @@ const MAX_LAYERS = 20,
 type StrokeDraft = Omit<MMBrush, "points"> | Omit<MMPath, "points">;
 type ObjUpdater = (o: MMObject) => MMPatch;
 type StagePoint = { x: number; y: number };
+/** The Brush Tool gesture in progress: the paint recipe being built and, for
+ * Free Brush, the incremental live rasterizer. */
+type PaintSession = { obj: MMPaint; live: LiveStroke | null };
+/** Freehand brush/lasso samples closer than this (screen px) are dropped. */
+const PAINT_GAP_PX = 1.5,
+  LASSO_GAP_PX = 3,
+  MAX_PAINT_POINTS = 8000,
+  MAX_GRID_CELLS = 4000;
+/** Rounds a normalized coordinate for compact, stable storage. */
+const q5 = (v: number) => Math.round(v * 1e5) / 1e5;
 
 /** Konva's `#id` selector compares the raw string, so ids must never be
  * CSS-escaped: `CSS.escape` turns a UUID's leading digit into `\3X `, which
@@ -251,9 +273,6 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
 
   const [color, setColor] = useState("#e7dcb8"),
     [recentColors, setRecentColors] = useState<string[]>([]),
-    [brushSize, setBrushSize] = useState(0.006),
-    [brushOpacity, setBrushOpacity] = useState(1),
-    [brushSoftness, setBrushSoftness] = useState(0),
     [iconId, setIconId] = useState<IconId>("mountain"),
     [recentIcons, setRecentIcons] = useState<IconId[]>([]),
     [iconScale, setIconScale] = useState(1),
@@ -276,6 +295,15 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
    * node, so drawing never re-renders the whole editor per pointer move. */
   const [stroke, setStroke] = useState<StrokeDraft | null>(null),
     [regionDraft, setRegionDraft] = useState<Point[] | null>(null);
+  // ---- Brush Tool 2.0 state ----
+  /** Everything the Brush panel edits; remembered per browser. */
+  const [brushState, setBrushState] = useState<BrushState>(loadBrushState),
+    [favorites, setFavorites] = useState<FavoriteBrush[]>(loadFavorites),
+    /** True while a paint gesture's live preview node is mounted. */
+    [paintPreview, setPaintPreview] = useState(false),
+    /** Polygon sub-tool: vertices placed so far (click-by-click). */
+    [polyDraft, setPolyDraft] = useState<PaintPoint[] | null>(null),
+    [showLayerMenu, setShowLayerMenu] = useState(false);
 
   const containerRef = useRef<HTMLDivElement>(null),
     stageRef = useRef<Konva.Stage>(null),
@@ -295,7 +323,14 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
     panRef = useRef<{ x: number; y: number; scrollLeft: number; scrollTop: number } | null>(null),
     zoomAnchorRef = useRef<{ contentX: number; contentY: number; scaleRatio: number; clientX: number; clientY: number } | null>(null),
     editMenuRef = useRef<HTMLDivElement>(null),
-    contextMenuRef = useRef<HTMLDivElement>(null);
+    contextMenuRef = useRef<HTMLDivElement>(null),
+    /** Brush Tool: the gesture in progress, its preview node, the size cursor. */
+    paintSessionRef = useRef<PaintSession | null>(null),
+    paintImageRef = useRef<Konva.Image>(null),
+    paintFrameRef = useRef(0),
+    brushCursorRef = useRef<Konva.Circle>(null),
+    layerMenuRef = useRef<HTMLDivElement>(null),
+    polySeedRef = useRef(0);
   const [spaceHeld, setSpaceHeld] = useState(false),
     [panningActive, setPanningActive] = useState(false),
     [hasClipboard, setHasClipboard] = useState(false),
@@ -367,18 +402,48 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
   }, []);
 
   // Objects on a hidden or locked layer stay selected but get no handles.
+  // Paint (brush) strokes are raster-like, never transformed — like Inkarnate.
   const selectionEditable = !!selectedLayer && selectedLayer.visible && !selectedLayer.locked;
   useEffect(() => {
     const tr = transformerRef.current,
       stage = stageRef.current;
     if (!tr || !stage) return;
+    const handleIds = selectedObjs.filter((o) => o.kind !== "paint").map((o) => o.id);
     const nodes =
       tool === "select" && selectionEditable
-        ? selectedIds.map((id) => findNode(stage, id)).filter((n): n is Konva.Node => !!n)
+        ? handleIds.map((id) => findNode(stage, id)).filter((n): n is Konva.Node => !!n)
         : [];
     tr.nodes(nodes);
     tr.getLayer()?.batchDraw();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tool, selectedIds, project, selectionEditable]);
+
+  // Brush settings and favorites persist per browser (debounced while sliding).
+  useEffect(() => {
+    const timer = setTimeout(() => saveBrushState(brushState), 400);
+    return () => clearTimeout(timer);
+  }, [brushState]);
+  useEffect(() => saveFavorites(favorites), [favorites]);
+  useEffect(() => {
+    if (!showLayerMenu) return;
+    const onDown = (e: PointerEvent) => {
+      if (layerMenuRef.current && !layerMenuRef.current.contains(e.target as Node)) setShowLayerMenu(false);
+    };
+    document.addEventListener("pointerdown", onDown);
+    return () => document.removeEventListener("pointerdown", onDown);
+  }, [showLayerMenu]);
+  // Polygon sub-tool preview: re-rendered whenever a vertex is added.
+  useEffect(() => {
+    if (!polyDraft) return;
+    const raf = requestAnimationFrame(() => {
+      const node = paintImageRef.current;
+      if (!node) return;
+      const draft = buildPaint("polygon", polyDraft, polySeedRef.current);
+      showPaintRaster(polyDraft.length >= 3 ? renderPaint(draft, W, H, true) : null);
+    });
+    return () => cancelAnimationFrame(raf);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [polyDraft, W, H, brushState]);
 
   /** Keeps whatever content point was under the cursor fixed in place across
    * a Ctrl/Cmd+scroll (or trackpad-pinch) zoom, instead of zooming from a
@@ -479,6 +544,30 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
       if (!mod && hotkeyIndex >= 0) {
         e.preventDefault();
         selectTool(TOOLS[hotkeyIndex].key);
+        return;
+      }
+      // ---- Brush Tool shortcuts ----
+      const key = e.key.toLowerCase();
+      if (!mod && !e.altKey && key === "b") {
+        e.preventDefault();
+        selectTool("brush");
+        return;
+      }
+      if (tool !== "brush" || mod) return;
+      if (key === "e") {
+        e.preventDefault();
+        setBrushState((st) => ({ ...st, erase: !st.erase }));
+      } else if (e.key === "[" || e.key === "]") {
+        e.preventDefault();
+        const k = e.key === "]" ? 1.12 : 1 / 1.12;
+        setBrushState((st) => ({
+          ...st,
+          presetId: null,
+          brush: { ...st.brush, size: clamp(st.brush.size * k, 1 / project.width, 0.25) },
+        }));
+      } else if (e.key === "Enter" && polyDraft) {
+        e.preventDefault();
+        commitPolygon();
       }
     };
     const onKeyUp = (e: KeyboardEvent) => {
@@ -491,7 +580,7 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
       window.removeEventListener("keyup", onKeyUp);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tool, selectedIds, selectedObjs, undo, redo, spaceHeld]);
+  }, [tool, selectedIds, selectedObjs, undo, redo, spaceHeld, polyDraft, project.width]);
 
   // ---- Shared small helpers (used by keyboard shortcuts, the Edit menu and
   // the toolbars, so all three stay in sync with one implementation) ----
@@ -500,6 +589,7 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
     pointerSessionRef.current?.();
     setRegionDraft(null);
     setLabelDraft(null);
+    setPolyDraft(null);
   }
   function selectTool(next: Tool) {
     cancelDrafts();
@@ -530,13 +620,17 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
   function updateLayer(id: string, patch: Partial<Omit<MMLayer, "id" | "objects">>) {
     setProject((p) => mapLayer(p, id, (l) => ({ ...l, ...patch })));
   }
-  function addLayer() {
+  /** Adds a layer. Brush layers (Inkarnate-style): a Water layer goes to the
+   * bottom of the stack, Land and custom layers on top. */
+  function addLayer(role: LayerRole = "custom") {
     if (project.layers.length >= MAX_LAYERS) return;
-    const layer = createLayer(`Layer ${project.layers.length + 1}`);
+    const name =
+      role === "water" ? t("mmLayerWater") : role === "land" ? t("mmLayerLand") : `${t("mmLayerDefaultName")} ${project.layers.length + 1}`;
+    const layer = createLayer(name, role);
     setProject((p) =>
       p.layers.length >= MAX_LAYERS
         ? p
-        : { ...p, layers: [...p.layers, layer], updatedAt: Date.now() },
+        : { ...p, layers: role === "water" ? [layer, ...p.layers] : [...p.layers, layer], updatedAt: Date.now() },
     );
     setActiveLayerId(layer.id);
   }
@@ -844,7 +938,7 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
    * used where available for smooth, high-frequency strokes. */
   function trackPointer(
     pointerId: number,
-    onMove: (pos: StagePoint) => void,
+    onMove: (pos: StagePoint, ev: PointerEvent) => void,
     onEnd: (commit: boolean) => void,
   ) {
     const stage = stageRef.current;
@@ -860,13 +954,13 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
       const samples = ev.getCoalescedEvents?.() ?? [];
       for (const sample of samples.length ? samples : [ev]) {
         const pos = read(sample);
-        if (pos) onMove(pos);
+        if (pos) onMove(pos, sample);
       }
     }
     function up(ev: PointerEvent) {
       if (ev.pointerId !== pointerId) return;
       const pos = read(ev);
-      if (pos) onMove(pos);
+      if (pos) onMove(pos, ev);
       stop(true);
     }
     function cancel(ev: PointerEvent) {
@@ -904,7 +998,9 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
     }
     if (!active || active.locked) return;
     const p = toNorm(pos);
-    if (tool === "brush" || tool === "path") {
+    if (tool === "brush") {
+      startPaint(pos, e.evt);
+    } else if (tool === "path") {
       startStroke(p, e.evt.pointerId);
     } else if (tool === "icon") {
       const sp = snap(p);
@@ -929,15 +1025,12 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
     }
   }
 
-  /** Freehand brush/path: the points live in a ref and are streamed into the
+  /** Freehand path: the points live in a ref and are streamed into the
    * preview Line directly (no React render per pointer move); React only
    * hears about the stroke when it starts and when it's committed. */
   function startStroke(start: Point, pointerId: number) {
     const id = crypto.randomUUID();
-    const style: StrokeDraft =
-      tool === "brush"
-        ? { id, kind: "brush", color, size: brushSize, opacity: brushOpacity, softness: brushSoftness }
-        : { id, kind: "path", pathKind, color, width: pathWidth, opacity: pathOpacity, softness: pathSoftness };
+    const style: StrokeDraft = { id, kind: "path", pathKind, color, width: pathWidth, opacity: pathOpacity, softness: pathSoftness };
     const points: Point[] = [start];
     strokePointsRef.current = points;
     setStroke(style);
@@ -960,12 +1053,209 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
         strokePointsRef.current = [];
         setStroke(null);
         if (!commit) return;
-        if (style.kind === "brush")
-          // A single click leaves a round dot (a zero-length, round-capped line).
-          addObject({ ...style, points: points.length > 1 ? points : [start, start] });
-        else if (points.length >= 2) addObject({ ...style, points });
+        if (points.length >= 2) addObject({ ...style, points });
       },
     );
+  }
+
+  // ---- Brush Tool 2.0 ------------------------------------------------------
+  // Every sub-tool builds an MMPaint *recipe* (geometry + all brush settings +
+  // a seed) while the pointer moves, previews it live inside the active layer
+  // — so the eraser and blend modes preview exactly as they'll commit — and
+  // adds it as one object (one undo step) on release.
+
+  /** Brush panel / toolbar changes. Switching sub-tool drops a half-built polygon. */
+  function updateBrush(next: BrushState) {
+    if (next.mode !== brushState.mode) setPolyDraft(null);
+    setBrushState(next);
+  }
+  /** A paint recipe from the current Brush panel settings. */
+  function buildPaint(mode: PaintMode, points: PaintPoint[], seed = newSeed(), cells?: [number, number][]): MMPaint {
+    const b = brushState,
+      shape = mode === "rect" || mode === "ellipse" || mode === "polygon";
+    return {
+      id: crypto.randomUUID(),
+      kind: "paint",
+      mode,
+      erase: b.erase,
+      blend: b.blend,
+      opacity: b.opacity,
+      source: b.source,
+      points,
+      ...(mode === "free" ? { brush: b.brush } : { edge: b.edge }),
+      ...(shape ? { rough: b.rough } : {}),
+      ...(mode === "grid" ? { cells: cells ?? [], grid: b.grid } : {}),
+      seed,
+    };
+  }
+  /** Shows a raster in the live preview node (or hides it). */
+  function showPaintRaster(r: RenderedPaint | null) {
+    const node = paintImageRef.current;
+    if (!node) return;
+    if (!r) node.visible(false);
+    else node.setAttrs({ image: r.canvas, x: r.x, y: r.y, width: r.canvas.width, height: r.canvas.height, visible: true });
+    node.getLayer()?.batchDraw();
+  }
+  /** Redraws the live preview at most once per animation frame. */
+  function schedulePaintFrame() {
+    if (paintFrameRef.current) return;
+    paintFrameRef.current = requestAnimationFrame(() => {
+      paintFrameRef.current = 0;
+      const session = paintSessionRef.current;
+      if (!session) return;
+      if (session.live) {
+        session.live.compose();
+        showPaintRaster({ canvas: session.live.canvas, x: 0, y: 0 });
+      } else {
+        const { w, h } = viewRef.current;
+        showPaintRaster(renderPaint(session.obj, w, h, true));
+      }
+    });
+  }
+  /** A pointer sample in normalized map coordinates, with pen pressure. */
+  function paintSample(pos: StagePoint, ev: PointerEvent): PaintPoint {
+    const { w, h } = viewRef.current,
+      pt: PaintPoint = { x: q5(clamp(pos.x / w, -0.05, 1.05)), y: q5(clamp(pos.y / h, -0.05, 1.05)) };
+    if (ev.pointerType === "pen" && ev.pressure > 0) pt.p = Math.round(ev.pressure * 100) / 100;
+    return pt;
+  }
+
+  function startPaint(pos: StagePoint, ev: PointerEvent) {
+    const mode = brushState.mode;
+    if (mode === "polygon") {
+      addPolygonVertex(toNorm(pos));
+      return;
+    }
+    const first = paintSample(pos, ev),
+      obj = buildPaint(mode, [first], newSeed(), mode === "grid" ? [] : undefined),
+      session: PaintSession = { obj, live: null },
+      aspect = project.height / project.width,
+      cellKeys = new Set<string>();
+    const addCell = (pt: PaintPoint) => {
+      if (!obj.cells || !obj.grid || obj.cells.length >= MAX_GRID_CELLS) return;
+      const cell = gridCellAt(pt.x, pt.y, obj.grid, aspect),
+        key = `${cell[0]},${cell[1]}`;
+      if (cellKeys.has(key)) return;
+      cellKeys.add(key);
+      obj.cells.push(cell);
+    };
+    paintSessionRef.current = session;
+    // Mount the preview node now, so the first frame already has it.
+    flushSync(() => setPaintPreview(true));
+    if (mode === "free") {
+      const { w, h } = viewRef.current;
+      session.live = new LiveStroke(obj, w, h);
+      session.live.add(first);
+    } else if (mode === "grid") addCell(first);
+    if (mode !== "rect" && mode !== "ellipse") schedulePaintFrame();
+
+    trackPointer(
+      ev.pointerId,
+      (p, e) => {
+        const { w, h } = viewRef.current,
+          pt = paintSample(p, e),
+          pts = obj.points,
+          last = pts[pts.length - 1],
+          gapPx = Math.hypot((pt.x - last.x) * w, (pt.y - last.y) * h);
+        if (mode === "free") {
+          if (gapPx < PAINT_GAP_PX || pts.length >= MAX_PAINT_POINTS) return;
+          pts.push(pt);
+          session.live!.add(pt);
+        } else if (mode === "edge") {
+          if (gapPx < LASSO_GAP_PX || pts.length >= MAX_PAINT_POINTS) return;
+          pts.push(pt);
+        } else if (mode === "rect" || mode === "ellipse") {
+          // Shift: perfect square / circle. Alt: draw from the center.
+          let dx = (pt.x - first.x) * w,
+            dy = (pt.y - first.y) * h;
+          if (e.shiftKey) {
+            const m = Math.max(Math.abs(dx), Math.abs(dy));
+            dx = Math.sign(dx || 1) * m;
+            dy = Math.sign(dy || 1) * m;
+          }
+          const corner = { x: q5(first.x + dx / w), y: q5(first.y + dy / h) };
+          obj.points = e.altKey ? [{ x: q5(first.x - dx / w), y: q5(first.y - dy / h) }, corner] : [first, corner];
+        } else if (mode === "grid") {
+          // Fill every cell along the segment, so fast drags leave no gaps.
+          const cellPx = obj.grid!.cell * w,
+            steps = Math.max(1, Math.ceil(gapPx / Math.max(2, cellPx / 3)));
+          for (let k = 1; k <= steps; k++)
+            addCell({ x: last.x + ((pt.x - last.x) * k) / steps, y: last.y + ((pt.y - last.y) * k) / steps });
+          pts.push(pt);
+        }
+        schedulePaintFrame();
+      },
+      (commit) => {
+        cancelAnimationFrame(paintFrameRef.current);
+        paintFrameRef.current = 0;
+        paintSessionRef.current = null;
+        setPaintPreview(false);
+        if (!commit || !paintIsWorthKeeping(obj)) return;
+        // Grid Block stores cells, not the pointer trail.
+        addObject(mode === "grid" ? { ...obj, points: [] } : obj);
+      },
+    );
+  }
+  /** Filters out accidental clicks for shape tools (tiny lasso, zero-size box). */
+  function paintIsWorthKeeping(o: MMPaint) {
+    const px = (a: PaintPoint, b: PaintPoint) => Math.hypot((a.x - b.x) * W, (a.y - b.y) * H);
+    switch (o.mode) {
+      case "free":
+        return o.points.length > 0;
+      case "grid":
+        return (o.cells?.length ?? 0) > 0;
+      case "rect":
+      case "ellipse":
+        return o.points.length === 2 && Math.abs(o.points[0].x - o.points[1].x) * W > 3 && Math.abs(o.points[0].y - o.points[1].y) * H > 3;
+      case "edge": {
+        if (o.points.length < 3) return false;
+        let span = 0;
+        for (const p of o.points) span = Math.max(span, px(p, o.points[0]));
+        return span > 8;
+      }
+      default:
+        return o.points.length >= 3;
+    }
+  }
+  /** Polygon sub-tool: click to add vertices; click the first vertex,
+   * double-click or press Enter to close; Escape cancels. */
+  function addPolygonVertex(p: Point) {
+    const pt = { x: q5(p.x), y: q5(p.y) },
+      draft = polyDraft;
+    if (!draft) {
+      polySeedRef.current = newSeed();
+      setPolyDraft([pt]);
+      return;
+    }
+    const dist = (a: PaintPoint, b: PaintPoint) => Math.hypot((a.x - b.x) * W, (a.y - b.y) * H);
+    if (draft.length >= 3 && dist(draft[0], pt) < REGION_CLOSE_PX) {
+      commitPolygon();
+      return;
+    }
+    if (dist(draft[draft.length - 1], pt) < REGION_DUPLICATE_PX || draft.length >= MAX_REGION_POINTS) return;
+    setPolyDraft([...draft, pt]);
+  }
+  function commitPolygon() {
+    if (polyDraft && polyDraft.length >= 3) addObject(buildPaint("polygon", polyDraft, polySeedRef.current));
+    setPolyDraft(null);
+  }
+  /** Brush size cursor: follows the pointer over the canvas (imperatively). */
+  function handleStageHover(e: Konva.KonvaEventObject<PointerEvent>) {
+    const c = brushCursorRef.current;
+    if (!c) return;
+    const pos = e.target.getStage()?.getPointerPosition();
+    const show = tool === "brush" && brushState.mode === "free" && !!pos && !spaceHeld;
+    if (show) c.setAttrs({ x: pos!.x, y: pos!.y, visible: true });
+    else if (!c.visible()) return;
+    else c.visible(false);
+    c.getLayer()?.batchDraw();
+  }
+  function hideBrushCursor() {
+    const c = brushCursorRef.current;
+    if (c?.visible()) {
+      c.visible(false);
+      c.getLayer()?.batchDraw();
+    }
   }
 
   /** Rubber-band selection, drawn imperatively like strokes. */
@@ -1007,6 +1297,7 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
     const nodes = new Map(stage.find((n: Konva.Node) => !!n.id()).map((n) => [n.id(), n]));
     const hits = active.objects
       .filter((o) => {
+        if (o.kind === "paint") return false; // paint is raster-like, not selectable on canvas
         const node = nodes.get(o.id);
         if (!node) return false;
         const r = node.getClientRect({ relativeTo: stage });
@@ -1048,8 +1339,17 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
     });
     setRegionDraft(null);
   }
-  function finishRegion() {
-    if (tool === "region" && regionDraft) commitRegion(regionDraft);
+  /** Double-click closes a Region / Polygon draft — but only a *real* double
+   * click: Konva fires dblclick for any two quick clicks, even far apart,
+   * which would close a shape while the user is still placing corners fast. */
+  function finishRegion(e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) {
+    const pos = e.target.getStage()?.getPointerPosition(),
+      onLast = (pts: Point[] | null) => {
+        const last = pts?.[pts.length - 1];
+        return !!pos && !!last && Math.hypot(last.x * W - pos.x, last.y * H - pos.y) <= REGION_DUPLICATE_PX * 2;
+      };
+    if (tool === "region" && regionDraft && regionDraft.length >= 3 && onLast(regionDraft)) commitRegion(regionDraft);
+    if (tool === "brush" && polyDraft && polyDraft.length >= 3 && onLast(polyDraft)) commitPolygon();
   }
   function confirmLabel() {
     if (!labelDraft || !labelText.trim()) return;
@@ -1090,20 +1390,51 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
   }
 
   // ---- Handing the finished map off to the print pipeline ----
-  /** Rasterises just the map at the project's native resolution. Editor-only
-   * chrome (snap grid, drafts/marquee, selection Transformer) is hidden for
-   * the capture and restored synchronously, so it never ends up in the print
-   * and never flashes on screen. */
+  /** Rasterises just the map at the project's native resolution.
+   *  - Editor-only chrome (snap grid, drafts/marquee, brush cursor, selection
+   *    Transformer) is hidden for the capture and restored synchronously, so
+   *    it never ends up in the print and never flashes on screen.
+   *  - Each layer is rendered on its own and then stacked, exactly like the
+   *    on-screen layer canvases — so an eraser or a blend mode only ever acts
+   *    within its own layer, as it does while editing.
+   *  - Paint strokes are re-rendered at full print resolution (not upscaled
+   *    from the screen raster), so textures and edges stay crisp. */
   function renderMapCanvas(stage: Konva.Stage) {
+    // Exactly the project's own pixel size (W/H are rounded display sizes).
+    const ratio = project.width / W,
+      outW = project.width,
+      outH = project.height;
     const chrome = [gridGroupRef.current, overlayLayerRef.current, uiLayerRef.current].filter(
       (n): n is Konva.Group | Konva.Layer => !!n,
     );
     const wasVisible = chrome.map((n) => n.visible());
+    // Swap every paint node's screen raster for a print-resolution one.
+    const swapped: { node: Konva.Image; attrs: Konva.ImageConfig }[] = [];
+    for (const layer of project.layers) {
+      if (!layer.visible) continue;
+      for (const o of layer.objects) {
+        if (o.kind !== "paint") continue;
+        const node = findNode(stage, o.id) as Konva.Image | null,
+          hi = node ? paintRasterAt(o, project.width, project.height) : null;
+        if (!node || !hi) continue;
+        swapped.push({ node, attrs: { image: node.image(), x: node.x(), y: node.y(), width: node.width(), height: node.height() } });
+        node.setAttrs({ image: hi.canvas, x: hi.x / ratio, y: hi.y / ratio, width: hi.canvas.width / ratio, height: hi.canvas.height / ratio });
+      }
+    }
     chrome.forEach((n) => n.visible(false));
     try {
-      return stage.toCanvas({ pixelRatio: project.width / W });
+      const out = document.createElement("canvas");
+      out.width = outW;
+      out.height = outH;
+      const ctx = out.getContext("2d")!;
+      for (const layer of stage.getLayers()) {
+        if (!layer.visible() || layer === overlayLayerRef.current || layer === uiLayerRef.current) continue;
+        ctx.drawImage(layer.toCanvas({ x: 0, y: 0, width: W, height: H, pixelRatio: ratio }), 0, 0, outW, outH);
+      }
+      return out;
     } finally {
       chrome.forEach((n, i) => n.visible(wasVisible[i]));
+      for (const { node, attrs } of swapped) node.setAttrs(attrs);
     }
   }
   async function handlePrint() {
@@ -1111,6 +1442,8 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
     if (!stage || printing) return;
     setPrinting(true);
     try {
+      // Let the button show its busy state before the (heavy) full-res render.
+      await new Promise((resolve) => requestAnimationFrame(() => setTimeout(resolve, 0)));
       const canvas = renderMapCanvas(stage);
       const blob = await new Promise<Blob | null>((resolve) =>
         canvas.toBlob((b) => resolve(b), "image/png"),
@@ -1129,24 +1462,31 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
 
   // ---- Derived: the searchable, cross-layer Objects panel list ----
   const searchLower = objectSearch.trim().toLowerCase();
+  /** Human-readable name of an object, for the Objects panel and search. */
+  function objectLabel(o: MMObject) {
+    switch (o.kind) {
+      case "label":
+        return o.text || t("mmToolLabel");
+      case "icon":
+        return t(ICONS[o.icon].labelKey);
+      case "region":
+        return t(BIOME_LABEL_KEY[o.biome]);
+      case "path":
+        return t(PATH_KIND_LABEL_KEY[o.pathKind]);
+      case "paint": {
+        const mode = t(PAINT_MODES.find((m) => m.key === o.mode)?.labelKey ?? "mmToolBrush");
+        if (o.erase) return `${t("mmEraser")} · ${mode}`;
+        return `${mode} · ${o.source.type === "texture" ? t(textureDef(o.source.texture).labelKey) : t("mmSourceColor")}`;
+      }
+      default:
+        return t("mmToolBrush");
+    }
+  }
   const objectRows = useMemo(
     () =>
       project.layers.flatMap((layer) =>
         layer.objects.map((o) => ({ layer, o })),
-      ).filter(({ o }) => {
-        if (!searchLower) return true;
-        const label =
-          o.kind === "label"
-            ? o.text
-            : o.kind === "icon"
-              ? t(ICONS[o.icon].labelKey)
-              : o.kind === "region"
-                ? t(BIOME_LABEL_KEY[o.biome])
-                : o.kind === "path"
-                  ? t(PATH_KIND_LABEL_KEY[o.pathKind])
-                  : t("mmToolBrush");
-        return label.toLowerCase().includes(searchLower);
-      }),
+      ).filter(({ o }) => !searchLower || objectLabel(o).toLowerCase().includes(searchLower)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [project.layers, searchLower, i18n.language],
   );
@@ -1236,6 +1576,34 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
             </button>
           ))}
         </nav>
+        {tool === "brush" && (
+          <BrushPanel
+            state={brushState}
+            onChange={updateBrush}
+            t={t}
+            mapWidthPx={project.width}
+            tileCell={1 / project.tileCols}
+            recentColors={recentColors}
+            onCommitColor={(c) => setRecentColors((r) => pushRecent(r, c))}
+            favorites={favorites}
+            onSaveFavorite={(name) =>
+              setFavorites((list) => [
+                {
+                  id: crypto.randomUUID(),
+                  name,
+                  brush: brushState.brush,
+                  opacity: brushState.opacity,
+                  blend: brushState.blend,
+                  source: brushState.source,
+                },
+                ...list,
+              ])
+            }
+            onDeleteFavorite={(id) => setFavorites((list) => list.filter((f) => f.id !== id))}
+            layerName={active?.name ?? ""}
+            layerRole={active?.role ?? "custom"}
+          />
+        )}
         <div className="mm-canvas-column">
           <div className="mm-top-toolbar">
             {tool === "select" && selectedObjs.length === 0 && (
@@ -1255,10 +1623,52 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
             )}
             {tool === "brush" && (
               <>
-                <ColorControl color={color} recents={recentColors} onChange={commitColor} label={t("mmColor")} recentLabel={t("mmRecents")} />
-                <Slider label={t("mmBrushSize")} value={brushSize} min={0.002} max={0.05} step={0.001} onChange={setBrushSize} />
-                <Slider label={t("mmBrushOpacity")} value={brushOpacity} min={0.1} max={1} step={0.05} onChange={setBrushOpacity} format={(v) => `${Math.round(v * 100)}%`} />
-                <Slider label={t("mmBrushSoftness")} value={brushSoftness} min={0} max={1} step={0.05} onChange={setBrushSoftness} format={(v) => `${Math.round(v * 100)}%`} />
+                <div className="mm-tb-modes" role="radiogroup" aria-label={t("mmSubTools")}>
+                  {PAINT_MODES.map((m) => (
+                    <button
+                      key={m.key}
+                      className={brushState.mode === m.key ? "active" : ""}
+                      title={t(m.labelKey)}
+                      role="radio"
+                      aria-checked={brushState.mode === m.key}
+                      onClick={() => updateBrush({ ...brushState, mode: m.key })}
+                    >
+                      <Glyph name={m.glyph} size={16} />
+                    </button>
+                  ))}
+                </div>
+                <button
+                  className={`mm-pill ${brushState.erase ? "selected" : ""}`}
+                  title={t("mmEraserHint")}
+                  onClick={() => setBrushState((st) => ({ ...st, erase: !st.erase }))}
+                >
+                  {t("mmEraser")}
+                </button>
+                {brushState.mode === "free" && (
+                  <Slider
+                    label={t("mmBrushSize")}
+                    value={Math.round(brushState.brush.size * project.width)}
+                    min={1}
+                    max={Math.round(project.width * 0.25)}
+                    step={1}
+                    onChange={(v) => setBrushState((st) => ({ ...st, presetId: null, brush: { ...st.brush, size: v / project.width } }))}
+                    format={(v) => `${v} px`}
+                  />
+                )}
+                <Slider
+                  label={t("mmBrushOpacity")}
+                  value={brushState.opacity}
+                  min={0.02}
+                  max={1}
+                  step={0.01}
+                  onChange={(v) => setBrushState((st) => ({ ...st, presetId: null, opacity: v }))}
+                  format={(v) => `${Math.round(v * 100)}%`}
+                />
+                {polyDraft && polyDraft.length >= 3 && (
+                  <button className="secondary-button" onClick={commitPolygon}>
+                    {t("mmFinishShape")}
+                  </button>
+                )}
               </>
             )}
             {tool === "icon" && (
@@ -1331,7 +1741,7 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
                 <Slider label={t("mmTextureRotation")} value={textureRotation} min={0} max={359} step={1} onChange={setTextureRotation} format={(v) => `${v}°`} />
                 <Slider label={t("mmFillOpacity")} value={fillOpacity} min={0.1} max={1} step={0.05} onChange={setFillOpacity} format={(v) => `${Math.round(v * 100)}%`} />
                 {regionDraft && regionDraft.length >= 3 && (
-                  <button className="secondary-button" onClick={finishRegion}>
+                  <button className="secondary-button" onClick={() => commitRegion(regionDraft)}>
                     {t("mmFinishShape")}
                   </button>
                 )}
@@ -1419,6 +1829,8 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
               width={W}
               height={H}
               onPointerDown={handlePointerDown}
+              onPointerMove={handleStageHover}
+              onPointerLeave={hideBrushCursor}
               onDblClick={finishRegion}
               onDblTap={finishRegion}
               onContextMenu={handleContextMenu}
@@ -1439,6 +1851,7 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
               {project.layers.map((layer) => (
                 <Layer key={layer.id} visible={layer.visible} opacity={layer.opacity} listening={layer.id === active?.id && !layer.locked}>
                   {layer.objects.map((o) => {
+                    if (o.kind === "paint") return <PaintNode key={o.id} o={o} W={W} H={H} />;
                     const handlers = objectHandlers(o, layer);
                     if (o.kind === "region")
                       return (
@@ -1504,12 +1917,48 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
                       />
                     );
                   })}
+                  {/* Live Brush Tool preview — inside the active layer, so the
+                      eraser and blend modes preview exactly as they commit.
+                      Its image/position are set imperatively per frame. */}
+                  {(paintPreview || !!polyDraft) && layer.id === active?.id && (
+                    <KonvaImage
+                      ref={paintImageRef}
+                      image={undefined}
+                      visible={false}
+                      listening={false}
+                      opacity={brushState.opacity}
+                      globalCompositeOperation={
+                        brushState.erase ? "destination-out" : brushState.blend === "normal" ? "source-over" : brushState.blend
+                      }
+                    />
+                  )}
                 </Layer>
               ))}
               {/* Editor-only overlays: live drafts and the marquee. Hidden
                   when rendering the map for print. */}
               <Layer ref={overlayLayerRef} listening={false}>
                 {stroke && <Line ref={strokeLineRef} points={NO_POINTS} {...strokeAppearance(stroke, W)} />}
+                {polyDraft && (
+                  <>
+                    <Line points={flattenPoints(polyDraft, W, H)} stroke="#f2a65a" strokeWidth={1.5} dash={[4, 3]} closed={polyDraft.length >= 3} />
+                    {polyDraft.map((p, i) => (
+                      <Circle key={i} x={p.x * W} y={p.y * H} radius={i === 0 ? 5 : 4} fill={i === 0 ? "#f2a65a" : "#cfd7de"} />
+                    ))}
+                  </>
+                )}
+                {tool === "brush" && (
+                  <Circle
+                    ref={brushCursorRef}
+                    radius={Math.max(1, (brushState.brush.size * W) / 2)}
+                    stroke="rgba(255,255,255,0.9)"
+                    strokeWidth={1}
+                    shadowColor="#000"
+                    shadowBlur={2}
+                    shadowOpacity={0.8}
+                    visible={false}
+                    dash={brushState.erase ? [3, 3] : undefined}
+                  />
+                )}
                 {regionDraft && (
                   <>
                     {regionDraft.length >= 3 && (
@@ -1596,7 +2045,7 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
           </div>
           {shortcutsVisible && (
             <div className="mm-shortcut-hint">
-              <span>{t(HINT_KEY[tool])}</span>
+              <span>{tool === "brush" ? t(PAINT_MODES.find((m) => m.key === brushState.mode)!.hintKey) : t(HINT_KEY[tool])}</span>
               <span className="mm-shortcut-legend">1–6 {t("mmToolSelect")}/{t("mmToolBrush")}/… · {t("mmMultiSelectHint")} · ⌘Z {t("undo")} · ⌘⇧Z {t("redo")} · ⌘D {t("mmDuplicateObject")} · ⌘C/⌘V copy/paste · ⌘] / ⌘[ {t("mmBringToFront")}/{t("mmSendToBack")} · ⌘ scroll {t("mmZoom")}</span>
             </div>
           )}
@@ -1630,18 +2079,25 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
                         setTool("select");
                       }}
                     >
-                      <Glyph name={o.kind === "icon" ? "stamp" : o.kind === "label" ? "label" : o.kind === "region" ? "region" : o.kind === "path" ? "path" : "brush"} size={14} />
-                      <span>
-                        {o.kind === "label"
-                          ? o.text || t("mmToolLabel")
-                          : o.kind === "icon"
-                            ? t(ICONS[o.icon].labelKey)
-                            : o.kind === "region"
-                              ? t(BIOME_LABEL_KEY[o.biome])
-                              : o.kind === "path"
-                                ? t(PATH_KIND_LABEL_KEY[o.pathKind])
-                                : t("mmToolBrush")}
-                      </span>
+                      <Glyph
+                        name={
+                          o.kind === "icon"
+                            ? "stamp"
+                            : o.kind === "label"
+                              ? "label"
+                              : o.kind === "region"
+                                ? "region"
+                                : o.kind === "path"
+                                  ? "path"
+                                  : o.kind === "paint"
+                                    ? o.erase
+                                      ? "eraser"
+                                      : (PAINT_MODES.find((m) => m.key === o.mode)?.glyph ?? "brush")
+                                    : "brush"
+                        }
+                        size={14}
+                      />
+                      <span>{objectLabel(o)}</span>
                       <small className="mm-layer-badge">{layer.name}</small>
                     </button>
                     <button title={t("mmDuplicateObject")} onClick={() => duplicateObject(o.id)}>
@@ -1660,10 +2116,19 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
                 <span>
                   {project.layers.length}/20
                 </span>
-                <button className="mm-add-layer" onClick={addLayer}>
-                  <Glyph name="plus" size={14} />
-                  {t("mmAddLayer")}
-                </button>
+                <div className="mm-add-layer-wrap" ref={layerMenuRef}>
+                  <button className="mm-add-layer" onClick={() => setShowLayerMenu((v) => !v)} aria-expanded={showLayerMenu}>
+                    <Glyph name="plus" size={14} />
+                    {t("mmAddLayer")}
+                  </button>
+                  {showLayerMenu && (
+                    <div className="mm-edit-menu mm-layer-menu">
+                      <MenuRow label={t("mmAddLandLayer")} icon="land" onClick={() => { addLayer("land"); setShowLayerMenu(false); }} />
+                      <MenuRow label={t("mmAddWaterLayer")} icon="water" onClick={() => { addLayer("water"); setShowLayerMenu(false); }} />
+                      <MenuRow label={t("mmAddCustomLayer")} icon="layers" onClick={() => { addLayer("custom"); setShowLayerMenu(false); }} />
+                    </div>
+                  )}
+                </div>
               </div>
               <div className="mm-layer-list">
                 <div className="mm-layer-row mm-base-row">
@@ -1672,6 +2137,11 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
                 </div>
                 {[...project.layers].reverse().map((l) => (
                   <div key={l.id} className={`mm-layer-row ${activeLayerId === l.id ? "active" : ""}`} onClick={() => setActiveLayerId(l.id)}>
+                    {l.role && l.role !== "custom" && (
+                      <span className={`mm-layer-role mm-role-${l.role}`} title={t(l.role === "water" ? "mmLayerWater" : "mmLayerLand")}>
+                        <Glyph name={l.role} size={12} />
+                      </span>
+                    )}
                     <button
                       className="mm-layer-icon"
                       onClick={(e) => {
@@ -1697,7 +2167,11 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
                       key={l.id + l.name}
                       defaultValue={l.name}
                       maxLength={60}
-                      onClick={(e) => e.stopPropagation()}
+                      onClick={(e) => {
+                        // Editing a layer's name also makes it the active layer.
+                        e.stopPropagation();
+                        setActiveLayerId(l.id);
+                      }}
                       onBlur={(e) => {
                         if (e.target.value !== l.name) updateLayer(l.id, { name: e.target.value });
                       }}
