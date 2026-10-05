@@ -8,6 +8,8 @@
  * solves the exact same problem for the print studio's document format.
  */
 import { ICON_IDS } from "../studio/domain/icons";
+import { TEXTURE_IDS } from "./brush/textures";
+import { TIP_LIST } from "./brush/tips";
 import type { MMLayer, MMObject, MMProject } from "./types";
 
 const finite = (v: unknown, min: number, max: number) =>
@@ -17,6 +19,104 @@ const PATH_KINDS = ["river", "road", "border"];
 const BIOMES = ["forest", "mountains", "desert", "water", "grass", "swamp"];
 const ALIGNS = ["start", "center", "end"];
 const RESOLUTION_TIERS = ["low", "medium", "high", "ultra"];
+const PAINT_MODES = ["free", "edge", "grid", "rect", "ellipse", "polygon"];
+const BLEND_MODES = ["normal", "multiply", "screen", "overlay", "darken", "lighten", "color-dodge", "color-burn", "soft-light", "hard-light", "hue", "saturation", "color", "luminosity"];
+const LAYER_ROLES = ["land", "water", "custom"];
+const bool = (v: unknown) => typeof v === "boolean";
+const rec = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);
+
+function validSource(v: unknown) {
+  return (
+    rec(v) &&
+    (v.type === "color" || v.type === "texture") &&
+    hexColor(v.color) &&
+    TEXTURE_IDS.includes(v.texture as string) &&
+    finite(v.textureScale, 0.05, 20) &&
+    finite(v.textureRotation, -3600, 3600) &&
+    finite(v.hue, -360, 360) &&
+    finite(v.saturation, -1, 1) &&
+    finite(v.brightness, -1, 1) &&
+    finite(v.contrast, -1, 1)
+  );
+}
+function validBrush(v: unknown) {
+  const tipOk = (t: unknown) =>
+    typeof t === "string" &&
+    (TIP_LIST.some((x) => x.key === t) || (t.startsWith("stamp:") && ICON_IDS.includes(t.slice(6) as (typeof ICON_IDS)[number])));
+  return (
+    rec(v) &&
+    tipOk(v.tip) &&
+    finite(v.size, 0.0001, 0.5) &&
+    finite(v.flow, 0, 1) &&
+    finite(v.softness, 0, 1) &&
+    finite(v.spacing, 0.01, 5) &&
+    finite(v.rotation, -3600, 3600) &&
+    finite(v.sizeJitter, 0, 1) &&
+    finite(v.opacityJitter, 0, 1) &&
+    finite(v.rotationJitter, 0, 1) &&
+    finite(v.scatter, 0, 5) &&
+    rec(v.pen) &&
+    bool(v.pen.enabled) &&
+    bool(v.pen.size) &&
+    bool(v.pen.opacity) &&
+    bool(v.pen.flow)
+  );
+}
+function validEdge(v: unknown) {
+  return (
+    rec(v) &&
+    finite(v.roughness, 0, 1) &&
+    finite(v.detail, 0, 1) &&
+    finite(v.feather, 0, 0.2) &&
+    finite(v.outlineWidth, 0, 0.05) &&
+    hexColor(v.outlineColor) &&
+    finite(v.ripples, 0, 12) &&
+    finite(v.rippleSpacing, 0, 0.1) &&
+    hexColor(v.rippleColor) &&
+    finite(v.rippleOpacity, 0, 1) &&
+    finite(v.innerShade, -1, 1) &&
+    finite(v.innerShadeWidth, 0, 0.2) &&
+    (v.shoreColor === "" || hexColor(v.shoreColor)) &&
+    finite(v.shoreStrength, 0, 1) &&
+    finite(v.shoreWidth, 0, 0.2) &&
+    hexColor(v.glowColor) &&
+    finite(v.glowWidth, 0, 0.2) &&
+    finite(v.glowOpacity, 0, 1) &&
+    finite(v.islets, 0, 1)
+  );
+}
+function validPaintPoints(points: unknown) {
+  return (
+    Array.isArray(points) &&
+    points.length <= 20000 &&
+    points.every((p) => rec(p) && finite(p.x, -1, 2) && finite(p.y, -1, 2) && (p.p === undefined || finite(p.p, 0, 1)))
+  );
+}
+function validPaint(obj: Record<string, unknown>) {
+  const mode = obj.mode as string;
+  if (
+    !PAINT_MODES.includes(mode) ||
+    !bool(obj.erase) ||
+    !BLEND_MODES.includes(obj.blend as string) ||
+    !finite(obj.opacity, 0, 1) ||
+    !validSource(obj.source) ||
+    !validPaintPoints(obj.points) ||
+    !finite(obj.seed, 0, 2 ** 32)
+  )
+    return false;
+  if (mode === "free") return validBrush(obj.brush);
+  if (!validEdge(obj.edge)) return false;
+  if (mode === "grid")
+    return (
+      rec(obj.grid) &&
+      (obj.grid.type === "square" || obj.grid.type === "hex") &&
+      finite(obj.grid.cell, 0.001, 1) &&
+      Array.isArray(obj.cells) &&
+      obj.cells.length <= 20000 &&
+      obj.cells.every((c) => Array.isArray(c) && c.length === 2 && Number.isInteger(c[0]) && Number.isInteger(c[1]))
+    );
+  return obj.rough === undefined || bool(obj.rough);
+}
 const ASPECTS = ["landscape", "portrait", "square", "custom"];
 
 function validPoints(points: unknown, min: number, max: number): points is Array<{ x: number; y: number }> {
@@ -72,6 +172,7 @@ function validObject(o: unknown): o is MMObject {
       (obj.rotation === undefined || finite(obj.rotation, -3600, 3600)) &&
       (obj.anchored === undefined || typeof obj.anchored === "boolean")
     );
+  if (obj.kind === "paint") return validPaint(obj);
   if (obj.kind === "brush")
     return (
       validPoints(obj.points, 1, 20000) &&
@@ -93,6 +194,7 @@ function validLayer(l: unknown): l is MMLayer {
     typeof layer.visible === "boolean" &&
     typeof layer.locked === "boolean" &&
     finite(layer.opacity, 0, 1) &&
+    (layer.role === undefined || LAYER_ROLES.includes(layer.role as string)) &&
     Array.isArray(layer.objects) &&
     layer.objects.length <= 5000 &&
     layer.objects.every(validObject)

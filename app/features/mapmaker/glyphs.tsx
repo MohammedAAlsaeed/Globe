@@ -144,6 +144,37 @@ const PATHS: Record<string, React.ReactNode> = {
       <path d="M4 19h16" />
     </>
   ),
+  // ---- Brush Tool sub-tools & controls ----
+  freeBrush: <path d="M4 17c2.5-5 5-7 7.5-4.5S16 16 20 7" />,
+  edgeShape: (
+    <path d="M5 9.5 6.8 7l2-.4L10 5l2.4.8L14 5l1.4 1.6 2.3.2.4 2.2 1.6 1.5-.9 2 .8 2.1-1.9 1.2-.4 2.2-2.2-.2-1.5 1.5-2-1-2 .9-1.4-1.8-2.2-.3.2-2.2L4.6 14l1-2Z" />
+  ),
+  gridBlock: (
+    <>
+      <rect x="4" y="4" width="16" height="16" rx="1" />
+      <path d="M9.3 4v16M14.7 4v16M4 9.3h16M4 14.7h16" />
+    </>
+  ),
+  rect: <rect x="4.5" y="6" width="15" height="12" rx="1" />,
+  ellipse: <ellipse cx="12" cy="12" rx="8" ry="6" />,
+  polygon: <path d="m12 4 7.5 5.5-2.9 9H7.4l-2.9-9Z" />,
+  eraser: (
+    <>
+      <path d="m7 20-3.3-3.3a1.4 1.4 0 0 1 0-2L14 4.4a1.4 1.4 0 0 1 2 0l3.6 3.6a1.4 1.4 0 0 1 0 2L10 19.6" />
+      <path d="M7 20h13M9.3 9.3l5.4 5.4" />
+    </>
+  ),
+  star: <path d="m12 3.5 2.6 5.3 5.8.8-4.2 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.2-4.1 5.8-.8Z" />,
+  chevronDown: <path d="m6 9 6 6 6-6" />,
+  close: <path d="M6 6l12 12M18 6 6 18" />,
+  land: <path d="M3 18 9 8l3.5 5.5L15 10l6 8Z" />,
+  water: (
+    <>
+      <path d="M3 9c2-1.5 4-1.5 6 0s4 1.5 6 0 4-1.5 6 0" />
+      <path d="M3 15c2-1.5 4-1.5 6 0s4 1.5 6 0 4-1.5 6 0" />
+    </>
+  ),
+  sliders: <path d="M4 7h10M18 7h2M4 17h2M10 17h10M14 5v4M6 15v4" />,
 };
 export function Glyph({ name, size = 18 }: { name: string; size?: number }) {
   return (
