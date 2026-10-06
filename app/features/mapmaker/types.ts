@@ -244,6 +244,56 @@ export type MMObject = MMBrush | MMIcon | MMPath | MMRegion | MMLabel | MMPaint;
 /** Brush-layer role (Inkarnate-style). Optional — older layers read as "custom". */
 export type LayerRole = "land" | "water" | "custom";
 
+/**
+ * Layer-level coastline effect (Inkarnate's land-layer coast). Everything
+ * painted in the layer is merged into one land mask; the effect then draws a
+ * natural coastline around the *whole* mask, and the water around it — so
+ * overlapping strokes never show inner coastlines and erasing land reveals
+ * glowing, rippled water. Lengths are fractions of the map width.
+ */
+export interface CoastEffect {
+  enabled: boolean;
+  /** Preset the settings came from (null once customized). */
+  style: string | null;
+  // ---- coastline shape
+  /** 0..1 how far the coast wanders from the painted edge (0 = exact). */
+  roughness: number;
+  /** 0..1 how much fine fractal jaggedness is added. */
+  detail: number;
+  /** 0..1 rounds off small brush wobble before the coast is built. */
+  smoothing: number;
+  /** 0..1 small islands scattered off the coast. */
+  islets: number;
+  // ---- land side
+  outlineWidth: number;
+  outlineColor: string;
+  shoreWidth: number;
+  shoreStrength: number;
+  shoreColor: string;
+  /** -1..1 shading just inside the coast: >0 darker, <0 lighter. */
+  landShade: number;
+  landShadeWidth: number;
+  // ---- water side
+  glowWidth: number;
+  glowOpacity: number;
+  glowColor: string;
+  waves: number;
+  waveSpacing: number;
+  /** Distance of the first wave line from the coast. */
+  waveOffset: number;
+  waveWidth: number;
+  waveOpacity: number;
+  /** 0..1 how much each further wave fades. */
+  waveFade: number;
+  /** 0..1 breaks wave lines into dashes, like hand-drawn surf. */
+  waveBreakup: number;
+  waveColor: string;
+  depthStrength: number;
+  /** Distance from the coast at which water reaches full depth. */
+  depthDistance: number;
+  depthColor: string;
+}
+
 export interface MMLayer {
   id: string;
   name: string;
@@ -252,6 +302,8 @@ export interface MMLayer {
   opacity: number;
   objects: MMObject[];
   role?: LayerRole;
+  /** Coast effect settings; unset = defaults (on for land layers, off otherwise). */
+  coast?: CoastEffect;
 }
 
 export type ResolutionTier = "low" | "medium" | "high" | "ultra";

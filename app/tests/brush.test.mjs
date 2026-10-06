@@ -240,3 +240,125 @@ test("project validation accepts paint objects and rejects malformed ones", () =
     validateProject(project([{ ...paint, mode: "free", brush: undefined }])),
   );
 });
+
+// ---- layer coast effect ------------------------------------------------------
+import { edt, renderCoastEffect } from "../features/mapmaker/brush/coastfx.ts";
+import {
+  DEFAULT_COAST,
+  coastStyle,
+} from "../features/mapmaker/brush/coastStyles.ts";
+
+function landImage(w, h, isLand) {
+  const rgba = new Uint8ClampedArray(w * h * 4);
+  for (let y = 0; y < h; y++)
+    for (let x = 0; x < w; x++)
+      if (isLand(x, y)) {
+        const i = (y * w + x) * 4;
+        rgba[i] = 90;
+        rgba[i + 1] = 150;
+        rgba[i + 2] = 60;
+        rgba[i + 3] = 255;
+      }
+  return rgba;
+}
+const px = (out, w, x, y) =>
+  Array.from(out.slice((y * w + x) * 4, (y * w + x) * 4 + 4));
+
+test("distance transform is exact (vs brute force), with nearest-feature index", () => {
+  const w = 41,
+    h = 33,
+    f = new Uint8Array(w * h);
+  let s = 9;
+  for (let i = 0; i < f.length; i++)
+    f[i] = (s = (s * 1103515245 + 12345) & 0x7fffffff) % 23 === 0 ? 1 : 0;
+  const { dist, index } = edt(f, w, h, true);
+  for (let y = 0; y < h; y += 3)
+    for (let x = 0; x < w; x += 2) {
+      let best = Infinity;
+      for (let j = 0; j < f.length; j++)
+        if (f[j])
+          best = Math.min(best, Math.hypot((j % w) - x, Math.floor(j / w) - y));
+      assert.ok(Math.abs(best - dist[y * w + x]) < 1e-4);
+      const k = index[y * w + x];
+      assert.ok(
+        Math.abs(Math.hypot((k % w) - x, Math.floor(k / w) - y) - best) < 1e-4,
+      );
+    }
+});
+
+test("coast effect: no land → nothing; deterministic otherwise", () => {
+  const w = 160,
+    h = 120;
+  assert.equal(
+    renderCoastEffect({
+      width: w,
+      height: h,
+      rgba: new Uint8ClampedArray(w * h * 4),
+      fx: DEFAULT_COAST,
+      seed: 1,
+    }),
+    null,
+  );
+  const rgba = landImage(w, h, (x, y) => Math.hypot(x - 80, y - 60) < 35);
+  const a = renderCoastEffect({
+      width: w,
+      height: h,
+      rgba,
+      fx: DEFAULT_COAST,
+      seed: 3,
+    }),
+    b = renderCoastEffect({
+      width: w,
+      height: h,
+      rgba,
+      fx: DEFAULT_COAST,
+      seed: 3,
+    });
+  assert.deepEqual(a, b);
+});
+
+test("overlapping strokes merge into one landmass (no inner coastline)", () => {
+  const w = 200,
+    h = 120,
+    fx = { ...coastStyle("ink"), roughness: 0, islets: 0, outlineWidth: 0.02 }; // ~4 px at this tiny size
+  // two overlapping squares; their shared seam at x≈100 is deep inside the land
+  const rgba = landImage(
+    w,
+    h,
+    (x, y) => y > 20 && y < 100 && ((x > 30 && x < 110) || (x > 90 && x < 170)),
+  );
+  const out = renderCoastEffect({ width: w, height: h, rgba, fx, seed: 1 });
+  for (let y = 40; y < 80; y += 5)
+    assert.deepEqual(
+      px(out, w, 100, y),
+      [90, 150, 60, 255],
+      "plain land at the seam",
+    );
+  // the true coast does get the ink outline
+  const edge = px(out, w, 30, 60);
+  assert.ok(edge[0] < 80 && edge[3] > 200, `outline on the coast ${edge}`);
+});
+
+test("erasing land opens water with glow and waves around the hole", () => {
+  const w = 240,
+    h = 180,
+    fx = { ...DEFAULT_COAST, roughness: 0, islets: 0, depthStrength: 0 };
+  const rgba = landImage(
+    w,
+    h,
+    (x, y) =>
+      Math.hypot(x - 120, y - 90) < 80 && Math.hypot(x - 120, y - 90) > 30,
+  );
+  const out = renderCoastEffect({ width: w, height: h, rgba, fx, seed: 1 });
+  const lake = px(out, w, 120, 90); // centre of the erased hole: water
+  assert.ok(lake[3] < 255, "hole is water, not land");
+  const nearShore = px(out, w, 120 + 28, 90);
+  assert.ok(nearShore[3] > 0, "water effects drawn near the lake shore");
+  // somewhere on the ring between hole edge and centre there's a wave line
+  let wave = false;
+  for (let r = 1; r < 29; r++) {
+    const p = px(out, w, 120 + r, 90);
+    if (p[0] > 200 && p[1] > 200 && p[2] > 200 && p[3] > 60) wave = true;
+  }
+  assert.ok(wave, "wave line inside the lake");
+});

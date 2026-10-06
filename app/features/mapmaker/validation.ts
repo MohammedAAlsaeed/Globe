@@ -14,16 +14,33 @@ import type { MMLayer, MMObject, MMProject } from "./types";
 
 const finite = (v: unknown, min: number, max: number) =>
   typeof v === "number" && Number.isFinite(v) && v >= min && v <= max;
-const hexColor = (v: unknown) => typeof v === "string" && /^#[0-9a-f]{6}$/i.test(v);
+const hexColor = (v: unknown) =>
+  typeof v === "string" && /^#[0-9a-f]{6}$/i.test(v);
 const PATH_KINDS = ["river", "road", "border"];
 const BIOMES = ["forest", "mountains", "desert", "water", "grass", "swamp"];
 const ALIGNS = ["start", "center", "end"];
 const RESOLUTION_TIERS = ["low", "medium", "high", "ultra"];
 const PAINT_MODES = ["free", "edge", "grid", "rect", "ellipse", "polygon"];
-const BLEND_MODES = ["normal", "multiply", "screen", "overlay", "darken", "lighten", "color-dodge", "color-burn", "soft-light", "hard-light", "hue", "saturation", "color", "luminosity"];
+const BLEND_MODES = [
+  "normal",
+  "multiply",
+  "screen",
+  "overlay",
+  "darken",
+  "lighten",
+  "color-dodge",
+  "color-burn",
+  "soft-light",
+  "hard-light",
+  "hue",
+  "saturation",
+  "color",
+  "luminosity",
+];
 const LAYER_ROLES = ["land", "water", "custom"];
 const bool = (v: unknown) => typeof v === "boolean";
-const rec = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);
+const rec = (v: unknown): v is Record<string, unknown> =>
+  !!v && typeof v === "object" && !Array.isArray(v);
 
 function validSource(v: unknown) {
   return (
@@ -42,7 +59,9 @@ function validSource(v: unknown) {
 function validBrush(v: unknown) {
   const tipOk = (t: unknown) =>
     typeof t === "string" &&
-    (TIP_LIST.some((x) => x.key === t) || (t.startsWith("stamp:") && ICON_IDS.includes(t.slice(6) as (typeof ICON_IDS)[number])));
+    (TIP_LIST.some((x) => x.key === t) ||
+      (t.startsWith("stamp:") &&
+        ICON_IDS.includes(t.slice(6) as (typeof ICON_IDS)[number])));
   return (
     rec(v) &&
     tipOk(v.tip) &&
@@ -85,11 +104,54 @@ function validEdge(v: unknown) {
     finite(v.islets, 0, 1)
   );
 }
+function validCoast(v: unknown) {
+  if (!rec(v)) return false;
+  const nums: [string, number, number][] = [
+    ["roughness", 0, 1],
+    ["detail", 0, 1],
+    ["smoothing", 0, 1],
+    ["islets", 0, 1],
+    ["outlineWidth", 0, 0.05],
+    ["shoreWidth", 0, 0.2],
+    ["shoreStrength", 0, 1],
+    ["landShade", -1, 1],
+    ["landShadeWidth", 0, 0.2],
+    ["glowWidth", 0, 0.2],
+    ["glowOpacity", 0, 1],
+    ["waves", 0, 20],
+    ["waveSpacing", 0, 0.2],
+    ["waveOffset", 0, 0.2],
+    ["waveWidth", 0, 0.05],
+    ["waveOpacity", 0, 1],
+    ["waveFade", 0, 1],
+    ["waveBreakup", 0, 1],
+    ["depthStrength", 0, 1],
+    ["depthDistance", 0, 1],
+  ];
+  return (
+    bool(v.enabled) &&
+    (v.style === null || typeof v.style === "string") &&
+    nums.every(([k, lo, hi]) => finite(v[k], lo, hi)) &&
+    [
+      "outlineColor",
+      "shoreColor",
+      "glowColor",
+      "waveColor",
+      "depthColor",
+    ].every((k) => hexColor(v[k]))
+  );
+}
 function validPaintPoints(points: unknown) {
   return (
     Array.isArray(points) &&
     points.length <= 20000 &&
-    points.every((p) => rec(p) && finite(p.x, -1, 2) && finite(p.y, -1, 2) && (p.p === undefined || finite(p.p, 0, 1)))
+    points.every(
+      (p) =>
+        rec(p) &&
+        finite(p.x, -1, 2) &&
+        finite(p.y, -1, 2) &&
+        (p.p === undefined || finite(p.p, 0, 1)),
+    )
   );
 }
 function validPaint(obj: Record<string, unknown>) {
@@ -113,18 +175,34 @@ function validPaint(obj: Record<string, unknown>) {
       finite(obj.grid.cell, 0.001, 1) &&
       Array.isArray(obj.cells) &&
       obj.cells.length <= 20000 &&
-      obj.cells.every((c) => Array.isArray(c) && c.length === 2 && Number.isInteger(c[0]) && Number.isInteger(c[1]))
+      obj.cells.every(
+        (c) =>
+          Array.isArray(c) &&
+          c.length === 2 &&
+          Number.isInteger(c[0]) &&
+          Number.isInteger(c[1]),
+      )
     );
   return obj.rough === undefined || bool(obj.rough);
 }
 const ASPECTS = ["landscape", "portrait", "square", "custom"];
 
-function validPoints(points: unknown, min: number, max: number): points is Array<{ x: number; y: number }> {
+function validPoints(
+  points: unknown,
+  min: number,
+  max: number,
+): points is Array<{ x: number; y: number }> {
   return (
     Array.isArray(points) &&
     points.length >= min &&
     points.length <= max &&
-    points.every((p) => p && typeof p === "object" && finite((p as { x?: unknown }).x, -1, 2) && finite((p as { y?: unknown }).y, -1, 2))
+    points.every(
+      (p) =>
+        p &&
+        typeof p === "object" &&
+        finite((p as { x?: unknown }).x, -1, 2) &&
+        finite((p as { y?: unknown }).y, -1, 2),
+    )
   );
 }
 
@@ -195,6 +273,7 @@ function validLayer(l: unknown): l is MMLayer {
     typeof layer.locked === "boolean" &&
     finite(layer.opacity, 0, 1) &&
     (layer.role === undefined || LAYER_ROLES.includes(layer.role as string)) &&
+    (layer.coast === undefined || validCoast(layer.coast)) &&
     Array.isArray(layer.objects) &&
     layer.objects.length <= 5000 &&
     layer.objects.every(validObject)
