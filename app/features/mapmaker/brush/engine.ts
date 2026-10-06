@@ -240,6 +240,7 @@ export function paintPolygons(
   o: MMPaint,
   aspect: number,
   fast = false,
+  noIslets = false,
 ): Vec[][] {
   const pts = o.points.map((p) => ({ x: p.x, y: p.y * aspect }));
   const edge = o.edge ?? DEFAULT_EDGE_SETTINGS;
@@ -252,7 +253,7 @@ export function paintPolygons(
   // The natural edge, plus any islets scattered off it.
   const natural = (poly: Vec[]) => {
     const main = coastline(poly, opts);
-    return edge.islets > 0 && !o.erase && !fast
+    return edge.islets > 0 && !o.erase && !fast && !noIslets
       ? [main, ...islets(main, edge.islets, opts)]
       : [main];
   };
@@ -336,17 +337,20 @@ function tracePolys(
 // ---- rendering -------------------------------------------------------------------
 /** Renders a paint object at stage width W / height H. Null when empty.
  * `fast` (live previews while dragging) skips the costlier edge decoration
- * — glow, ripples, shore and shading — but keeps the exact same geometry. */
+ * — glow, ripples, shore and shading — but keeps the exact same geometry.
+ * `plain` drops edge decoration entirely: in a layer with the coast effect,
+ * the layer draws one shared coastline around all of its paint instead. */
 export function renderPaint(
   o: MMPaint,
   W: number,
   H: number,
   fast = false,
+  plain = false,
 ): RenderedPaint | null {
   const aspect = H / W;
   return o.mode === "free"
     ? renderFree(o, W, aspect)
-    : renderShape(o, W, aspect, fast);
+    : renderShape(o, W, aspect, fast, plain);
 }
 
 function renderFree(
@@ -402,11 +406,14 @@ function renderShape(
   W: number,
   aspect: number,
   fast: boolean,
+  plain: boolean,
 ): RenderedPaint | null {
-  const polys = paintPolygons(o, aspect, fast).filter((p) => p.length >= 3);
+  const polys = paintPolygons(o, aspect, fast, plain).filter(
+    (p) => p.length >= 3,
+  );
   if (!polys.length) return null;
   const edge = { ...DEFAULT_EDGE_SETTINGS, ...o.edge },
-    decorate = !o.erase && (o.mode === "edge" || !!o.rough),
+    decorate = !plain && !o.erase && (o.mode === "edge" || !!o.rough),
     rich = decorate && !fast,
     feather = Math.max(0, edge.feather * W),
     outline = decorate ? edge.outlineWidth * W : 0,

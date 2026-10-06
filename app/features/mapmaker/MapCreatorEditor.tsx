@@ -22,6 +22,10 @@ import "../../lib/i18n";
 import { Glyph } from "./glyphs";
 import { BrushPanel, PAINT_MODES } from "./brush/BrushPanel";
 import { PaintNode, paintRasterAt } from "./brush/PaintNode";
+import { CoastLayerNode } from "./brush/CoastLayerNode";
+import { CoastEffectPanel } from "./brush/CoastEffectPanel";
+import { renderCoastLayer } from "./brush/coastLayer";
+import { layerSeed, resolveCoast } from "./brush/coastStyles";
 import { LiveStroke, gridCellAt, renderPaint, type RenderedPaint } from "./brush/engine";
 import { newSeed } from "./brush/noise";
 import { loadFavorites, saveFavorites, type FavoriteBrush } from "./brush/presets";
@@ -50,6 +54,7 @@ import { SelectField } from "../../components/ui/fields";
 import type {
   Biome,
   LabelAlign,
+  CoastEffect,
   LayerRole,
   MMBrush,
   MMLabel,
@@ -120,7 +125,7 @@ type ObjUpdater = (o: MMObject) => MMPatch;
 type StagePoint = { x: number; y: number };
 /** The Brush Tool gesture in progress: the paint recipe being built and, for
  * Free Brush, the incremental live rasterizer. */
-type PaintSession = { obj: MMPaint; live: LiveStroke | null };
+type PaintSession = { obj: MMPaint; live: LiveStroke | null; plain: boolean };
 /** Freehand brush/lasso samples closer than this (screen px) are dropped. */
 const PAINT_GAP_PX = 1.5,
   LASSO_GAP_PX = 3,
@@ -330,7 +335,8 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
     paintFrameRef = useRef(0),
     brushCursorRef = useRef<Konva.Circle>(null),
     layerMenuRef = useRef<HTMLDivElement>(null),
-    polySeedRef = useRef(0);
+    polySeedRef = useRef(0),
+    coastPanelRef = useRef<HTMLDivElement>(null);
   const [spaceHeld, setSpaceHeld] = useState(false),
     [panningActive, setPanningActive] = useState(false),
     [hasClipboard, setHasClipboard] = useState(false),
@@ -350,6 +356,27 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
     ? selectedLayer.objects.filter((o) => selectedIdSet.has(o.id))
     : [];
   const selectedObj = selectedObjs.length === 1 ? selectedObjs[0] : undefined;
+  /** Layers with the coast effect on: their settings and paint, in order. */
+  const coastByLayer = useMemo(() => {
+    const m = new Map<string, { fx: CoastEffect; paints: MMPaint[] }>();
+    for (const l of project.layers) {
+      const fx = resolveCoast(l);
+      if (fx) m.set(l.id, { fx, paints: l.objects.filter((o): o is MMPaint => o.kind === "paint") });
+    }
+    return m;
+  }, [project.layers]);
+  const activeCoast = !!active && coastByLayer.has(active.id);
+  /** Layers whose coastline is being rebuilt right now (status bar hint). */
+  const [coastBusy, setCoastBusy] = useState<ReadonlySet<string>>(() => new Set());
+  const onCoastBusy = useCallback((layerId: string, busy: boolean) => {
+    setCoastBusy((cur) => {
+      if (cur.has(layerId) === busy) return cur;
+      const next = new Set(cur);
+      if (busy) next.add(layerId);
+      else next.delete(layerId);
+      return next;
+    });
+  }, []);
 
   // ---- Effects: language direction, responsive canvas width, autosave,
   // selection Transformer, zoom-to-cursor, Edit-menu outside-click, shortcuts ----
@@ -439,7 +466,7 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
       const node = paintImageRef.current;
       if (!node) return;
       const draft = buildPaint("polygon", polyDraft, polySeedRef.current);
-      showPaintRaster(polyDraft.length >= 3 ? renderPaint(draft, W, H, true) : null);
+      showPaintRaster(polyDraft.length >= 3 ? renderPaint(draft, W, H, true, activeCoast) : null);
     });
     return () => cancelAnimationFrame(raf);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1108,7 +1135,7 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
         showPaintRaster({ canvas: session.live.canvas, x: 0, y: 0 });
       } else {
         const { w, h } = viewRef.current;
-        showPaintRaster(renderPaint(session.obj, w, h, true));
+        showPaintRaster(renderPaint(session.obj, w, h, true, session.plain));
       }
     });
   }
@@ -1128,7 +1155,7 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
     }
     const first = paintSample(pos, ev),
       obj = buildPaint(mode, [first], newSeed(), mode === "grid" ? [] : undefined),
-      session: PaintSession = { obj, live: null },
+      session: PaintSession = { obj, live: null, plain: activeCoast },
       aspect = project.height / project.width,
       cellKeys = new Set<string>();
     const addCell = (pt: PaintPoint) => {
@@ -1398,20 +1425,49 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
    *    on-screen layer canvases — so an eraser or a blend mode only ever acts
    *    within its own layer, as it does while editing.
    *  - Paint strokes are re-rendered at full print resolution (not upscaled
-   *    from the screen raster), so textures and edges stay crisp. */
-  function renderMapCanvas(stage: Konva.Stage) {
+   *    from the screen raster), so textures and edges stay crisp.
+   *  - Coast-effect layers are rebuilt at full resolution too (in the worker),
+   *    with every stroke included. */
+  async function renderMapCanvas(stage: Konva.Stage) {
     // Exactly the project's own pixel size (W/H are rounded display sizes).
     const ratio = project.width / W,
       outW = project.width,
       outH = project.height;
+    // Full-resolution coastlines first (async), then the synchronous capture.
+    const coastImages = new Map<string, HTMLCanvasElement | null>();
+    for (const layer of project.layers) {
+      const fx = layer.visible ? resolveCoast(layer) : null;
+      if (!fx) continue;
+      const paints = layer.objects.filter((o): o is MMPaint => o.kind === "paint");
+      coastImages.set(layer.id, await renderCoastLayer(paints, fx, layerSeed(layer.id), outW, outH));
+    }
     const chrome = [gridGroupRef.current, overlayLayerRef.current, uiLayerRef.current].filter(
       (n): n is Konva.Group | Konva.Layer => !!n,
     );
     const wasVisible = chrome.map((n) => n.visible());
     // Swap every paint node's screen raster for a print-resolution one.
-    const swapped: { node: Konva.Image; attrs: Konva.ImageConfig }[] = [];
+    const swapped: { node: Konva.Image; attrs: Partial<Konva.ImageConfig> }[] = [];
     for (const layer of project.layers) {
       if (!layer.visible) continue;
+      if (coastImages.has(layer.id)) {
+        // The coast image already contains all of this layer's paint: show
+        // the full-res image and hide the raw (not-yet-merged) strokes.
+        const coastNode = findNode(stage, `coast-${layer.id}`) as Konva.Image | null,
+          img = coastImages.get(layer.id) ?? null;
+        if (coastNode) {
+          swapped.push({ node: coastNode, attrs: { image: coastNode.image(), visible: coastNode.visible() } });
+          coastNode.setAttrs({ image: img ?? undefined, visible: !!img });
+        }
+        for (const o of layer.objects) {
+          if (o.kind !== "paint") continue;
+          const raw = findNode(stage, o.id) as Konva.Image | null;
+          if (raw) {
+            swapped.push({ node: raw, attrs: { visible: raw.visible() } });
+            raw.visible(false);
+          }
+        }
+        continue;
+      }
       for (const o of layer.objects) {
         if (o.kind !== "paint") continue;
         const node = findNode(stage, o.id) as Konva.Image | null,
@@ -1434,7 +1490,7 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
       return out;
     } finally {
       chrome.forEach((n, i) => n.visible(wasVisible[i]));
-      for (const { node, attrs } of swapped) node.setAttrs(attrs);
+      for (const { node, attrs } of swapped) node.setAttrs(attrs as Konva.ImageConfig);
     }
   }
   async function handlePrint() {
@@ -1444,7 +1500,7 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
     try {
       // Let the button show its busy state before the (heavy) full-res render.
       await new Promise((resolve) => requestAnimationFrame(() => setTimeout(resolve, 0)));
-      const canvas = renderMapCanvas(stage);
+      const canvas = await renderMapCanvas(stage);
       const blob = await new Promise<Blob | null>((resolve) =>
         canvas.toBlob((b) => resolve(b), "image/png"),
       );
@@ -1602,6 +1658,11 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
             onDeleteFavorite={(id) => setFavorites((list) => list.filter((f) => f.id !== id))}
             layerName={active?.name ?? ""}
             layerRole={active?.role ?? "custom"}
+            coastOn={activeCoast}
+            onEditCoast={() => {
+              setPanelTab("layers");
+              requestAnimationFrame(() => coastPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
+            }}
           />
         )}
         <div className="mm-canvas-column">
@@ -1850,8 +1911,22 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
               </Layer>
               {project.layers.map((layer) => (
                 <Layer key={layer.id} visible={layer.visible} opacity={layer.opacity} listening={layer.id === active?.id && !layer.locked}>
+                  {/* Coast-effect layers draw all their paint as one coastline. */}
+                  {coastByLayer.get(layer.id) && (
+                    <CoastLayerNode
+                      layerId={layer.id}
+                      paints={coastByLayer.get(layer.id)!.paints}
+                      fx={coastByLayer.get(layer.id)!.fx}
+                      seed={layerSeed(layer.id)}
+                      W={W}
+                      H={H}
+                      projectW={project.width}
+                      projectH={project.height}
+                      onBusyChange={onCoastBusy}
+                    />
+                  )}
                   {layer.objects.map((o) => {
-                    if (o.kind === "paint") return <PaintNode key={o.id} o={o} W={W} H={H} />;
+                    if (o.kind === "paint") return coastByLayer.has(layer.id) ? null : <PaintNode key={o.id} o={o} W={W} H={H} />;
                     const handlers = objectHandlers(o, layer);
                     if (o.kind === "region")
                       return (
@@ -2195,6 +2270,18 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
                   <input type="range" min={0} max={1} step={0.05} value={active.opacity} onChange={(e) => updateLayer(active.id, { opacity: +e.target.value })} />
                   <b>{Math.round(active.opacity * 100)}%</b>
                 </label>
+              )}
+              {active && (
+                <div ref={coastPanelRef}>
+                  <CoastEffectPanel
+                    layer={active}
+                    fx={coastByLayer.get(active.id)?.fx ?? null}
+                    t={t}
+                    mapWidthPx={project.width}
+                    busy={coastBusy.has(active.id)}
+                    onChange={(coast) => updateLayer(active.id, { coast })}
+                  />
+                </div>
               )}
             </div>
           )}

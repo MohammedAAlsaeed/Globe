@@ -15,13 +15,16 @@ import { renderPaint, type RenderedPaint } from "./engine";
 import type { MMPaint } from "../types";
 
 type Entry = { W: number; H: number; r: RenderedPaint | null };
-const rasters = new WeakMap<MMPaint, Entry>();
+// Decorated and plain (coast-layer) rasters are cached separately.
+const rasters = new WeakMap<MMPaint, Entry>(),
+  plainRasters = new WeakMap<MMPaint, Entry>();
 
-function rasterFor(o: MMPaint, W: number, H: number): Entry {
-  let entry = rasters.get(o);
+function rasterFor(o: MMPaint, W: number, H: number, plain: boolean): Entry {
+  const cache = plain ? plainRasters : rasters;
+  let entry = cache.get(o);
   if (!entry) {
-    entry = { W, H, r: renderPaint(o, W, H) };
-    rasters.set(o, entry);
+    entry = { W, H, r: renderPaint(o, W, H, false, plain) };
+    cache.set(o, entry);
   }
   return entry;
 }
@@ -45,22 +48,29 @@ export const PaintNode = memo(function PaintNode({
   o,
   W,
   H,
+  plain = false,
 }: {
   o: MMPaint;
   W: number;
   H: number;
+  /** Without edge decoration (inside a coast-effect layer). */
+  plain?: boolean;
 }) {
   const [, setVersion] = useState(0);
-  const entry = rasterFor(o, W, H),
+  const entry = rasterFor(o, W, H, plain),
     stale = entry.W !== W || entry.H !== H;
   useEffect(() => {
     if (!stale) return;
     const timer = setTimeout(() => {
-      rasters.set(o, { W, H, r: renderPaint(o, W, H) });
+      (plain ? plainRasters : rasters).set(o, {
+        W,
+        H,
+        r: renderPaint(o, W, H, false, plain),
+      });
       setVersion((v) => v + 1);
     }, 140);
     return () => clearTimeout(timer);
-  }, [o, W, H, stale]);
+  }, [o, W, H, stale, plain]);
   const r = entry.r;
   if (!r) return null;
   const k = W / entry.W;
