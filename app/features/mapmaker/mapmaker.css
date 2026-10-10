@@ -1369,23 +1369,67 @@
   line-height: 1.4;
 }
 
-/* footer */
-.mm-bp-layer {
-  margin-top: auto;
+/* edit target (top of the Brush / Land panels) */
+.mm-target {
   display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 7px 9px;
-  border-radius: 7px;
+  flex-direction: column;
+  gap: 7px;
+  padding: 8px 9px;
+  border-radius: 8px;
   background: var(--mm-bg);
   border: 1px solid var(--mm-border);
+}
+.mm-target-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.mm-target-icon {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  flex: none;
+  border-radius: 6px;
+  color: var(--mm-muted);
+  background: var(--mm-panel-2);
+}
+.mm-target.mm-role-water .mm-target-icon {
+  color: #7fc4e0;
+  background: rgba(127, 196, 224, 0.12);
+}
+.mm-target.mm-role-land .mm-target-icon {
+  color: #b9cf7d;
+  background: rgba(185, 207, 125, 0.12);
+}
+.mm-target-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.mm-target-text b {
+  font-size: 12px;
   color: var(--mm-text);
 }
-.mm-bp-layer.mm-role-water svg {
-  color: #7fc4e0;
+.mm-target-text span {
+  font-size: 10.5px;
+  color: var(--mm-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-.mm-bp-layer.mm-role-land svg {
-  color: #b9cf7d;
+.mm-target p {
+  margin: 0;
+  color: var(--mm-muted);
+  font-size: 10px;
+  line-height: 1.45;
+}
+.mm-target.warning {
+  border-color: rgba(224, 164, 88, 0.55);
+  background: rgba(224, 164, 88, 0.07);
+}
+.mm-target.warning .mm-target-text b {
+  color: var(--mm-accent);
 }
 .mm-bp-shortcuts {
   margin: 0;
@@ -1457,6 +1501,9 @@
   gap: 8px;
 }
 .mm-cp-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   font-size: 12px;
   font-weight: 700;
 }
@@ -1478,27 +1525,12 @@
 .mm-coast-panel .mm-slider {
   grid-template-columns: 84px 1fr 46px;
 }
-.mm-bp-coast-card {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 6px 9px;
-  align-items: start;
-  padding: 9px 10px;
-  border-radius: 8px;
-  border: 1px solid rgba(118, 220, 210, 0.35);
-  background: rgba(118, 220, 210, 0.07);
-  color: #9ee3dc;
+.mm-cp-decor {
+  padding-top: 4px;
 }
-.mm-bp-coast-card b {
-  color: var(--mm-text);
-  font-size: 11px;
-}
-.mm-bp-coast-card p {
-  margin: 2px 0 0;
-  color: var(--mm-muted);
-  font-size: 10px;
-  line-height: 1.4;
-}
-.mm-bp-coast-card .secondary-button {
-  grid-column: 1 / -1;
+.mm-land-panel > .secondary-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
 }

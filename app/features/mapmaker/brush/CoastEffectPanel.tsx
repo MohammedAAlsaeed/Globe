@@ -1,14 +1,15 @@
 "use client";
 /**
- * Coast & water controls for the active layer (Layers tab) — Inkarnate-style
- * land-layer coastline settings: the coastline shape, the land edge (outline,
- * beach, edge shading) and the water around it (shallows glow, wave lines,
- * depth shading away from the coast).
+ * Coast & water controls for the active land layer (Layers tab) —
+ * Inkarnate-style land-layer coastline settings: the coastline shape (always
+ * applied), and its decoration, which can be switched off: the land edge
+ * (outline, beach, edge shading) and the water around it (shallows glow,
+ * wave lines, depth shading away from the coast).
  */
 import type { ReactNode } from "react";
 import { Glyph } from "../glyphs";
 import { Slider } from "../components/EditorControls";
-import { COAST_STYLES, DEFAULT_COAST, coastStyle } from "./coastStyles";
+import { COAST_STYLES, coastSettings, coastStyle } from "./coastStyles";
 import type { CoastEffect, MMLayer } from "../types";
 
 type T = (k: string, opts?: Record<string, unknown>) => string;
@@ -61,94 +62,96 @@ function ColorRow({
 
 export function CoastEffectPanel({
   layer,
-  fx,
   t,
   mapWidthPx,
   busy,
   onChange,
 }: {
+  /** A land layer. */
   layer: MMLayer;
-  /** The layer's effective settings (null = effect off). */
-  fx: CoastEffect | null;
   t: T;
   mapWidthPx: number;
   busy: boolean;
   onChange: (next: CoastEffect) => void;
 }) {
-  const on = !!fx,
-    cur = fx ?? { ...DEFAULT_COAST, ...layer.coast, enabled: false };
+  const cur = coastSettings(layer),
+    on = cur.enabled;
   const set = (patch: Partial<CoastEffect>) =>
-    onChange({ ...cur, ...patch, style: null, enabled: true });
+    onChange({ ...cur, ...patch, style: null });
   const px = (v: number) => `${Math.max(0, Math.round(v * mapWidthPx))} px`;
 
   return (
     <section className="mm-coast-panel" aria-label={t("mmCoastEffect")}>
       <div className="mm-cp-head">
-        <label className="mm-bp-toggle">
-          <input
-            type="checkbox"
-            checked={on}
-            onChange={(e) => onChange({ ...cur, enabled: e.target.checked })}
-          />
-          <span className="mm-bp-switch" aria-hidden="true" />
-          <span className="mm-cp-name">{t("mmCoastEffect")}</span>
-        </label>
+        <span className="mm-cp-name">
+          <Glyph name="edgeShape" size={14} />
+          {t("mmCoastEffect")}
+        </span>
         {busy && <span className="mm-cp-busy">{t("mmCoastUpdating")}</span>}
       </div>
       <p className="mm-bp-note">{t("mmCoastEffectHint")}</p>
+      <div className="mm-bp-chips wrap">
+        {COAST_STYLES.map((st) => (
+          <button
+            key={st.id}
+            className={cur.style === st.id ? "active" : ""}
+            onClick={() => onChange(coastStyle(st.id))}
+          >
+            {t(st.labelKey)}
+          </button>
+        ))}
+      </div>
+
+      <Group title={t("mmCoastShape")} icon="edgeShape" open>
+        <Slider
+          label={t("mmRoughness")}
+          value={cur.roughness}
+          min={0}
+          max={1}
+          step={0.01}
+          onChange={(v) => set({ roughness: v })}
+          format={pct}
+        />
+        <Slider
+          label={t("mmEdgeDetail")}
+          value={cur.detail}
+          min={0}
+          max={1}
+          step={0.01}
+          onChange={(v) => set({ detail: v })}
+          format={pct}
+        />
+        <Slider
+          label={t("mmCoastSmoothing")}
+          value={cur.smoothing}
+          min={0}
+          max={1}
+          step={0.01}
+          onChange={(v) => set({ smoothing: v })}
+          format={pct}
+        />
+        <Slider
+          label={t("mmIslets")}
+          value={cur.islets}
+          min={0}
+          max={1}
+          step={0.01}
+          onChange={(v) => set({ islets: v })}
+          format={pct}
+        />
+      </Group>
+
+      <label className="mm-bp-toggle mm-cp-decor">
+        <input
+          type="checkbox"
+          checked={on}
+          onChange={(e) => onChange({ ...cur, enabled: e.target.checked })}
+        />
+        <span className="mm-bp-switch" aria-hidden="true" />
+        <span>{t("mmCoastDecoration")}</span>
+      </label>
       {on && (
         <>
-          <div className="mm-bp-chips wrap">
-            {COAST_STYLES.map((st) => (
-              <button
-                key={st.id}
-                className={cur.style === st.id ? "active" : ""}
-                onClick={() => onChange(coastStyle(st.id))}
-              >
-                {t(st.labelKey)}
-              </button>
-            ))}
-          </div>
-
-          <Group title={t("mmCoastShape")} icon="edgeShape" open>
-            <Slider
-              label={t("mmRoughness")}
-              value={cur.roughness}
-              min={0}
-              max={1}
-              step={0.01}
-              onChange={(v) => set({ roughness: v })}
-              format={pct}
-            />
-            <Slider
-              label={t("mmEdgeDetail")}
-              value={cur.detail}
-              min={0}
-              max={1}
-              step={0.01}
-              onChange={(v) => set({ detail: v })}
-              format={pct}
-            />
-            <Slider
-              label={t("mmCoastSmoothing")}
-              value={cur.smoothing}
-              min={0}
-              max={1}
-              step={0.01}
-              onChange={(v) => set({ smoothing: v })}
-              format={pct}
-            />
-            <Slider
-              label={t("mmIslets")}
-              value={cur.islets}
-              min={0}
-              max={1}
-              step={0.01}
-              onChange={(v) => set({ islets: v })}
-              format={pct}
-            />
-          </Group>
-
           <Group title={t("mmCoastLand")} icon="land">
             <div className="mm-bp-subtitle">{t("mmOutline")}</div>
             <Slider

@@ -84,8 +84,8 @@ export interface MMLabel {
 // (./brush/engine.ts) replays it deterministically at any resolution, so a
 // stroke looks identical on screen, after undo/redo, and in a 4K print.
 
-/** Brush sub-tools. */
-export type PaintMode = "free" | "edge" | "grid" | "rect" | "ellipse" | "polygon";
+/** Brush sub-tools. (Edge Shape lives in the Land tool — see MMLand.) */
+export type PaintMode = "free" | "grid" | "rect" | "ellipse" | "polygon";
 /** Canvas blend modes offered for paint (a subset of globalCompositeOperation). */
 export type BlendMode =
   | "normal"
@@ -167,37 +167,20 @@ export interface BrushSettings {
   pen: PenDynamics;
 }
 
-/** Natural-edge settings (Edge Shape, and rough-edged geometric shapes). */
-export interface EdgeSettings {
+/** A natural, coastline-like edge (see ./brush/coast.ts). */
+export interface NaturalEdge {
   /** 0..1 how far the edge wanders from the drawn outline. */
   roughness: number;
   /** 0..1 how much fine, fractal coastline detail is added. */
   detail: number;
+}
+
+/** Edge of the Brush Tool's rough Rect/Ellipse/Polygon: a natural outline
+ * plus a soft fade. Purely the shape's geometry — coastline decoration
+ * (outline, beach, glow, waves…) belongs to the land layer's coast effect. */
+export interface EdgeSettings extends NaturalEdge {
   /** Soft fade at the edge, fraction of map width. */
   feather: number;
-  /** Ink outline drawn along the edge (0 width = none). */
-  outlineWidth: number;
-  outlineColor: string;
-  /** Concentric "coastline ripple" lines outside the shape. */
-  ripples: number;
-  rippleSpacing: number;
-  rippleColor: string;
-  rippleOpacity: number;
-  /** -1..1 shading just inside the edge: >0 darkens (depth), <0 lightens (shallows). */
-  innerShade: number;
-  /** Width of the inner shading band, fraction of map width. */
-  innerShadeWidth: number;
-  /** Optional beach/shore band color just inside the edge ("" = none). */
-  shoreColor: string;
-  /** Strength 0..1 and width of the shore band. */
-  shoreStrength: number;
-  shoreWidth: number;
-  /** Soft glow just outside the edge — e.g. light shallow water round land. */
-  glowColor: string;
-  glowWidth: number;
-  glowOpacity: number;
-  /** 0..1 — how many small islets are scattered just off the edge. */
-  islets: number;
 }
 
 export interface GridSettings {
@@ -213,6 +196,11 @@ export interface PaintPoint {
   p?: number;
 }
 
+/**
+ * A Brush Tool stroke. On a land layer, paint is the land's *texture*: it is
+ * clipped to the land shape (MMLand), and paint outside it is kept, hidden,
+ * until the land grows over it. On other layers it is drawn as-is.
+ */
 export interface MMPaint {
   id: string;
   kind: "paint";
@@ -223,12 +211,12 @@ export interface MMPaint {
   /** Overall stroke opacity — overlapping dabs never exceed it. */
   opacity: number;
   source: PaintSource;
-  /** Free: brush samples. Edge: lasso outline. Polygon: vertices.
+  /** Free: brush samples. Polygon: vertices.
    * Rect/Ellipse: two opposite corners of the bounding box. Grid: unused. */
   points: PaintPoint[];
   /** Free Brush only. */
   brush?: BrushSettings;
-  /** Edge Shape, and Rect/Ellipse/Polygon when `rough` is on. */
+  /** Rect/Ellipse/Polygon when `rough` is on (and the feather of all shapes). */
   edge?: EdgeSettings;
   /** Rect/Ellipse/Polygon: use the natural, coastline-style edge. */
   rough?: boolean;
@@ -239,24 +227,61 @@ export interface MMPaint {
   seed: number;
 }
 
-export type MMObject = MMBrush | MMIcon | MMPath | MMRegion | MMLabel | MMPaint;
+// -----------------------------------------------------------------------------
+// Land Tool — the shape of the land
+// -----------------------------------------------------------------------------
+// A land layer keeps *where* land is apart from *what it looks like*: MMLand
+// objects (drawn with the Land tool) add or remove land and so define the
+// coastline; MMPaint objects (the Brush tool) only colour the land. Like
+// paint, land objects are recipes replayed deterministically at any size.
+
+/** Land sub-tools. */
+export type LandMode = "free" | "edge" | "polygon" | "rect" | "ellipse";
+
+export interface MMLand {
+  id: string;
+  kind: "land";
+  mode: LandMode;
+  /** Removes land (opens water) instead of adding it. */
+  erase: boolean;
+  /** Free: brush samples. Edge: lasso outline. Polygon: vertices.
+   * Rect/Ellipse: two opposite corners of the bounding box. */
+  points: PaintPoint[];
+  /** Free only: brush diameter, fraction of the map width. */
+  size?: number;
+  /** Edge Shape, and Polygon/Rect/Ellipse when `rough` is on. */
+  edge?: NaturalEdge;
+  /** Polygon/Rect/Ellipse: use the natural, coastline-style edge. */
+  rough?: boolean;
+  seed: number;
+}
+
+/** A land layer's own settings. */
+export interface LandSettings {
+  /** What land looks like where no texture has been painted yet. */
+  base: PaintSource;
+}
+
+export type MMObject = MMBrush | MMIcon | MMPath | MMRegion | MMLabel | MMPaint | MMLand;
 
 /** Brush-layer role (Inkarnate-style). Optional — older layers read as "custom". */
 export type LayerRole = "land" | "water" | "custom";
 
 /**
- * Layer-level coastline effect (Inkarnate's land-layer coast). Everything
- * painted in the layer is merged into one land mask; the effect then draws a
- * natural coastline around the *whole* mask, and the water around it — so
- * overlapping strokes never show inner coastlines and erasing land reveals
- * glowing, rippled water. Lengths are fractions of the map width.
+ * A land layer's coastline (Inkarnate's land-layer coast). All the layer's
+ * land shapes are merged into one land mask; the coast follows the edge of
+ * the *whole* mask, so overlapping shapes never show inner coastlines and
+ * removing land opens glowing, rippled water. The shape settings always
+ * apply; `enabled` switches the decoration (outline, beach, shading, glow,
+ * waves and depth) on or off. Lengths are fractions of the map width.
  */
 export interface CoastEffect {
+  /** Coast & water decoration on/off (the coastline shape always applies). */
   enabled: boolean;
   /** Preset the settings came from (null once customized). */
   style: string | null;
   // ---- coastline shape
-  /** 0..1 how far the coast wanders from the painted edge (0 = exact). */
+  /** 0..1 how far the coast wanders from the drawn land edge (0 = exact). */
   roughness: number;
   /** 0..1 how much fine fractal jaggedness is added. */
   detail: number;
@@ -302,8 +327,10 @@ export interface MMLayer {
   opacity: number;
   objects: MMObject[];
   role?: LayerRole;
-  /** Coast effect settings; unset = defaults (on for land layers, off otherwise). */
+  /** Land layers: coastline settings (unset = defaults). */
   coast?: CoastEffect;
+  /** Land layers: base texture (unset = defaults). */
+  land?: LandSettings;
 }
 
 export type ResolutionTier = "low" | "medium" | "high" | "ultra";

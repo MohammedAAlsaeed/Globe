@@ -1,8 +1,9 @@
 "use client";
 /**
- * One committed paint object on the canvas: its raster as a Konva.Image,
- * drawn with the object's opacity and blend mode (destination-out for the
- * eraser) inside its own layer.
+ * One committed paint object on a non-land layer: its raster as a
+ * Konva.Image, drawn with the object's opacity and blend mode (destination-
+ * out for the eraser) inside its own layer. (Land layers draw their paint as
+ * texture through LandLayerNode instead.)
  *
  * Rasters are cached per object *instance* (objects are immutable, so undo/
  * redo reuses them for free). When the view is zoomed, the old raster is
@@ -11,66 +12,41 @@
  */
 import { memo, useEffect, useState } from "react";
 import { Image as KonvaImage } from "react-konva";
-import { renderPaint, type RenderedPaint } from "./engine";
+import { paintCompositeOp, renderPaint, type RenderedPaint } from "./engine";
 import type { MMPaint } from "../types";
 
 type Entry = { W: number; H: number; r: RenderedPaint | null };
-// Decorated and plain (coast-layer) rasters are cached separately.
-const rasters = new WeakMap<MMPaint, Entry>(),
-  plainRasters = new WeakMap<MMPaint, Entry>();
+const rasters = new WeakMap<MMPaint, Entry>();
 
-function rasterFor(o: MMPaint, W: number, H: number, plain: boolean): Entry {
-  const cache = plain ? plainRasters : rasters;
-  let entry = cache.get(o);
+function rasterFor(o: MMPaint, W: number, H: number): Entry {
+  let entry = rasters.get(o);
   if (!entry) {
-    entry = { W, H, r: renderPaint(o, W, H, false, plain) };
-    cache.set(o, entry);
+    entry = { W, H, r: renderPaint(o, W, H) };
+    rasters.set(o, entry);
   }
   return entry;
-}
-
-/** A fresh raster at an exact size (used for full-resolution print). */
-export function paintRasterAt(o: MMPaint, W: number, H: number) {
-  return renderPaint(o, W, H);
-}
-
-export function paintCompositeOp(
-  o: Pick<MMPaint, "erase" | "blend">,
-): GlobalCompositeOperation {
-  return o.erase
-    ? "destination-out"
-    : o.blend === "normal"
-      ? "source-over"
-      : o.blend;
 }
 
 export const PaintNode = memo(function PaintNode({
   o,
   W,
   H,
-  plain = false,
 }: {
   o: MMPaint;
   W: number;
   H: number;
-  /** Without edge decoration (inside a coast-effect layer). */
-  plain?: boolean;
 }) {
   const [, setVersion] = useState(0);
-  const entry = rasterFor(o, W, H, plain),
+  const entry = rasterFor(o, W, H),
     stale = entry.W !== W || entry.H !== H;
   useEffect(() => {
     if (!stale) return;
     const timer = setTimeout(() => {
-      (plain ? plainRasters : rasters).set(o, {
-        W,
-        H,
-        r: renderPaint(o, W, H, false, plain),
-      });
+      rasters.set(o, { W, H, r: renderPaint(o, W, H) });
       setVersion((v) => v + 1);
     }, 140);
     return () => clearTimeout(timer);
-  }, [o, W, H, stale, plain]);
+  }, [o, W, H, stale]);
   const r = entry.r;
   if (!r) return null;
   const k = W / entry.W;

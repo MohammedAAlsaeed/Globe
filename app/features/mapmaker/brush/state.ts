@@ -6,7 +6,6 @@ import {
   DEFAULT_BRUSH,
   DEFAULT_EDGE_SETTINGS,
   DEFAULT_SOURCE,
-  EDGE_STYLES,
   type BrushPreset,
   type FavoriteBrush,
 } from "./presets";
@@ -28,13 +27,20 @@ export interface BrushState {
   opacity: number;
   blend: BlendMode;
   source: PaintSource;
+  /** Rect/Ellipse/Polygon: natural edge and feather. */
   edge: EdgeSettings;
-  /** Edge style the edge settings came from (null once customized). */
-  edgeStyle: string | null;
   /** Rect/Ellipse/Polygon: natural coastline-style edge. */
   rough: boolean;
   grid: GridSettings;
 }
+
+const PAINT_MODE_KEYS: PaintMode[] = [
+  "free",
+  "grid",
+  "rect",
+  "ellipse",
+  "polygon",
+];
 
 export const DEFAULT_BRUSH_STATE: BrushState = {
   mode: "free",
@@ -50,8 +56,7 @@ export const DEFAULT_BRUSH_STATE: BrushState = {
   opacity: 0.9,
   blend: "normal",
   source: DEFAULT_SOURCE,
-  edge: { ...DEFAULT_EDGE_SETTINGS, ...EDGE_STYLES[0].edge },
-  edgeStyle: EDGE_STYLES[0].id,
+  edge: DEFAULT_EDGE_SETTINGS,
   rough: false,
   grid: { type: "square", cell: 0.025 },
 };
@@ -95,17 +100,23 @@ export function loadBrushState(): BrushState {
     const raw = localStorage.getItem(STATE_KEY);
     if (!raw) return DEFAULT_BRUSH_STATE;
     const s = JSON.parse(raw) as Partial<BrushState>;
-    // Merge field-by-field so a state saved by an older build still loads.
+    const e = { ...DEFAULT_EDGE_SETTINGS, ...s.edge };
+    delete (s as Record<string, unknown>).edgeStyle; // removed setting
+    // Merge field-by-field so a state saved by an older build still loads
+    // (fields it no longer has are dropped; Edge Shape moved to the Land tool).
     return {
       ...DEFAULT_BRUSH_STATE,
       ...s,
+      mode: PAINT_MODE_KEYS.includes(s.mode as PaintMode)
+        ? (s.mode as PaintMode)
+        : "free",
       brush: {
         ...DEFAULT_BRUSH_STATE.brush,
         ...s.brush,
         pen: { ...DEFAULT_BRUSH.pen, ...s.brush?.pen },
       },
       source: { ...DEFAULT_SOURCE, ...s.source },
-      edge: { ...DEFAULT_BRUSH_STATE.edge, ...s.edge },
+      edge: { roughness: e.roughness, detail: e.detail, feather: e.feather },
       grid: { ...DEFAULT_BRUSH_STATE.grid, ...s.grid },
       erase: false,
     };

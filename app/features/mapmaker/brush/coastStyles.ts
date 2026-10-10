@@ -1,6 +1,6 @@
 /**
  * Coast-effect defaults and ready-made styles (Inkarnate-style land layer
- * coastlines), plus resolving a layer's effective settings.
+ * coastlines), plus resolving a land layer's effective settings.
  */
 import type { CoastEffect, MMLayer } from "../types";
 
@@ -166,18 +166,37 @@ export function coastStyle(id: string): CoastEffect {
   return { ...DEFAULT_COAST, ...s.fx, enabled: true, style: s.id };
 }
 
-/** The layer's effective coast settings, or null when the effect is off.
- * Land layers have it on by default; any layer can switch it on. */
+/** Every decoration switched off — the coastline shape alone. */
+const NO_DECORATION: Partial<CoastEffect> = {
+  outlineWidth: 0,
+  shoreStrength: 0,
+  landShade: 0,
+  glowOpacity: 0,
+  waves: 0,
+  depthStrength: 0,
+};
+
+/** The layer's own coast settings with defaults filled in (what the panel
+ * edits — including decoration settings while the decoration is off). */
+export function coastSettings(layer: MMLayer): CoastEffect {
+  return layer.coast ? { ...DEFAULT_COAST, ...layer.coast } : DEFAULT_COAST;
+}
+
 // Same input object → same resolved object, so effects that depend on it
 // only re-run when the layer's coast settings really change.
 const resolved = new WeakMap<CoastEffect, CoastEffect>();
+/**
+ * What a land layer's coast actually renders with; null for other layers.
+ * The coastline shape always applies; with the effect switched off, only its
+ * decoration is dropped.
+ */
 export function resolveCoast(layer: MMLayer): CoastEffect | null {
+  if (layer.role !== "land") return null;
   const own = layer.coast;
-  if (!own) return layer.role === "land" ? DEFAULT_COAST : null;
-  if (!own.enabled) return null;
+  if (!own) return DEFAULT_COAST;
   let fx = resolved.get(own);
   if (!fx) {
-    fx = { ...DEFAULT_COAST, ...own };
+    fx = { ...DEFAULT_COAST, ...own, ...(own.enabled ? {} : NO_DECORATION) };
     resolved.set(own, fx);
   }
   return fx;

@@ -4,8 +4,9 @@
  * The Brush Tool panel (left of the canvas while the Brush tool is active):
  * paint/eraser, sub-tools, presets & favorites, size/opacity/softness, the
  * texture catalog and color picker, color filters, blend mode, Edit Brush
- * (tip, flow, spacing, rotation, jitter, scatter), pen dynamics, natural-edge
- * styling for Edge Shape, and grid settings for Grid Block.
+ * (tip, flow, spacing, rotation, jitter, scatter), pen dynamics, the natural
+ * edge of rough shapes, and grid settings for Grid Block. The panel opens
+ * with the edit target (which layer, and what of it, the brush changes).
  */
 import { useMemo, useState, type ReactNode } from "react";
 import { Glyph } from "../glyphs";
@@ -13,26 +14,18 @@ import { Slider } from "../components/EditorControls";
 import { ICONS, ICON_IDS, type IconId } from "../../studio/domain/icons";
 import { brushPreview } from "./engine";
 import {
-  EDGE_STYLES,
   PRESETS,
   PRESET_GROUPS,
   presetById,
   type FavoriteBrush,
 } from "./presets";
-import {
-  TEXTURES,
-  TEXTURE_CATEGORIES,
-  textureDef,
-  textureThumb,
-  type TextureCategory,
-} from "./textures";
+import { SourcePicker } from "./SourcePicker";
 import { TIP_LIST } from "./tips";
 import { applyFavorite, applyPreset, type BrushState } from "./state";
 import type {
   BlendMode,
   BrushSettings,
   EdgeSettings,
-  LayerRole,
   PaintMode,
   PaintSource,
 } from "../types";
@@ -50,12 +43,6 @@ export const PAINT_MODES: {
     glyph: "freeBrush",
     labelKey: "mmModeFree",
     hintKey: "mmModeFreeHint",
-  },
-  {
-    key: "edge",
-    glyph: "edgeShape",
-    labelKey: "mmModeEdge",
-    hintKey: "mmModeEdgeHint",
   },
   {
     key: "grid",
@@ -142,27 +129,6 @@ function Toggle({
     </label>
   );
 }
-function ColorRow({
-  label,
-  value,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-}) {
-  return (
-    <label className="mm-bp-color-row">
-      <span>{label}</span>
-      <input
-        type="color"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-      />
-    </label>
-  );
-}
-
 export function BrushPanel({
   state,
   onChange,
@@ -174,10 +140,7 @@ export function BrushPanel({
   favorites,
   onSaveFavorite,
   onDeleteFavorite,
-  layerName,
-  layerRole,
-  coastOn,
-  onEditCoast,
+  target,
 }: {
   state: BrushState;
   onChange: (next: BrushState) => void;
@@ -191,19 +154,14 @@ export function BrushPanel({
   favorites: FavoriteBrush[];
   onSaveFavorite: (name: string) => void;
   onDeleteFavorite: (id: string) => void;
-  layerName: string;
-  layerRole: LayerRole;
-  /** The active layer draws one shared coastline around its paint. */
-  coastOn: boolean;
-  onEditCoast: () => void;
+  /** What the brush edits (see EditTarget). */
+  target: ReactNode;
 }) {
   const [presetsOpen, setPresetsOpen] = useState(false),
-    [favName, setFavName] = useState<string | null>(null),
-    [texCategory, setTexCategory] = useState<TextureCategory | "all">("all");
+    [favName, setFavName] = useState<string | null>(null);
   const s = state,
     free = s.mode === "free",
-    shape = s.mode === "rect" || s.mode === "ellipse" || s.mode === "polygon",
-    showEdge = !s.erase && (s.mode === "edge" || (shape && s.rough));
+    shape = s.mode === "rect" || s.mode === "ellipse" || s.mode === "polygon";
 
   const set = (patch: Partial<BrushState>) => onChange({ ...s, ...patch });
   const setBrush = (patch: Partial<BrushSettings>) =>
@@ -211,7 +169,7 @@ export function BrushPanel({
   const setSource = (patch: Partial<PaintSource>) =>
     set({ source: { ...s.source, ...patch } });
   const setEdge = (patch: Partial<EdgeSettings>) =>
-    set({ edge: { ...s.edge, ...patch }, edgeStyle: null });
+    set({ edge: { ...s.edge, ...patch } });
   const px = (v: number) => `${Math.max(0, Math.round(v * mapWidthPx))} px`;
 
   const presetLabel = useMemo(() => {
@@ -222,15 +180,12 @@ export function BrushPanel({
     return p ? t(p.labelKey) : t("mmPresetCustom");
   }, [s.presetId, favorites, t]);
 
-  const textures =
-    texCategory === "all"
-      ? TEXTURES
-      : TEXTURES.filter((x) => x.category === texCategory);
   const softness = free ? s.brush.softness : Math.min(1, s.edge.feather / 0.01);
   const modeInfo = PAINT_MODES.find((m) => m.key === s.mode)!;
 
   return (
     <aside className="mm-brush-panel" aria-label={t("mmBrushPanel")}>
+      {target}
       <div className="mm-bp-head">
         <div className="mm-bp-segment" role="radiogroup">
           <button
@@ -418,94 +373,13 @@ export function BrushPanel({
       {/* ---- source: texture catalog / color ---- */}
       {!s.erase && (
         <Section title={t("mmPaintSource")} open>
-          <div className="mm-bp-segment small">
-            <button
-              className={s.source.type === "texture" ? "active" : ""}
-              onClick={() => setSource({ type: "texture" })}
-            >
-              {t("mmSourceTexture")}
-            </button>
-            <button
-              className={s.source.type === "color" ? "active" : ""}
-              onClick={() => setSource({ type: "color" })}
-            >
-              {t("mmSourceColor")}
-            </button>
-          </div>
-          {s.source.type === "texture" ? (
-            <>
-              <div className="mm-bp-chips">
-                <button
-                  className={texCategory === "all" ? "active" : ""}
-                  onClick={() => setTexCategory("all")}
-                >
-                  {t("mmTexCatAll")}
-                </button>
-                {TEXTURE_CATEGORIES.map((c) => (
-                  <button
-                    key={c.key}
-                    className={texCategory === c.key ? "active" : ""}
-                    onClick={() => setTexCategory(c.key)}
-                  >
-                    {t(c.labelKey)}
-                  </button>
-                ))}
-              </div>
-              <div className="mm-bp-texture-grid">
-                {textures.map((x) => (
-                  <button
-                    key={x.id}
-                    className={s.source.texture === x.id ? "selected" : ""}
-                    title={t(x.labelKey)}
-                    onClick={() => setSource({ texture: x.id })}
-                    style={{ backgroundImage: `url(${textureThumb(x.id)})` }}
-                  >
-                    <span>{t(x.labelKey)}</span>
-                  </button>
-                ))}
-              </div>
-              <div className="mm-bp-current">
-                {t(textureDef(s.source.texture).labelKey)}
-              </div>
-              <Slider
-                label={t("mmTextureScale")}
-                value={s.source.textureScale}
-                min={0.25}
-                max={4}
-                step={0.05}
-                onChange={(v) => setSource({ textureScale: v })}
-                format={(v) => `${v.toFixed(2)}×`}
-              />
-              <Slider
-                label={t("mmTextureRotation")}
-                value={s.source.textureRotation}
-                min={0}
-                max={359}
-                step={1}
-                onChange={(v) => setSource({ textureRotation: v })}
-                format={(v) => `${v}°`}
-              />
-            </>
-          ) : (
-            <div className="mm-bp-color">
-              <input
-                type="color"
-                value={s.source.color}
-                onChange={(e) => setSource({ color: e.target.value })}
-                onBlur={(e) => onCommitColor(e.target.value)}
-              />
-              <div className="mm-recents-row">
-                {recentColors.map((c) => (
-                  <button
-                    key={c}
-                    className="mm-color-chip"
-                    style={{ background: c }}
-                    onClick={() => setSource({ color: c })}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
+          <SourcePicker
+            source={s.source}
+            onChange={setSource}
+            t={t}
+            recentColors={recentColors}
+            onCommitColor={onCommitColor}
+          />
         </Section>
       )}
 
@@ -739,23 +613,9 @@ export function BrushPanel({
         </div>
       )}
 
-      {/* ---- natural edge (Edge Shape) ---- */}
-      {showEdge && (
+      {/* ---- natural edge of rough shapes ---- */}
+      {shape && s.rough && !s.erase && (
         <Section title={t("mmEdgeSettings")} open>
-          {coastOn && <p className="mm-bp-note">{t("mmEdgeInCoastLayer")}</p>}
-          <div className="mm-bp-chips wrap" hidden={coastOn}>
-            {EDGE_STYLES.map((st) => (
-              <button
-                key={st.id}
-                className={s.edgeStyle === st.id ? "active" : ""}
-                onClick={() =>
-                  set({ edge: { ...s.edge, ...st.edge }, edgeStyle: st.id })
-                }
-              >
-                {t(st.labelKey)}
-              </button>
-            ))}
-          </div>
           <Slider
             label={t("mmRoughness")}
             value={s.edge.roughness}
@@ -774,133 +634,6 @@ export function BrushPanel({
             onChange={(v) => setEdge({ detail: v })}
             format={pct}
           />
-          {!coastOn && (
-            <>
-              <Slider
-                label={t("mmIslets")}
-                value={s.edge.islets}
-                min={0}
-                max={1}
-                step={0.01}
-                onChange={(v) => setEdge({ islets: v })}
-                format={pct}
-              />
-              <div className="mm-bp-subtitle">{t("mmOutline")}</div>
-              <Slider
-                label={t("mmWidth")}
-                value={s.edge.outlineWidth}
-                min={0}
-                max={0.005}
-                step={0.0001}
-                onChange={(v) => setEdge({ outlineWidth: v })}
-                format={px}
-              />
-              <ColorRow
-                label={t("mmColor")}
-                value={s.edge.outlineColor}
-                onChange={(v) => setEdge({ outlineColor: v })}
-              />
-              <div className="mm-bp-subtitle">{t("mmShore")}</div>
-              <Slider
-                label={t("mmStrength")}
-                value={s.edge.shoreStrength}
-                min={0}
-                max={1}
-                step={0.01}
-                onChange={(v) => setEdge({ shoreStrength: v })}
-                format={pct}
-              />
-              <Slider
-                label={t("mmWidth")}
-                value={s.edge.shoreWidth}
-                min={0.001}
-                max={0.02}
-                step={0.0005}
-                onChange={(v) => setEdge({ shoreWidth: v })}
-                format={px}
-              />
-              <ColorRow
-                label={t("mmColor")}
-                value={s.edge.shoreColor}
-                onChange={(v) => setEdge({ shoreColor: v })}
-              />
-              <div className="mm-bp-subtitle">{t("mmInnerShade")}</div>
-              <Slider
-                label={t("mmDepthShallows")}
-                value={s.edge.innerShade}
-                min={-1}
-                max={1}
-                step={0.01}
-                onChange={(v) => setEdge({ innerShade: v })}
-                format={signedPct}
-              />
-              <Slider
-                label={t("mmWidth")}
-                value={s.edge.innerShadeWidth}
-                min={0.002}
-                max={0.04}
-                step={0.0005}
-                onChange={(v) => setEdge({ innerShadeWidth: v })}
-                format={px}
-              />
-              <div className="mm-bp-subtitle">{t("mmWaterGlow")}</div>
-              <Slider
-                label={t("mmBrushOpacity")}
-                value={s.edge.glowOpacity}
-                min={0}
-                max={1}
-                step={0.01}
-                onChange={(v) => setEdge({ glowOpacity: v })}
-                format={pct}
-              />
-              <Slider
-                label={t("mmWidth")}
-                value={s.edge.glowWidth}
-                min={0.002}
-                max={0.04}
-                step={0.0005}
-                onChange={(v) => setEdge({ glowWidth: v })}
-                format={px}
-              />
-              <ColorRow
-                label={t("mmColor")}
-                value={s.edge.glowColor}
-                onChange={(v) => setEdge({ glowColor: v })}
-              />
-              <div className="mm-bp-subtitle">{t("mmRipples")}</div>
-              <Slider
-                label={t("mmCount")}
-                value={s.edge.ripples}
-                min={0}
-                max={6}
-                step={1}
-                onChange={(v) => setEdge({ ripples: v })}
-              />
-              <Slider
-                label={t("mmSpacing")}
-                value={s.edge.rippleSpacing}
-                min={0.002}
-                max={0.02}
-                step={0.0005}
-                onChange={(v) => setEdge({ rippleSpacing: v })}
-                format={px}
-              />
-              <Slider
-                label={t("mmBrushOpacity")}
-                value={s.edge.rippleOpacity}
-                min={0}
-                max={1}
-                step={0.01}
-                onChange={(v) => setEdge({ rippleOpacity: v })}
-                format={pct}
-              />
-              <ColorRow
-                label={t("mmColor")}
-                value={s.edge.rippleColor}
-                onChange={(v) => setEdge({ rippleColor: v })}
-              />
-            </>
-          )}
         </Section>
       )}
 
@@ -939,31 +672,6 @@ export function BrushPanel({
         </Section>
       )}
 
-      {coastOn && (
-        <div className="mm-bp-coast-card">
-          <Glyph name="edgeShape" size={16} />
-          <div>
-            <b>{t("mmCoastOnTitle")}</b>
-            <p>{t("mmCoastOnText")}</p>
-          </div>
-          <button className="secondary-button" onClick={onEditCoast}>
-            {t("mmEditCoast")}
-          </button>
-        </div>
-      )}
-      <div className={`mm-bp-layer mm-role-${layerRole}`}>
-        <Glyph
-          name={
-            layerRole === "water"
-              ? "water"
-              : layerRole === "land"
-                ? "land"
-                : "layers"
-          }
-          size={14}
-        />
-        <span>{t("mmPaintingOn", { layer: layerName })}</span>
-      </div>
       <p className="mm-bp-shortcuts">{t("mmBrushShortcuts")}</p>
     </aside>
   );
