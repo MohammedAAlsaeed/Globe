@@ -21,12 +21,31 @@ import {
 import "../../lib/i18n";
 import { Glyph } from "./glyphs";
 import { BrushPanel, PAINT_MODES } from "./brush/BrushPanel";
-import { PaintNode, paintRasterAt } from "./brush/PaintNode";
-import { CoastLayerNode } from "./brush/CoastLayerNode";
+import { LandPanel } from "./brush/LandPanel";
+import { PaintNode } from "./brush/PaintNode";
+import { LAND_PENDING_NAME, LandLayerNode, landImageId } from "./brush/LandLayerNode";
 import { CoastEffectPanel } from "./brush/CoastEffectPanel";
-import { renderCoastLayer } from "./brush/coastLayer";
+import { renderLandLayer } from "./brush/landLayer";
 import { layerSeed, resolveCoast } from "./brush/coastStyles";
-import { LiveStroke, gridCellAt, renderPaint, type RenderedPaint } from "./brush/engine";
+import {
+  LiveStroke,
+  colorize,
+  gridCellAt,
+  makeCanvas,
+  paintCompositeOp,
+  renderPaint,
+  type RenderedPaint,
+  type StrokeStyle,
+} from "./brush/engine";
+import {
+  LAND_MODES,
+  landBrush,
+  landSettings,
+  loadLandTool,
+  renderLand,
+  saveLandTool,
+  type LandToolState,
+} from "./brush/land";
 import { newSeed } from "./brush/noise";
 import { loadFavorites, saveFavorites, type FavoriteBrush } from "./brush/presets";
 import { loadBrushState, saveBrushState, type BrushState } from "./brush/state";
@@ -44,20 +63,22 @@ import {
 } from "./domain";
 import { useHistory } from "./hooks/useHistory";
 import { ColorControl, MenuHint, MenuRow, MultiSelectionBar, ObjectQuickBar, Slider } from "./components/EditorControls";
+import { EditTarget } from "./components/EditTarget";
 import { exportProjectToFile, saveProject } from "./storage";
 import { CreateMapModal } from "./CreateMapModal";
 import { MapGallery } from "./MapGallery";
 import { ICONS, ICON_IDS, type IconId } from "../studio/domain/icons";
 import { saveHandoff } from "../studio/storage/projects";
 import { DEFAULT_DOCUMENT } from "../studio/domain/types";
-import { SelectField } from "../../components/ui/fields";
 import type {
   Biome,
   LabelAlign,
   CoastEffect,
+  LandMode,
   LayerRole,
   MMBrush,
   MMLabel,
+  MMLand,
   MMLayer,
   MMObject,
   MMPaint,
@@ -66,14 +87,17 @@ import type {
   MMProject,
   PaintMode,
   PaintPoint,
+  PaintSource,
   PathKind,
   Point,
 } from "./types";
+import {SelectField} from "@/components/ui/fields";
 
-type Tool = "select" | "brush" | "icon" | "path" | "region" | "label";
+type Tool = "select" | "brush" | "land" | "icon" | "path" | "region" | "label";
 const TOOLS: { key: Tool; labelKey: string }[] = [
   { key: "select", labelKey: "mmToolSelect" },
   { key: "brush", labelKey: "mmToolBrush" },
+  { key: "land", labelKey: "mmToolLand" },
   { key: "icon", labelKey: "mmToolStamp" },
   { key: "path", labelKey: "mmToolPath" },
   { key: "region", labelKey: "mmToolRegion" },
@@ -82,6 +106,7 @@ const TOOLS: { key: Tool; labelKey: string }[] = [
 const HINT_KEY: Record<Tool, string> = {
   select: "mmShortcutHintSelect",
   brush: "mmShortcutHintBrush",
+  land: "mmShortcutHintLand",
   icon: "mmShortcutHintStamp",
   path: "mmShortcutHintPath",
   region: "mmShortcutHintRegion",
@@ -123,9 +148,12 @@ const MAX_LAYERS = 20,
 type StrokeDraft = Omit<MMBrush, "points"> | Omit<MMPath, "points">;
 type ObjUpdater = (o: MMObject) => MMPatch;
 type StagePoint = { x: number; y: number };
-/** The Brush Tool gesture in progress: the paint recipe being built and, for
- * Free Brush, the incremental live rasterizer. */
-type PaintSession = { obj: MMPaint; live: LiveStroke | null; plain: boolean };
+/** Drawing on a land layer: its base texture and its current land coverage
+ * (null while it has no land) — texture previews are clipped to the land. */
+type LandContext = { base: PaintSource; land: HTMLCanvasElement | null };
+/** A Brush or Land gesture in progress: the recipe being built, the free
+ * stroke's incremental live rasterizer, and the land layer it's drawn on. */
+type DrawSession = { obj: MMPaint | MMLand; live: LiveStroke | null; onLand: LandContext | null };
 /** Freehand brush/lasso samples closer than this (screen px) are dropped. */
 const PAINT_GAP_PX = 1.5,
   LASSO_GAP_PX = 3,
@@ -309,6 +337,8 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
     /** Polygon sub-tool: vertices placed so far (click-by-click). */
     [polyDraft, setPolyDraft] = useState<PaintPoint[] | null>(null),
     [showLayerMenu, setShowLayerMenu] = useState(false);
+  /** Everything the Land panel edits; remembered per browser. */
+  const [landTool, setLandTool] = useState<LandToolState>(loadLandTool);
 
   const containerRef = useRef<HTMLDivElement>(null),
     stageRef = useRef<Konva.Stage>(null),
@@ -330,13 +360,15 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
     editMenuRef = useRef<HTMLDivElement>(null),
     contextMenuRef = useRef<HTMLDivElement>(null),
     /** Brush Tool: the gesture in progress, its preview node, the size cursor. */
-    paintSessionRef = useRef<PaintSession | null>(null),
+    paintSessionRef = useRef<DrawSession | null>(null),
     paintImageRef = useRef<Konva.Image>(null),
     paintFrameRef = useRef(0),
     brushCursorRef = useRef<Konva.Circle>(null),
     layerMenuRef = useRef<HTMLDivElement>(null),
     polySeedRef = useRef(0),
-    coastPanelRef = useRef<HTMLDivElement>(null);
+    coastPanelRef = useRef<HTMLDivElement>(null),
+    /** Current land coverage of each land layer (from LandLayerNode). */
+    landMasksRef = useRef(new Map<string, HTMLCanvasElement>());
   const [spaceHeld, setSpaceHeld] = useState(false),
     [panningActive, setPanningActive] = useState(false),
     [hasClipboard, setHasClipboard] = useState(false),
@@ -356,16 +388,31 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
     ? selectedLayer.objects.filter((o) => selectedIdSet.has(o.id))
     : [];
   const selectedObj = selectedObjs.length === 1 ? selectedObjs[0] : undefined;
-  /** Layers with the coast effect on: their settings and paint, in order. */
-  const coastByLayer = useMemo(() => {
-    const m = new Map<string, { fx: CoastEffect; paints: MMPaint[] }>();
+  /** Land layers: their land shapes, texture paint, base texture and coast. */
+  const landByLayer = useMemo(() => {
+    const m = new Map<string, { lands: MMLand[]; paints: MMPaint[]; base: PaintSource; fx: CoastEffect }>();
     for (const l of project.layers) {
       const fx = resolveCoast(l);
-      if (fx) m.set(l.id, { fx, paints: l.objects.filter((o): o is MMPaint => o.kind === "paint") });
+      if (!fx) continue;
+      m.set(l.id, {
+        fx,
+        base: landSettings(l).base,
+        lands: l.objects.filter((o): o is MMLand => o.kind === "land"),
+        paints: l.objects.filter((o): o is MMPaint => o.kind === "paint"),
+      });
     }
     return m;
   }, [project.layers]);
-  const activeCoast = !!active && coastByLayer.has(active.id);
+  /** The Land tool's target: the active layer, when it is a land layer. */
+  const landTarget = active?.role === "land" ? active : null;
+  /** The topmost land layer (what the Land tool switches to). */
+  const topLand = [...project.layers].reverse().find((l) => l.role === "land");
+  /** Brush & Land share their gestures; this is the active one's sub-tool. */
+  const drawMode: PaintMode | LandMode = tool === "land" ? landTool.mode : brushState.mode;
+  const onLandChange = useCallback((layerId: string, land: HTMLCanvasElement | null) => {
+    if (land) landMasksRef.current.set(layerId, land);
+    else landMasksRef.current.delete(layerId);
+  }, []);
   /** Layers whose coastline is being rebuilt right now (status bar hint). */
   const [coastBusy, setCoastBusy] = useState<ReadonlySet<string>>(() => new Set());
   const onCoastBusy = useCallback((layerId: string, busy: boolean) => {
@@ -429,13 +476,13 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
   }, []);
 
   // Objects on a hidden or locked layer stay selected but get no handles.
-  // Paint (brush) strokes are raster-like, never transformed — like Inkarnate.
+  // Paint and land strokes are raster-like, never transformed — like Inkarnate.
   const selectionEditable = !!selectedLayer && selectedLayer.visible && !selectedLayer.locked;
   useEffect(() => {
     const tr = transformerRef.current,
       stage = stageRef.current;
     if (!tr || !stage) return;
-    const handleIds = selectedObjs.filter((o) => o.kind !== "paint").map((o) => o.id);
+    const handleIds = selectedObjs.filter((o) => o.kind !== "paint" && o.kind !== "land").map((o) => o.id);
     const nodes =
       tool === "select" && selectionEditable
         ? handleIds.map((id) => findNode(stage, id)).filter((n): n is Konva.Node => !!n)
@@ -452,6 +499,10 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
   }, [brushState]);
   useEffect(() => saveFavorites(favorites), [favorites]);
   useEffect(() => {
+    const timer = setTimeout(() => saveLandTool(landTool), 400);
+    return () => clearTimeout(timer);
+  }, [landTool]);
+  useEffect(() => {
     if (!showLayerMenu) return;
     const onDown = (e: PointerEvent) => {
       if (layerMenuRef.current && !layerMenuRef.current.contains(e.target as Node)) setShowLayerMenu(false);
@@ -465,12 +516,12 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
     const raf = requestAnimationFrame(() => {
       const node = paintImageRef.current;
       if (!node) return;
-      const draft = buildPaint("polygon", polyDraft, polySeedRef.current);
-      showPaintRaster(polyDraft.length >= 3 ? renderPaint(draft, W, H, true, activeCoast) : null);
+      const draft = buildDraft("polygon", polyDraft, polySeedRef.current);
+      showPaintRaster(polyDraft.length >= 3 ? previewRaster(draft, W, H, landContext()) : null);
     });
     return () => cancelAnimationFrame(raf);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [polyDraft, W, H, brushState]);
+  }, [polyDraft, W, H, brushState, landTool]);
 
   /** Keeps whatever content point was under the cursor fixed in place across
    * a Ctrl/Cmd+scroll (or trackpad-pinch) zoom, instead of zooming from a
@@ -575,23 +626,27 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
       }
       // ---- Brush Tool shortcuts ----
       const key = e.key.toLowerCase();
-      if (!mod && !e.altKey && key === "b") {
+      if (!mod && !e.altKey && (key === "b" || key === "l")) {
         e.preventDefault();
-        selectTool("brush");
+        selectTool(key === "b" ? "brush" : "land");
         return;
       }
-      if (tool !== "brush" || mod) return;
+      if ((tool !== "brush" && tool !== "land") || mod) return;
       if (key === "e") {
         e.preventDefault();
-        setBrushState((st) => ({ ...st, erase: !st.erase }));
+        if (tool === "land") setLandTool((st) => ({ ...st, erase: !st.erase }));
+        else setBrushState((st) => ({ ...st, erase: !st.erase }));
       } else if (e.key === "[" || e.key === "]") {
         e.preventDefault();
         const k = e.key === "]" ? 1.12 : 1 / 1.12;
-        setBrushState((st) => ({
-          ...st,
-          presetId: null,
-          brush: { ...st.brush, size: clamp(st.brush.size * k, 1 / project.width, 0.25) },
-        }));
+        if (tool === "land")
+          setLandTool((st) => ({ ...st, size: clamp(st.size * k, 2 / project.width, 0.3) }));
+        else
+          setBrushState((st) => ({
+            ...st,
+            presetId: null,
+            brush: { ...st.brush, size: clamp(st.brush.size * k, 1 / project.width, 0.25) },
+          }));
       } else if (e.key === "Enter" && polyDraft) {
         e.preventDefault();
         commitPolygon();
@@ -621,6 +676,8 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
   function selectTool(next: Tool) {
     cancelDrafts();
     setTool(next);
+    // The Land tool edits land layers: pick one if another layer is active.
+    if (next === "land" && active?.role !== "land" && topLand) setActiveLayerId(topLand.id);
   }
   function selectOnly(id: string) {
     setSelectedIds([id]);
@@ -750,7 +807,9 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
     const layer =
       active && !active.locked ? active : project.layers.find((l) => l.id === clip.layerId);
     if (!layer || layer.locked) return;
-    const clones = clip.objs.map(cloneWithOffset);
+    // Land shapes only make sense on a land layer.
+    const clones = clip.objs.filter((o) => o.kind !== "land" || layer.role === "land").map(cloneWithOffset);
+    if (!clones.length) return;
     setProject((p) => mapLayer(p, layer.id, (l) => ({ ...l, objects: [...l.objects, ...clones] })));
     setSelectedIds(clones.map((c) => c.id));
   }
@@ -1025,8 +1084,9 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
     }
     if (!active || active.locked) return;
     const p = toNorm(pos);
-    if (tool === "brush") {
-      startPaint(pos, e.evt);
+    if (tool === "brush" || tool === "land") {
+      if (tool === "land" && active.role !== "land") return;
+      startDraw(pos, e.evt);
     } else if (tool === "path") {
       startStroke(p, e.evt.pointerId);
     } else if (tool === "icon") {
@@ -1085,16 +1145,23 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
     );
   }
 
-  // ---- Brush Tool 2.0 ------------------------------------------------------
-  // Every sub-tool builds an MMPaint *recipe* (geometry + all brush settings +
-  // a seed) while the pointer moves, previews it live inside the active layer
-  // — so the eraser and blend modes preview exactly as they'll commit — and
-  // adds it as one object (one undo step) on release.
+  // ---- Brush & Land tools ----------------------------------------------------
+  // Both tools build a *recipe* while the pointer moves — MMPaint for the
+  // Brush (colour/texture), MMLand for the Land tool (where land is) —
+  // preview it live inside the active layer, exactly as it will look once
+  // merged, and add it as one object (one undo step) on release. They share
+  // every gesture: free stroke, lasso, rectangle/ellipse drag and the
+  // click-by-click polygon (plus Grid Block for paint).
 
   /** Brush panel / toolbar changes. Switching sub-tool drops a half-built polygon. */
   function updateBrush(next: BrushState) {
     if (next.mode !== brushState.mode) setPolyDraft(null);
     setBrushState(next);
+  }
+  /** Land panel / toolbar changes. Switching sub-tool drops a half-built polygon. */
+  function updateLandTool(next: LandToolState) {
+    if (next.mode !== landTool.mode) setPolyDraft(null);
+    setLandTool(next);
   }
   /** A paint recipe from the current Brush panel settings. */
   function buildPaint(mode: PaintMode, points: PaintPoint[], seed = newSeed(), cells?: [number, number][]): MMPaint {
@@ -1115,6 +1182,66 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
       seed,
     };
   }
+  /** A land recipe from the current Land panel settings. */
+  function buildLand(mode: LandMode, points: PaintPoint[], seed = newSeed()): MMLand {
+    const l = landTool,
+      shape = mode === "rect" || mode === "ellipse" || mode === "polygon";
+    return {
+      id: crypto.randomUUID(),
+      kind: "land",
+      mode,
+      erase: l.erase,
+      points,
+      ...(mode === "free" ? { size: l.size } : { edge: l.edge }),
+      ...(shape ? { rough: l.rough } : {}),
+      seed,
+    };
+  }
+  /** A recipe for the active tool (Land tool → land, otherwise paint). */
+  function buildDraft(mode: PaintMode | LandMode, points: PaintPoint[], seed = newSeed(), cells?: [number, number][]) {
+    return tool === "land"
+      ? buildLand(mode as LandMode, points, seed)
+      : buildPaint(mode as PaintMode, points, seed, cells);
+  }
+  /** The active layer's land context, when it's a land layer. */
+  function landContext(): LandContext | null {
+    if (active?.role !== "land") return null;
+    return { base: landSettings(active).base, land: landMasksRef.current.get(active.id) ?? null };
+  }
+  /** Clips a raster to the land (`land` covers the whole stage at w×h). */
+  function clipToLand(r: RenderedPaint, land: HTMLCanvasElement, w: number, h: number): RenderedPaint {
+    const out = makeCanvas(r.canvas.width, r.canvas.height),
+      ctx = out.getContext("2d")!;
+    ctx.drawImage(r.canvas, 0, 0);
+    ctx.globalCompositeOperation = "destination-in";
+    ctx.drawImage(land, -r.x, -r.y, w, h);
+    return { ...r, canvas: out };
+  }
+  /** Finishes a paint preview raster on a land layer: the texture eraser
+   * shows the base texture it restores, and everything is clipped to the
+   * land (no land yet → nothing to see). Elsewhere it's used as-is. */
+  function onLandPreview(r: RenderedPaint | null, erase: boolean, ctx: LandContext | null, w: number, h: number) {
+    if (!r || !ctx) return r;
+    if (!ctx.land) return null;
+    const canvas = erase ? colorize(r.canvas, ctx.base, w, r.x, r.y) : r.canvas;
+    return clipToLand({ ...r, canvas }, ctx.land, w, h);
+  }
+  /** A draft's live preview raster: land in the base texture (removed land
+   * as a cut-out), paint as it will look in its layer. */
+  function previewRaster(o: MMPaint | MMLand, w: number, h: number, ctx: LandContext | null) {
+    if (o.kind === "land") {
+      const r = renderLand(o, w, h, true);
+      return r && !o.erase && ctx ? { ...r, canvas: colorize(r.canvas, ctx.base, w, r.x, r.y) } : r;
+    }
+    return onLandPreview(renderPaint(o, w, h, true), o.erase, ctx, w, h);
+  }
+  /** How a free stroke is painted live (see previewRaster). */
+  function liveStyle(o: MMPaint | MMLand, ctx: LandContext | null): StrokeStyle {
+    if (o.kind === "land")
+      return { brush: landBrush(o.size ?? landTool.size), source: o.erase ? null : (ctx?.base ?? null), seed: o.seed };
+    // A texture eraser on a land layer paints the base texture back.
+    return { brush: o.brush!, source: o.erase ? (ctx?.base ?? null) : o.source, seed: o.seed };
+  }
   /** Shows a raster in the live preview node (or hides it). */
   function showPaintRaster(r: RenderedPaint | null) {
     const node = paintImageRef.current;
@@ -1130,36 +1257,41 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
       paintFrameRef.current = 0;
       const session = paintSessionRef.current;
       if (!session) return;
-      if (session.live) {
-        session.live.compose();
-        showPaintRaster({ canvas: session.live.canvas, x: 0, y: 0 });
-      } else {
-        const { w, h } = viewRef.current;
-        showPaintRaster(renderPaint(session.obj, w, h, true, session.plain));
+      const { w, h } = viewRef.current,
+        { obj, live, onLand } = session;
+      if (!live) {
+        showPaintRaster(previewRaster(obj, w, h, onLand));
+        return;
       }
+      live.compose();
+      const r = { canvas: live.canvas, x: 0, y: 0 };
+      // The live stroke already carries its colours; paint on land is clipped.
+      showPaintRaster(obj.kind === "paint" && onLand ? (onLand.land ? clipToLand(r, onLand.land, w, h) : null) : r);
     });
   }
   /** A pointer sample in normalized map coordinates, with pen pressure. */
   function paintSample(pos: StagePoint, ev: PointerEvent): PaintPoint {
     const { w, h } = viewRef.current,
       pt: PaintPoint = { x: q5(clamp(pos.x / w, -0.05, 1.05)), y: q5(clamp(pos.y / h, -0.05, 1.05)) };
-    if (ev.pointerType === "pen" && ev.pressure > 0) pt.p = Math.round(ev.pressure * 100) / 100;
+    // Pressure only matters to the Brush (the land brush has a fixed size).
+    if (tool === "brush" && ev.pointerType === "pen" && ev.pressure > 0) pt.p = Math.round(ev.pressure * 100) / 100;
     return pt;
   }
 
-  function startPaint(pos: StagePoint, ev: PointerEvent) {
-    const mode = brushState.mode;
+  /** Starts a Brush or Land gesture at the pointer. */
+  function startDraw(pos: StagePoint, ev: PointerEvent) {
+    const mode = drawMode;
     if (mode === "polygon") {
       addPolygonVertex(toNorm(pos));
       return;
     }
     const first = paintSample(pos, ev),
-      obj = buildPaint(mode, [first], newSeed(), mode === "grid" ? [] : undefined),
-      session: PaintSession = { obj, live: null, plain: activeCoast },
+      obj = buildDraft(mode, [first], newSeed(), mode === "grid" ? [] : undefined),
+      session: DrawSession = { obj, live: null, onLand: landContext() },
       aspect = project.height / project.width,
       cellKeys = new Set<string>();
     const addCell = (pt: PaintPoint) => {
-      if (!obj.cells || !obj.grid || obj.cells.length >= MAX_GRID_CELLS) return;
+      if (obj.kind !== "paint" || !obj.cells || !obj.grid || obj.cells.length >= MAX_GRID_CELLS) return;
       const cell = gridCellAt(pt.x, pt.y, obj.grid, aspect),
         key = `${cell[0]},${cell[1]}`;
       if (cellKeys.has(key)) return;
@@ -1171,7 +1303,7 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
     flushSync(() => setPaintPreview(true));
     if (mode === "free") {
       const { w, h } = viewRef.current;
-      session.live = new LiveStroke(obj, w, h);
+      session.live = new LiveStroke(liveStyle(obj, session.onLand), w, h);
       session.live.add(first);
     } else if (mode === "grid") addCell(first);
     if (mode !== "rect" && mode !== "ellipse") schedulePaintFrame();
@@ -1202,7 +1334,7 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
           }
           const corner = { x: q5(first.x + dx / w), y: q5(first.y + dy / h) };
           obj.points = e.altKey ? [{ x: q5(first.x - dx / w), y: q5(first.y - dy / h) }, corner] : [first, corner];
-        } else if (mode === "grid") {
+        } else if (mode === "grid" && obj.kind === "paint") {
           // Fill every cell along the segment, so fast drags leave no gaps.
           const cellPx = obj.grid!.cell * w,
             steps = Math.max(1, Math.ceil(gapPx / Math.max(2, cellPx / 3)));
@@ -1217,20 +1349,20 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
         paintFrameRef.current = 0;
         paintSessionRef.current = null;
         setPaintPreview(false);
-        if (!commit || !paintIsWorthKeeping(obj)) return;
+        if (!commit || !drawIsWorthKeeping(obj)) return;
         // Grid Block stores cells, not the pointer trail.
-        addObject(mode === "grid" ? { ...obj, points: [] } : obj);
+        addObject(obj.kind === "paint" && mode === "grid" ? { ...obj, points: [] } : obj);
       },
     );
   }
   /** Filters out accidental clicks for shape tools (tiny lasso, zero-size box). */
-  function paintIsWorthKeeping(o: MMPaint) {
+  function drawIsWorthKeeping(o: MMPaint | MMLand) {
     const px = (a: PaintPoint, b: PaintPoint) => Math.hypot((a.x - b.x) * W, (a.y - b.y) * H);
     switch (o.mode) {
       case "free":
         return o.points.length > 0;
       case "grid":
-        return (o.cells?.length ?? 0) > 0;
+        return o.kind === "paint" && (o.cells?.length ?? 0) > 0;
       case "rect":
       case "ellipse":
         return o.points.length === 2 && Math.abs(o.points[0].x - o.points[1].x) * W > 3 && Math.abs(o.points[0].y - o.points[1].y) * H > 3;
@@ -1263,7 +1395,7 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
     setPolyDraft([...draft, pt]);
   }
   function commitPolygon() {
-    if (polyDraft && polyDraft.length >= 3) addObject(buildPaint("polygon", polyDraft, polySeedRef.current));
+    if (polyDraft && polyDraft.length >= 3) addObject(buildDraft("polygon", polyDraft, polySeedRef.current));
     setPolyDraft(null);
   }
   /** Brush size cursor: follows the pointer over the canvas (imperatively). */
@@ -1271,7 +1403,7 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
     const c = brushCursorRef.current;
     if (!c) return;
     const pos = e.target.getStage()?.getPointerPosition();
-    const show = tool === "brush" && brushState.mode === "free" && !!pos && !spaceHeld;
+    const show = (tool === "brush" || tool === "land") && drawMode === "free" && !!pos && !spaceHeld;
     if (show) c.setAttrs({ x: pos!.x, y: pos!.y, visible: true });
     else if (!c.visible()) return;
     else c.visible(false);
@@ -1324,7 +1456,7 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
     const nodes = new Map(stage.find((n: Konva.Node) => !!n.id()).map((n) => [n.id(), n]));
     const hits = active.objects
       .filter((o) => {
-        if (o.kind === "paint") return false; // paint is raster-like, not selectable on canvas
+        if (o.kind === "paint" || o.kind === "land") return false; // raster-like, not selectable on canvas
         const node = nodes.get(o.id);
         if (!node) return false;
         const r = node.getClientRect({ relativeTo: stage });
@@ -1376,7 +1508,7 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
         return !!pos && !!last && Math.hypot(last.x * W - pos.x, last.y * H - pos.y) <= REGION_DUPLICATE_PX * 2;
       };
     if (tool === "region" && regionDraft && regionDraft.length >= 3 && onLast(regionDraft)) commitRegion(regionDraft);
-    if (tool === "brush" && polyDraft && polyDraft.length >= 3 && onLast(polyDraft)) commitPolygon();
+    if ((tool === "brush" || tool === "land") && polyDraft && polyDraft.length >= 3 && onLast(polyDraft)) commitPolygon();
   }
   function confirmLabel() {
     if (!labelDraft || !labelText.trim()) return;
@@ -1424,57 +1556,48 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
    *  - Each layer is rendered on its own and then stacked, exactly like the
    *    on-screen layer canvases — so an eraser or a blend mode only ever acts
    *    within its own layer, as it does while editing.
-   *  - Paint strokes are re-rendered at full print resolution (not upscaled
-   *    from the screen raster), so textures and edges stay crisp.
-   *  - Coast-effect layers are rebuilt at full resolution too (in the worker),
-   *    with every stroke included. */
+   *  - Land layers are rebuilt at full resolution (in the worker) with every
+   *    edit included; paint on other layers is re-rendered at full resolution
+   *    too (not upscaled from the screen raster), so textures stay crisp. */
   async function renderMapCanvas(stage: Konva.Stage) {
     // Exactly the project's own pixel size (W/H are rounded display sizes).
     const ratio = project.width / W,
       outW = project.width,
       outH = project.height;
-    // Full-resolution coastlines first (async), then the synchronous capture.
-    const coastImages = new Map<string, HTMLCanvasElement | null>();
+    // Full-resolution land layers first (async), then the synchronous capture.
+    const landImages = new Map<string, HTMLCanvasElement | null>();
     for (const layer of project.layers) {
-      const fx = layer.visible ? resolveCoast(layer) : null;
-      if (!fx) continue;
-      const paints = layer.objects.filter((o): o is MMPaint => o.kind === "paint");
-      coastImages.set(layer.id, await renderCoastLayer(paints, fx, layerSeed(layer.id), outW, outH));
+      const land = layer.visible ? landByLayer.get(layer.id) : undefined;
+      if (!land) continue;
+      const img = await renderLandLayer({ layerId: layer.id, ...land, seed: layerSeed(layer.id) }, outW, outH);
+      landImages.set(layer.id, img?.image ?? null);
     }
     const chrome = [gridGroupRef.current, overlayLayerRef.current, uiLayerRef.current].filter(
       (n): n is Konva.Group | Konva.Layer => !!n,
     );
     const wasVisible = chrome.map((n) => n.visible());
-    // Swap every paint node's screen raster for a print-resolution one.
-    const swapped: { node: Konva.Image; attrs: Partial<Konva.ImageConfig> }[] = [];
+    // Swap screen rasters for print-resolution ones (restored afterwards).
+    const swapped: { node: Konva.Node; attrs: Konva.NodeConfig }[] = [];
+    const swap = (node: Konva.Node, attrs: Konva.NodeConfig) => {
+      swapped.push({ node, attrs: Object.fromEntries(Object.keys(attrs).map((k) => [k, node.getAttr(k)])) });
+      node.setAttrs(attrs);
+    };
+    // Not-yet-merged land edits: the full-res images already contain them.
+    for (const n of stage.find((x: Konva.Node) => x.name() === LAND_PENDING_NAME)) swap(n, { visible: false });
     for (const layer of project.layers) {
       if (!layer.visible) continue;
-      if (coastImages.has(layer.id)) {
-        // The coast image already contains all of this layer's paint: show
-        // the full-res image and hide the raw (not-yet-merged) strokes.
-        const coastNode = findNode(stage, `coast-${layer.id}`) as Konva.Image | null,
-          img = coastImages.get(layer.id) ?? null;
-        if (coastNode) {
-          swapped.push({ node: coastNode, attrs: { image: coastNode.image(), visible: coastNode.visible() } });
-          coastNode.setAttrs({ image: img ?? undefined, visible: !!img });
-        }
-        for (const o of layer.objects) {
-          if (o.kind !== "paint") continue;
-          const raw = findNode(stage, o.id) as Konva.Image | null;
-          if (raw) {
-            swapped.push({ node: raw, attrs: { visible: raw.visible() } });
-            raw.visible(false);
-          }
-        }
+      if (landImages.has(layer.id)) {
+        const node = findNode(stage, landImageId(layer.id)),
+          img = landImages.get(layer.id) ?? null;
+        if (node) swap(node, { image: img ?? undefined, visible: !!img });
         continue;
       }
       for (const o of layer.objects) {
         if (o.kind !== "paint") continue;
-        const node = findNode(stage, o.id) as Konva.Image | null,
-          hi = node ? paintRasterAt(o, project.width, project.height) : null;
+        const node = findNode(stage, o.id),
+          hi = node ? renderPaint(o, project.width, project.height) : null;
         if (!node || !hi) continue;
-        swapped.push({ node, attrs: { image: node.image(), x: node.x(), y: node.y(), width: node.width(), height: node.height() } });
-        node.setAttrs({ image: hi.canvas, x: hi.x / ratio, y: hi.y / ratio, width: hi.canvas.width / ratio, height: hi.canvas.height / ratio });
+        swap(node, { image: hi.canvas, x: hi.x / ratio, y: hi.y / ratio, width: hi.canvas.width / ratio, height: hi.canvas.height / ratio });
       }
     }
     chrome.forEach((n) => n.visible(false));
@@ -1490,7 +1613,7 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
       return out;
     } finally {
       chrome.forEach((n, i) => n.visible(wasVisible[i]));
-      for (const { node, attrs } of swapped) node.setAttrs(attrs as Konva.ImageConfig);
+      for (const { node, attrs } of swapped.reverse()) node.setAttrs(attrs);
     }
   }
   async function handlePrint() {
@@ -1516,6 +1639,12 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
     }
   }
 
+  /** Opens the active land layer's coast settings (Layers tab). */
+  function showCoastPanel() {
+    setPanelTab("layers");
+    requestAnimationFrame(() => coastPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
+  }
+
   // ---- Derived: the searchable, cross-layer Objects panel list ----
   const searchLower = objectSearch.trim().toLowerCase();
   /** Human-readable name of an object, for the Objects panel and search. */
@@ -1534,6 +1663,8 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
         if (o.erase) return `${t("mmEraser")} · ${mode}`;
         return `${mode} · ${o.source.type === "texture" ? t(textureDef(o.source.texture).labelKey) : t("mmSourceColor")}`;
       }
+      case "land":
+        return `${t(o.erase ? "mmLandRemove" : "mmLandAdd")} · ${t(LAND_MODES.find((m) => m.key === o.mode)?.labelKey ?? "mmToolLand")}`;
       default:
         return t("mmToolBrush");
     }
@@ -1546,6 +1677,16 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [project.layers, searchLower, i18n.language],
   );
+
+  /** How the live preview composites into its layer (see previewRaster). */
+  const previewLook: { opacity: number; op: GlobalCompositeOperation } =
+    tool === "land"
+      ? { opacity: 1, op: landTool.erase ? "destination-out" : "source-over" }
+      : {
+          opacity: brushState.opacity,
+          // On land, the texture eraser paints the base texture back.
+          op: brushState.erase && active?.role === "land" ? "source-over" : paintCompositeOp(brushState),
+        };
 
   // ---- Render ----
   return (
@@ -1656,13 +1797,58 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
               ])
             }
             onDeleteFavorite={(id) => setFavorites((list) => list.filter((f) => f.id !== id))}
-            layerName={active?.name ?? ""}
-            layerRole={active?.role ?? "custom"}
-            coastOn={activeCoast}
-            onEditCoast={() => {
-              setPanelTab("layers");
-              requestAnimationFrame(() => coastPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
+            target={
+              active && (
+                <EditTarget
+                  role={active.role ?? "custom"}
+                  layerName={active.name}
+                  what={t(active.role === "land" ? "mmTargetLandTexture" : active.role === "water" ? "mmTargetWater" : "mmTargetPaint")}
+                  note={active.locked ? t("mmTargetLocked") : active.role === "land" ? t("mmTargetLandTextureNote") : undefined}
+                  warning={active.locked}
+                />
+              )
+            }
+          />
+        )}
+        {tool === "land" && (
+          <LandPanel
+            state={landTool}
+            onChange={updateLandTool}
+            t={t}
+            mapWidthPx={project.width}
+            target={
+              landTarget ? (
+                <EditTarget
+                  role="land"
+                  layerName={landTarget.name}
+                  what={t("mmTargetLandShape")}
+                  note={landTarget.locked ? t("mmTargetLocked") : undefined}
+                  warning={landTarget.locked}
+                />
+              ) : (
+                <EditTarget
+                  role={active?.role ?? "custom"}
+                  layerName={active?.name ?? ""}
+                  what={t("mmTargetNoLand")}
+                  note={t("mmTargetNoLandNote")}
+                  warning
+                  action={
+                    topLand
+                      ? { label: t("mmUseLandLayer", { layer: topLand.name }), onClick: () => setActiveLayerId(topLand.id) }
+                      : { label: t("mmAddLandLayer"), onClick: () => addLayer("land") }
+                  }
+                />
+              )
+            }
+            base={landTarget ? landSettings(landTarget).base : null}
+            onBaseChange={(patch) => {
+              if (!landTarget) return;
+              const land = landSettings(landTarget);
+              updateLayer(landTarget.id, { land: { ...land, base: { ...land.base, ...patch } } });
             }}
+            recentColors={recentColors}
+            onCommitColor={(c) => setRecentColors((r) => pushRecent(r, c))}
+            onEditCoast={landTarget ? showCoastPanel : null}
           />
         )}
         <div className="mm-canvas-column">
@@ -1725,6 +1911,47 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
                   onChange={(v) => setBrushState((st) => ({ ...st, presetId: null, opacity: v }))}
                   format={(v) => `${Math.round(v * 100)}%`}
                 />
+                {polyDraft && polyDraft.length >= 3 && (
+                  <button className="secondary-button" onClick={commitPolygon}>
+                    {t("mmFinishShape")}
+                  </button>
+                )}
+              </>
+            )}
+            {tool === "land" && (
+              <>
+                <div className="mm-tb-modes" role="radiogroup" aria-label={t("mmSubTools")}>
+                  {LAND_MODES.map((m) => (
+                    <button
+                      key={m.key}
+                      className={landTool.mode === m.key ? "active" : ""}
+                      title={t(m.labelKey)}
+                      role="radio"
+                      aria-checked={landTool.mode === m.key}
+                      onClick={() => updateLandTool({ ...landTool, mode: m.key })}
+                    >
+                      <Glyph name={m.glyph} size={16} />
+                    </button>
+                  ))}
+                </div>
+                <button
+                  className={`mm-pill ${landTool.erase ? "selected" : ""}`}
+                  title={t("mmLandRemoveHint")}
+                  onClick={() => setLandTool((st) => ({ ...st, erase: !st.erase }))}
+                >
+                  {t("mmLandRemove")}
+                </button>
+                {landTool.mode === "free" && (
+                  <Slider
+                    label={t("mmBrushSize")}
+                    value={Math.round(landTool.size * project.width)}
+                    min={2}
+                    max={Math.round(project.width * 0.3)}
+                    step={1}
+                    onChange={(v) => setLandTool((st) => ({ ...st, size: v / project.width }))}
+                    format={(v) => `${v} px`}
+                  />
+                )}
                 {polyDraft && polyDraft.length >= 3 && (
                   <button className="secondary-button" onClick={commitPolygon}>
                     {t("mmFinishShape")}
@@ -1909,106 +2136,112 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
                   </Group>
                 )}
               </Layer>
-              {project.layers.map((layer) => (
-                <Layer key={layer.id} visible={layer.visible} opacity={layer.opacity} listening={layer.id === active?.id && !layer.locked}>
-                  {/* Coast-effect layers draw all their paint as one coastline. */}
-                  {coastByLayer.get(layer.id) && (
-                    <CoastLayerNode
-                      layerId={layer.id}
-                      paints={coastByLayer.get(layer.id)!.paints}
-                      fx={coastByLayer.get(layer.id)!.fx}
-                      seed={layerSeed(layer.id)}
-                      W={W}
-                      H={H}
-                      projectW={project.width}
-                      projectH={project.height}
-                      onBusyChange={onCoastBusy}
-                    />
-                  )}
-                  {layer.objects.map((o) => {
-                    if (o.kind === "paint") return coastByLayer.has(layer.id) ? null : <PaintNode key={o.id} o={o} W={W} H={H} />;
-                    const handlers = objectHandlers(o, layer);
-                    if (o.kind === "region")
+              {project.layers.map((layer) => {
+                const land = landByLayer.get(layer.id);
+                return (
+                  <Layer key={layer.id} visible={layer.visible} opacity={layer.opacity} listening={layer.id === active?.id && !layer.locked}>
+                    {/* Land layers: land shapes, textured, inside one coastline. */}
+                    {land && (
+                      <LandLayerNode
+                        layerId={layer.id}
+                        lands={land.lands}
+                        paints={land.paints}
+                        base={land.base}
+                        fx={land.fx}
+                        seed={layerSeed(layer.id)}
+                        W={W}
+                        H={H}
+                        projectW={project.width}
+                        projectH={project.height}
+                        onBusyChange={onCoastBusy}
+                        onLandChange={onLandChange}
+                      />
+                    )}
+                    {layer.objects.map((o) => {
+                      // Land shapes and land texture are drawn by LandLayerNode.
+                      if (o.kind === "land") return null;
+                      if (o.kind === "paint") return land ? null : <PaintNode key={o.id} o={o} W={W} H={H} />;
+                      const handlers = objectHandlers(o, layer);
+                      if (o.kind === "region")
+                        return (
+                          <Line
+                            key={o.id}
+                            {...handlers}
+                            points={flattenPoints(o.points, W, H)}
+                            closed
+                            tension={0.3}
+                            {...regionFill(o.biome, o.textureScale, o.textureRotation, W)}
+                            opacity={o.opacity}
+                          />
+                        );
+                      if (o.kind === "brush" || o.kind === "path")
+                        return (
+                          <Line
+                            key={o.id}
+                            {...handlers}
+                            points={flattenPoints(o.points, W, H)}
+                            {...strokeAppearance(o, W)}
+                          />
+                        );
+                      if (o.kind === "icon") {
+                        const def = ICONS[o.icon],
+                          s = Math.max(1, o.scale * W * ICON_BASE) / 24;
+                        return (
+                          <Group
+                            key={o.id}
+                            {...handlers}
+                            x={o.x * W}
+                            y={o.y * H}
+                            rotation={o.rotation}
+                            scaleX={s}
+                            scaleY={s}
+                            offsetX={12}
+                            offsetY={12}
+                          >
+                            {/* Invisible hit area: the whole 24×24 icon cell is
+                                clickable/draggable, not just its thin strokes. */}
+                            <Rect width={24} height={24} fill="rgba(0,0,0,0)" />
+                            {def.stroke && <KonvaPath data={def.stroke} stroke={o.color} strokeWidth={1.6} lineCap="round" lineJoin="round" />}
+                            {def.fill && <KonvaPath data={def.fill} fill={o.color} />}
+                          </Group>
+                        );
+                      }
+                      const label = labelLayout(o, W);
                       return (
-                        <Line
+                        <KonvaText
                           key={o.id}
                           {...handlers}
-                          points={flattenPoints(o.points, W, H)}
-                          closed
-                          tension={0.3}
-                          {...regionFill(o.biome, o.textureScale, o.textureRotation, W)}
-                          opacity={o.opacity}
-                        />
-                      );
-                    if (o.kind === "brush" || o.kind === "path")
-                      return (
-                        <Line
-                          key={o.id}
-                          {...handlers}
-                          points={flattenPoints(o.points, W, H)}
-                          {...strokeAppearance(o, W)}
-                        />
-                      );
-                    if (o.kind === "icon") {
-                      const def = ICONS[o.icon],
-                        s = Math.max(1, o.scale * W * ICON_BASE) / 24;
-                      return (
-                        <Group
-                          key={o.id}
-                          {...handlers}
+                          text={o.text}
                           x={o.x * W}
                           y={o.y * H}
-                          rotation={o.rotation}
-                          scaleX={s}
-                          scaleY={s}
-                          offsetX={12}
-                          offsetY={12}
-                        >
-                          {/* Invisible hit area: the whole 24×24 icon cell is
-                              clickable/draggable, not just its thin strokes. */}
-                          <Rect width={24} height={24} fill="rgba(0,0,0,0)" />
-                          {def.stroke && <KonvaPath data={def.stroke} stroke={o.color} strokeWidth={1.6} lineCap="round" lineJoin="round" />}
-                          {def.fill && <KonvaPath data={def.fill} fill={o.color} />}
-                        </Group>
+                          rotation={o.rotation ?? 0}
+                          fontSize={label.fontSize}
+                          fontFamily={LABEL_FONT}
+                          fill={o.color}
+                          width={label.width}
+                          wrap="none"
+                          align={label.align}
+                          direction={o.rtl ? "rtl" : "ltr"}
+                          offsetX={label.offsetX}
+                        />
                       );
-                    }
-                    const label = labelLayout(o, W);
-                    return (
-                      <KonvaText
-                        key={o.id}
-                        {...handlers}
-                        text={o.text}
-                        x={o.x * W}
-                        y={o.y * H}
-                        rotation={o.rotation ?? 0}
-                        fontSize={label.fontSize}
-                        fontFamily={LABEL_FONT}
-                        fill={o.color}
-                        width={label.width}
-                        wrap="none"
-                        align={label.align}
-                        direction={o.rtl ? "rtl" : "ltr"}
-                        offsetX={label.offsetX}
+                    })}
+                    {/* Live Brush / Land preview — inside the active layer, so
+                        erasers and blend modes preview exactly as they commit.
+                        Its image/position are set imperatively per frame. */}
+                    {(paintPreview || !!polyDraft) && layer.id === active?.id && (
+                      <KonvaImage
+                        ref={paintImageRef}
+                        image={undefined}
+                        visible={false}
+                        listening={false}
+                        opacity={previewLook.opacity}
+                        globalCompositeOperation={previewLook.op}
                       />
-                    );
-                  })}
-                  {/* Live Brush Tool preview — inside the active layer, so the
-                      eraser and blend modes preview exactly as they commit.
-                      Its image/position are set imperatively per frame. */}
-                  {(paintPreview || !!polyDraft) && layer.id === active?.id && (
-                    <KonvaImage
-                      ref={paintImageRef}
-                      image={undefined}
-                      visible={false}
-                      listening={false}
-                      opacity={brushState.opacity}
-                      globalCompositeOperation={
-                        brushState.erase ? "destination-out" : brushState.blend === "normal" ? "source-over" : brushState.blend
-                      }
-                    />
-                  )}
-                </Layer>
-              ))}
+                    )}
+                  </Layer>
+                );
+              })}
               {/* Editor-only overlays: live drafts and the marquee. Hidden
                   when rendering the map for print. */}
               <Layer ref={overlayLayerRef} listening={false}>
@@ -2021,17 +2254,17 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
                     ))}
                   </>
                 )}
-                {tool === "brush" && (
+                {(tool === "brush" || tool === "land") && (
                   <Circle
                     ref={brushCursorRef}
-                    radius={Math.max(1, (brushState.brush.size * W) / 2)}
+                    radius={Math.max(1, ((tool === "land" ? landTool.size : brushState.brush.size) * W) / 2)}
                     stroke="rgba(255,255,255,0.9)"
                     strokeWidth={1}
                     shadowColor="#000"
                     shadowBlur={2}
                     shadowOpacity={0.8}
                     visible={false}
-                    dash={brushState.erase ? [3, 3] : undefined}
+                    dash={(tool === "land" ? landTool.erase : brushState.erase) ? [3, 3] : undefined}
                   />
                 )}
                 {regionDraft && (
@@ -2120,8 +2353,14 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
           </div>
           {shortcutsVisible && (
             <div className="mm-shortcut-hint">
-              <span>{tool === "brush" ? t(PAINT_MODES.find((m) => m.key === brushState.mode)!.hintKey) : t(HINT_KEY[tool])}</span>
-              <span className="mm-shortcut-legend">1–6 {t("mmToolSelect")}/{t("mmToolBrush")}/… · {t("mmMultiSelectHint")} · ⌘Z {t("undo")} · ⌘⇧Z {t("redo")} · ⌘D {t("mmDuplicateObject")} · ⌘C/⌘V copy/paste · ⌘] / ⌘[ {t("mmBringToFront")}/{t("mmSendToBack")} · ⌘ scroll {t("mmZoom")}</span>
+              <span>
+                {tool === "brush"
+                  ? t(PAINT_MODES.find((m) => m.key === brushState.mode)!.hintKey)
+                  : tool === "land"
+                    ? t(LAND_MODES.find((m) => m.key === landTool.mode)!.hintKey)
+                    : t(HINT_KEY[tool])}
+              </span>
+              <span className="mm-shortcut-legend">1–7 {t("mmToolSelect")}/{t("mmToolBrush")}/… · {t("mmMultiSelectHint")} · ⌘Z {t("undo")} · ⌘⇧Z {t("redo")} · ⌘D {t("mmDuplicateObject")} · ⌘C/⌘V copy/paste · ⌘] / ⌘[ {t("mmBringToFront")}/{t("mmSendToBack")} · ⌘ scroll {t("mmZoom")}</span>
             </div>
           )}
         </div>
@@ -2164,7 +2403,11 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
                                 ? "region"
                                 : o.kind === "path"
                                   ? "path"
-                                  : o.kind === "paint"
+                                  : o.kind === "land"
+                                    ? o.erase
+                                      ? "water"
+                                      : "land"
+                                    : o.kind === "paint"
                                     ? o.erase
                                       ? "eraser"
                                       : (PAINT_MODES.find((m) => m.key === o.mode)?.glyph ?? "brush")
@@ -2271,15 +2514,14 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
                   <b>{Math.round(active.opacity * 100)}%</b>
                 </label>
               )}
-              {active && (
+              {landTarget && (
                 <div ref={coastPanelRef}>
                   <CoastEffectPanel
-                    layer={active}
-                    fx={coastByLayer.get(active.id)?.fx ?? null}
+                    layer={landTarget}
                     t={t}
                     mapWidthPx={project.width}
-                    busy={coastBusy.has(active.id)}
-                    onChange={(coast) => updateLayer(active.id, { coast })}
+                    busy={coastBusy.has(landTarget.id)}
+                    onChange={(coast) => updateLayer(landTarget.id, { coast })}
                   />
                 </div>
               )}

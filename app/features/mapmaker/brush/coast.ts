@@ -1,5 +1,6 @@
 /**
- * Natural-edge geometry for Edge Shape (and rough-edged Rect/Ellipse/Polygon).
+ * Natural-edge geometry for the Land tool's Edge Shape (and rough-edged
+ * Rect/Ellipse/Polygon in both the Land and Brush tools).
  *
  * Turns a hand-drawn outline into a believable coastline in three stages:
  *
@@ -188,69 +189,6 @@ export function coastline(
   return pts;
 }
 
-/**
- * Small islets scattered just off a coastline: picked at position-hashed
- * spots along the shore, pushed outward, each one a tiny rough coastline of
- * its own. `amount` 0..1 controls how many appear.
- */
-export function islets(
-  coast: Vec[],
-  amount: number,
-  { roughness, seed }: CoastOptions,
-): Vec[][] {
-  if (amount <= 0 || coast.length < 8) return [];
-  // Sample the shore at an even spacing so density doesn't depend on detail level.
-  const shore = resampleClosed(coast, 0.02),
-    out: Vec[][] = [];
-  for (let i = 0; i < shore.length; i++) {
-    const p = shore[i];
-    if (posHash(p, 91, seed) > amount * 0.35) continue;
-    const n = normalAt(shore, i),
-      // the outward side: test which side is outside the polygon
-      outward = pointInPolygon(
-        { x: p.x + n.x * 0.004, y: p.y + n.y * 0.004 },
-        coast,
-      )
-        ? -1
-        : 1,
-      dist = 0.008 + posHash(p, 92, seed) * 0.022,
-      rad = 0.0025 + Math.pow(posHash(p, 93, seed), 2) * 0.009,
-      cx = p.x + n.x * outward * (dist + rad),
-      cy = p.y + n.y * outward * (dist + rad);
-    // Skip spots that would land back on the mainland (tight bays).
-    if (pointInPolygon({ x: cx, y: cy }, coast)) continue;
-    const blob = ellipsePolygon(
-      cx,
-      cy,
-      rad * (0.8 + posHash(p, 94, seed) * 0.5),
-      rad * (0.7 + posHash(p, 95, seed) * 0.5),
-    );
-    out.push(
-      coastline(blob, {
-        roughness: Math.min(1, roughness + 0.2),
-        detail: 0.55,
-        seed: seed + i * 7,
-      }),
-    );
-  }
-  return out;
-}
-
-export function pointInPolygon(pt: Vec, poly: Vec[]) {
-  let inside = false;
-  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
-    const a = poly[i],
-      b = poly[j];
-    if (
-      a.y > pt.y !== b.y > pt.y &&
-      pt.x < ((b.x - a.x) * (pt.y - a.y)) / (b.y - a.y) + a.x
-    )
-      inside = !inside;
-  }
-  return inside;
-}
-
-/** Ellipse (center + radii, map units) as a polygon dense enough for any size. */
 export function ellipsePolygon(cx: number, cy: number, rx: number, ry: number) {
   const n = Math.max(
       48,

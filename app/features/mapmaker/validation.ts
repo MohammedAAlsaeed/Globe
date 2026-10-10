@@ -20,7 +20,8 @@ const PATH_KINDS = ["river", "road", "border"];
 const BIOMES = ["forest", "mountains", "desert", "water", "grass", "swamp"];
 const ALIGNS = ["start", "center", "end"];
 const RESOLUTION_TIERS = ["low", "medium", "high", "ultra"];
-const PAINT_MODES = ["free", "edge", "grid", "rect", "ellipse", "polygon"];
+const PAINT_MODES = ["free", "grid", "rect", "ellipse", "polygon"];
+const LAND_MODES = ["free", "edge", "polygon", "rect", "ellipse"];
 const BLEND_MODES = [
   "normal",
   "multiply",
@@ -81,27 +82,12 @@ function validBrush(v: unknown) {
     bool(v.pen.flow)
   );
 }
+function validNaturalEdge(v: unknown) {
+  return rec(v) && finite(v.roughness, 0, 1) && finite(v.detail, 0, 1);
+}
 function validEdge(v: unknown) {
   return (
-    rec(v) &&
-    finite(v.roughness, 0, 1) &&
-    finite(v.detail, 0, 1) &&
-    finite(v.feather, 0, 0.2) &&
-    finite(v.outlineWidth, 0, 0.05) &&
-    hexColor(v.outlineColor) &&
-    finite(v.ripples, 0, 12) &&
-    finite(v.rippleSpacing, 0, 0.1) &&
-    hexColor(v.rippleColor) &&
-    finite(v.rippleOpacity, 0, 1) &&
-    finite(v.innerShade, -1, 1) &&
-    finite(v.innerShadeWidth, 0, 0.2) &&
-    (v.shoreColor === "" || hexColor(v.shoreColor)) &&
-    finite(v.shoreStrength, 0, 1) &&
-    finite(v.shoreWidth, 0, 0.2) &&
-    hexColor(v.glowColor) &&
-    finite(v.glowWidth, 0, 0.2) &&
-    finite(v.glowOpacity, 0, 1) &&
-    finite(v.islets, 0, 1)
+    validNaturalEdge(v) && finite((v as { feather?: unknown }).feather, 0, 0.2)
   );
 }
 function validCoast(v: unknown) {
@@ -153,6 +139,23 @@ function validPaintPoints(points: unknown) {
         (p.p === undefined || finite(p.p, 0, 1)),
     )
   );
+}
+/** A Land tool object: geometry only — no colour, no blend. */
+function validLand(obj: Record<string, unknown>) {
+  const mode = obj.mode as string;
+  if (
+    !LAND_MODES.includes(mode) ||
+    !bool(obj.erase) ||
+    !validPaintPoints(obj.points) ||
+    !finite(obj.seed, 0, 2 ** 32) ||
+    (obj.rough !== undefined && !bool(obj.rough))
+  )
+    return false;
+  if (mode === "free") return finite(obj.size, 0.0001, 0.5);
+  return obj.edge === undefined || validNaturalEdge(obj.edge);
+}
+function validLandSettings(v: unknown) {
+  return rec(v) && validSource(v.base);
 }
 function validPaint(obj: Record<string, unknown>) {
   const mode = obj.mode as string;
@@ -251,6 +254,7 @@ function validObject(o: unknown): o is MMObject {
       (obj.anchored === undefined || typeof obj.anchored === "boolean")
     );
   if (obj.kind === "paint") return validPaint(obj);
+  if (obj.kind === "land") return validLand(obj);
   if (obj.kind === "brush")
     return (
       validPoints(obj.points, 1, 20000) &&
@@ -274,6 +278,7 @@ function validLayer(l: unknown): l is MMLayer {
     finite(layer.opacity, 0, 1) &&
     (layer.role === undefined || LAYER_ROLES.includes(layer.role as string)) &&
     (layer.coast === undefined || validCoast(layer.coast)) &&
+    (layer.land === undefined || validLandSettings(layer.land)) &&
     Array.isArray(layer.objects) &&
     layer.objects.length <= 5000 &&
     layer.objects.every(validObject)

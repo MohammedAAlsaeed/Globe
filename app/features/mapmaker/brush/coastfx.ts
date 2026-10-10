@@ -1,24 +1,35 @@
 /**
- * The layer coast effect — pure pixel math (no DOM), run in a Web Worker.
+ * The land layer's coast effect — pure pixel math (no DOM), run in a Web
+ * Worker.
  *
- * Input: the layer's painted land as RGBA (everything painted in the layer,
- * merged, erasers applied). Output: the final layer image — land with a
- * natural coastline, plus the water effects around it.
+ * Inputs: the layer's **land mask** (every land shape merged, removals
+ * applied) and its **land texture** (base texture + painted texture, opaque
+ * everywhere — so wherever the coast grows, the right texture is already
+ * there, including paint that was hidden outside the land). Output: the
+ * final layer image — textured land with a natural coastline and the water
+ * effects around it — plus the final land coverage (used to clip live paint
+ * previews to the land).
  *
- *  1. **Land mask** — paint coverage, optionally smoothed, thresholded at
- *     50 %: the coast always has a crisp edge, whatever brush made it.
- *  2. **Signed distance field** — exact Euclidean distance transform
- *     (Felzenszwalb–Huttenlocher), positive on land, negative in water.
- *  3. **Natural coastline** — the distance field is displaced by fractal
- *     spatial noise near the edge (bays, headlands, fine jaggedness); islets
- *     are grown from a second noise field in a band of water off the coast.
- *     Noise lives in map units, so the coast is identical at every resolution
- *     and only changes where the painted land itself changed.
- *  4. **Final distance field** of the new coastline drives every effect:
- *     depth shading and shallow-water glow by distance, wave lines as exact
- *     iso-distance contours (they round off naturally further out), a sandy
- *     shore band, edge shading and an ink outline. Land that the coastline
- *     pushed beyond the paint takes the colour of the nearest painted land.
+ * Two stages, so decoration edits never redo the expensive part:
+ *
+ *  **Shape** (buildCoastShape — depends only on the mask and the shape
+ *  settings)
+ *   1. Mask coverage, optionally smoothed, thresholded at 50 %: the coast
+ *      always has a crisp edge, whatever made it.
+ *   2. Signed distance field — exact Euclidean distance transform
+ *      (Felzenszwalb–Huttenlocher), positive on land, negative in water.
+ *   3. Natural coastline — the distance field is displaced by fractal
+ *      spatial noise near the edge (bays, headlands, fine jaggedness);
+ *      islets grow from a second noise field in a band off the coast. Noise
+ *      lives in map units, so the coast is identical at every resolution and
+ *      only changes where the land itself changed.
+ *   4. The final distance field of the new coastline.
+ *
+ *  **Compose** (composeCoast — decoration settings and texture)
+ *   The final distance field drives every effect: depth shading and
+ *   shallow-water glow by distance, wave lines as exact iso-distance contours
+ *   (they round off naturally further out), a sandy shore band, edge shading
+ *   and an ink outline.
  */
 import { gradientNoise, hash2 } from "./noise";
 import type { CoastEffect } from "../types";
@@ -26,10 +37,29 @@ import type { CoastEffect } from "../types";
 export interface CoastInput {
   width: number;
   height: number;
-  /** Unpremultiplied RGBA of the merged layer paint. */
+  /** Land coverage 0..255 per pixel (all land shapes merged). */
+  mask: Uint8Array;
+  /** Unpremultiplied, opaque RGBA of the land texture. */
   rgba: Uint8ClampedArray;
   fx: CoastEffect;
   seed: number;
+}
+
+/** The coastline itself, independent of decoration and texture. */
+export interface CoastShape {
+  width: number;
+  height: number;
+  /** Displaced signed distance (px): sub-pixel accurate right at the coast. */
+  D: Float32Array;
+  /** Signed distance (px) to the final coastline: >0 land, <0 water. */
+  S: Float32Array;
+}
+
+export interface CoastOutput {
+  /** The finished layer image, unpremultiplied RGBA. */
+  image: Uint8ClampedArray;
+  /** Final land coverage 0..255 per pixel. */
+  land: Uint8Array;
 }
 
 const INF = 1e20;
@@ -170,20 +200,13 @@ export function edt(
 }
 
 /**
- * Signed distance to the edge of `land` (px, >0 inside, <0 outside),
- * computed on a 2× downsampled grid and bilinearly upsampled. Distances are
- * smooth fields, so this loses well under a pixel of accuracy while doing a
- * quarter of the work; callers refine the last pixel at the edge themselves
- * from full-resolution coverage. Optionally also returns, per pixel, the
- * index of a nearby land pixel (full resolution) — used to colour land the
- * coastline grew beyond the paint.
+ * Signed distance to the edge of `land` (px, >0 inside, <0 outside). Large
+ * maps are computed on a 2× downsampled grid and bilinearly upsampled:
+ * distances are smooth fields, so this loses well under a pixel of accuracy
+ * while doing a quarter of the work; callers refine the last pixel at the
+ * edge themselves from full-resolution coverage.
  */
-export function signedDistance(
-  land: Uint8Array,
-  w: number,
-  h: number,
-  withNearest = false,
-) {
+export function signedDistance(land: Uint8Array, w: number, h: number) {
   const f = w * h > 700_000 ? 2 : 1,
     w2 = Math.ceil(w / f),
     h2 = Math.ceil(h / f),
@@ -206,36 +229,28 @@ export function signedDistance(
       m[y * w2 + x] = l;
       inv[y * w2 + x] = 1 - l;
     }
-  const toLand = edt(m, w2, h2, withNearest),
-    toWater = edt(inv, w2, h2);
+  const toLand = edt(m, w2, h2).dist,
+    toWater = edt(inv, w2, h2).dist;
   const S2 = new Float32Array(w2 * h2);
   for (let i = 0; i < S2.length; i++)
-    S2[i] = m[i] ? toWater.dist[i] - 0.5 : -(toLand.dist[i] - 0.5);
-  const S = new Float32Array(w * h),
-    nearest = withNearest ? new Int32Array(w * h) : null;
-  if (f === 1) {
-    S.set(S2);
-    if (nearest && toLand.index) nearest.set(toLand.index);
-    return { S, nearest };
-  }
+    S2[i] = m[i] ? toWater[i] - 0.5 : -(toLand[i] - 0.5);
+  if (f === 1) return S2;
   // Bilinear upsample; the x-mapping is the same for every row, so precompute it.
-  const X0 = new Int32Array(w),
+  const S = new Float32Array(w * h),
+    X0 = new Int32Array(w),
     X1 = new Int32Array(w),
-    TX = new Float32Array(w),
-    XN = new Int32Array(w);
+    TX = new Float32Array(w);
   for (let x = 0; x < w; x++) {
     const sx = Math.max(0, Math.min(w2 - 1, (x + 0.5) / f - 0.5));
     X0[x] = Math.floor(sx);
     X1[x] = Math.min(w2 - 1, X0[x] + 1);
     TX[x] = sx - X0[x];
-    XN[x] = Math.round(sx);
   }
   for (let y = 0; y < h; y++) {
     const sy = Math.max(0, Math.min(h2 - 1, (y + 0.5) / f - 0.5)),
       r0 = Math.floor(sy) * w2,
       r1 = Math.min(h2 - 1, Math.floor(sy) + 1) * w2,
       ty = sy - Math.floor(sy),
-      rn = Math.round(sy) * w2,
       row = y * w;
     for (let x = 0; x < w; x++) {
       const x0 = X0[x],
@@ -245,15 +260,8 @@ export function signedDistance(
         b = S2[r1 + x0] + (S2[r1 + x1] - S2[r1 + x0]) * tx;
       S[row + x] = (a + (b - a) * ty) * f;
     }
-    if (nearest && toLand.index)
-      for (let x = 0; x < w; x++) {
-        const j = toLand.index[rn + XN[x]],
-          jy = (j / w2) | 0;
-        nearest[row + x] =
-          Math.min(h - 1, jy * f) * w + Math.min(w - 1, (j - jy * w2) * f);
-      }
   }
-  return { S, nearest };
+  return S;
 }
 
 /** Separable box blur (radius r) of a float field. */
@@ -313,21 +321,25 @@ function coastNoise(mx: number, my: number, octaves: number, seed: number) {
   return sum / norm;
 }
 
-/** Renders the coast effect; returns RGBA (unpremultiplied) or null if the
- * layer has no land at all. */
-export function renderCoastEffect({
-  width: w,
-  height: h,
-  rgba,
-  fx,
-  seed,
-}: CoastInput): Uint8ClampedArray | null {
+/** The settings that shape the coastline (everything else is decoration). */
+export function coastShapeKey(fx: CoastEffect) {
+  return `${fx.roughness}|${fx.detail}|${fx.smoothing}|${fx.islets}`;
+}
+
+/** Builds the coastline from the land mask; null when there is no land. */
+export function buildCoastShape(
+  mask: Uint8Array,
+  w: number,
+  h: number,
+  fx: CoastEffect,
+  seed: number,
+): CoastShape | null {
   const N = w * h,
     unit = w; // px per map unit
 
   // 1. land mask
   const raw = new Float32Array(N);
-  for (let i = 0; i < N; i++) raw[i] = rgba[i * 4 + 3] / 255;
+  for (let i = 0; i < N; i++) raw[i] = mask[i] / 255;
   // A box blur rounds off brush wobble before the coast is built.
   const blurR = Math.round(fx.smoothing * 0.005 * unit),
     cov: Float32Array = boxBlur(raw, w, h, blurR);
@@ -340,9 +352,8 @@ export function renderCoastEffect({
   }
   if (!any) return null;
 
-  // 2. signed distance of the painted land (+ nearest-land index for colour)
-  const base = signedDistance(land0, w, h, true),
-    D = base.S;
+  // 2. signed distance of the drawn land
+  const D = signedDistance(land0, w, h);
   for (let i = 0; i < N; i++) {
     // Sub-pixel edge position from the (smoothed) full-resolution coverage.
     if (D[i] > -2 && D[i] < 2)
@@ -381,10 +392,22 @@ export function renderCoastEffect({
   // 4. final distance field of the new coastline
   const land = new Uint8Array(N);
   for (let i = 0; i < N; i++) land[i] = D[i] > 0 ? 1 : 0;
-  const finalS = signedDistance(land, w, h).S;
+  return { width: w, height: h, D, S: signedDistance(land, w, h) };
+}
 
-  // 5. compose
+/** Renders the finished layer: the land texture inside the coast, and the
+ * decoration on both sides of it. */
+export function composeCoast(
+  shape: CoastShape,
+  rgba: Uint8ClampedArray,
+  fx: CoastEffect,
+  seed: number,
+): CoastOutput {
+  const { width: w, height: h, D, S: finalS } = shape,
+    N = w * h,
+    unit = w;
   const out = new Uint8ClampedArray(N * 4),
+    landOut = new Uint8Array(N),
     depthC = hexRgb(fx.depthColor),
     glowC = hexRgb(fx.glowColor),
     waveC = hexRgb(fx.waveColor),
@@ -400,8 +423,7 @@ export function renderCoastEffect({
     shoreW = Math.max(0.5, fx.shoreWidth * unit),
     shadeW = Math.max(0.5, fx.landShadeWidth * unit),
     lineW = fx.outlineWidth * unit;
-  const idx = base.nearest!,
-    waterFxEnd = Math.max(
+  const waterFxEnd = Math.max(
       fx.glowOpacity > 0 ? glowW : 0,
       waves > 0 && fx.waveOpacity > 0 ? waveEnd + 1 : 0,
       lineW + 2,
@@ -436,11 +458,11 @@ export function renderCoastEffect({
         continue;
       }
       if (df >= landFxEnd) {
-        const src = rgba[o + 3] >= 96 ? o : idx[i] * 4;
-        out[o] = rgba[src];
-        out[o + 1] = rgba[src + 1];
-        out[o + 2] = rgba[src + 2];
+        out[o] = rgba[o];
+        out[o + 1] = rgba[o + 1];
+        out[o + 2] = rgba[o + 2];
         out[o + 3] = 255;
+        landOut[i] = 255;
         continue;
       }
 
@@ -505,12 +527,10 @@ export function renderCoastEffect({
         }
       }
       if (landA > 0) {
-        // land colour: own paint, or the nearest painted land where the
-        // coastline grew beyond the paint
-        const src = rgba[o + 3] >= 96 ? o : idx[i] * 4;
-        let r = rgba[src],
-          g = rgba[src + 1],
-          b = rgba[src + 2];
+        landOut[i] = Math.round(landA * 255);
+        let r = rgba[o],
+          g = rgba[o + 1],
+          b = rgba[o + 2];
         const dl = df > 0 ? df : 0;
         if (fx.shoreStrength > 0 && dl < shoreW * 1.6) {
           const grain = 0.94 + hash2(x >> 1, y >> 1, seed) * 0.12,
@@ -555,5 +575,18 @@ export function renderCoastEffect({
         out[o + 3] = A * 255;
       }
     }
-  return out;
+  return { image: out, land: landOut };
+}
+
+/** Shape and compose in one go; null when the mask holds no land. */
+export function renderCoastEffect({
+  width,
+  height,
+  mask,
+  rgba,
+  fx,
+  seed,
+}: CoastInput): CoastOutput | null {
+  const shape = buildCoastShape(mask, width, height, fx, seed);
+  return shape && composeCoast(shape, rgba, fx, seed);
 }

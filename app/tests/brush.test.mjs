@@ -186,11 +186,12 @@ test("dab walker: even spacing, deterministic jitter, pressure scales size", () 
   assert.ok(avg(light) < avg(a) * 0.5, "light pressure paints thinner");
 });
 
-test("project validation accepts paint objects and rejects malformed ones", () => {
+test("project validation accepts paint and land objects and rejects malformed ones", () => {
   const paint = {
     id: "p1",
     kind: "paint",
-    mode: "edge",
+    mode: "polygon",
+    rough: true,
     erase: false,
     blend: "normal",
     opacity: 0.9,
@@ -222,12 +223,32 @@ test("project validation accepts paint objects and rejects malformed ones", () =
         visible: true,
         locked: false,
         opacity: 1,
+        land: { base: DEFAULT_SOURCE },
         objects,
       },
     ],
     updatedAt: 1,
   });
-  assert.doesNotThrow(() => validateProject(project([paint])));
+  const land = {
+    id: "g1",
+    kind: "land",
+    mode: "edge",
+    erase: false,
+    points: paint.points,
+    edge: { roughness: 0.6, detail: 0.7 },
+    seed: 5,
+  };
+  assert.doesNotThrow(() => validateProject(project([land, paint])));
+  assert.doesNotThrow(() =>
+    validateProject(
+      project([{ ...land, mode: "free", size: 0.05, edge: undefined }]),
+    ),
+  );
+  // a free land stroke needs a size; land has no blend/colour of its own
+  assert.throws(() => validateProject(project([{ ...land, mode: "free" }])));
+  assert.throws(() => validateProject(project([{ ...land, mode: "grid" }])));
+  // Edge Shape is a Land tool mode now, not a paint mode
+  assert.throws(() => validateProject(project([{ ...paint, mode: "edge" }])));
   assert.throws(() =>
     validateProject(project([{ ...paint, blend: "explode" }])),
   );
@@ -242,27 +263,34 @@ test("project validation accepts paint objects and rejects malformed ones", () =
 });
 
 // ---- layer coast effect ------------------------------------------------------
-import { edt, renderCoastEffect } from "../features/mapmaker/brush/coastfx.ts";
+import {
+  buildCoastShape,
+  coastShapeKey,
+  composeCoast,
+  edt,
+  renderCoastEffect,
+} from "../features/mapmaker/brush/coastfx.ts";
 import {
   DEFAULT_COAST,
   coastStyle,
+  resolveCoast,
 } from "../features/mapmaker/brush/coastStyles.ts";
 
-function landImage(w, h, isLand) {
-  const rgba = new Uint8ClampedArray(w * h * 4);
+/** A coast input: land where `isLand`, and a texture that is green on the
+ * left half and brown on the right — everywhere, land or not. */
+function landInput(w, h, isLand) {
+  const mask = new Uint8Array(w * h),
+    rgba = new Uint8ClampedArray(w * h * 4);
   for (let y = 0; y < h; y++)
-    for (let x = 0; x < w; x++)
-      if (isLand(x, y)) {
-        const i = (y * w + x) * 4;
-        rgba[i] = 90;
-        rgba[i + 1] = 150;
-        rgba[i + 2] = 60;
-        rgba[i + 3] = 255;
-      }
-  return rgba;
+    for (let x = 0; x < w; x++) {
+      const i = y * w + x;
+      if (isLand(x, y)) mask[i] = 255;
+      rgba.set(x < w / 2 ? [90, 150, 60, 255] : [140, 100, 60, 255], i * 4);
+    }
+  return { width: w, height: h, mask, rgba };
 }
 const px = (out, w, x, y) =>
-  Array.from(out.slice((y * w + x) * 4, (y * w + x) * 4 + 4));
+  Array.from(out.image.slice((y * w + x) * 4, (y * w + x) * 4 + 4));
 
 test("distance transform is exact (vs brute force), with nearest-feature index", () => {
   const w = 41,
@@ -291,30 +319,19 @@ test("coast effect: no land → nothing; deterministic otherwise", () => {
     h = 120;
   assert.equal(
     renderCoastEffect({
-      width: w,
-      height: h,
-      rgba: new Uint8ClampedArray(w * h * 4),
+      ...landInput(w, h, () => false),
       fx: DEFAULT_COAST,
       seed: 1,
     }),
     null,
   );
-  const rgba = landImage(w, h, (x, y) => Math.hypot(x - 80, y - 60) < 35);
-  const a = renderCoastEffect({
-      width: w,
-      height: h,
-      rgba,
-      fx: DEFAULT_COAST,
-      seed: 3,
-    }),
-    b = renderCoastEffect({
-      width: w,
-      height: h,
-      rgba,
-      fx: DEFAULT_COAST,
-      seed: 3,
-    });
+  const input = landInput(w, h, (x, y) => Math.hypot(x - 80, y - 60) < 35);
+  const a = renderCoastEffect({ ...input, fx: DEFAULT_COAST, seed: 3 }),
+    b = renderCoastEffect({ ...input, fx: DEFAULT_COAST, seed: 3 });
   assert.deepEqual(a, b);
+  // the land output is the final coverage: full inland, none at sea
+  assert.equal(a.land[60 * w + 80], 255);
+  assert.equal(a.land[5 * w + 5], 0);
 });
 
 test("overlapping strokes merge into one landmass (no inner coastline)", () => {
@@ -322,15 +339,15 @@ test("overlapping strokes merge into one landmass (no inner coastline)", () => {
     h = 120,
     fx = { ...coastStyle("ink"), roughness: 0, islets: 0, outlineWidth: 0.02 }; // ~4 px at this tiny size
   // two overlapping squares; their shared seam at x≈100 is deep inside the land
-  const rgba = landImage(
+  const input = landInput(
     w,
     h,
     (x, y) => y > 20 && y < 100 && ((x > 30 && x < 110) || (x > 90 && x < 170)),
   );
-  const out = renderCoastEffect({ width: w, height: h, rgba, fx, seed: 1 });
+  const out = renderCoastEffect({ ...input, fx, seed: 1 });
   for (let y = 40; y < 80; y += 5)
     assert.deepEqual(
-      px(out, w, 100, y),
+      px(out, w, 98, y),
       [90, 150, 60, 255],
       "plain land at the seam",
     );
@@ -343,13 +360,13 @@ test("erasing land opens water with glow and waves around the hole", () => {
   const w = 240,
     h = 180,
     fx = { ...DEFAULT_COAST, roughness: 0, islets: 0, depthStrength: 0 };
-  const rgba = landImage(
+  const input = landInput(
     w,
     h,
     (x, y) =>
       Math.hypot(x - 120, y - 90) < 80 && Math.hypot(x - 120, y - 90) > 30,
   );
-  const out = renderCoastEffect({ width: w, height: h, rgba, fx, seed: 1 });
+  const out = renderCoastEffect({ ...input, fx, seed: 1 });
   const lake = px(out, w, 120, 90); // centre of the erased hole: water
   assert.ok(lake[3] < 255, "hole is water, not land");
   const nearShore = px(out, w, 120 + 28, 90);
@@ -361,4 +378,64 @@ test("erasing land opens water with glow and waves around the hole", () => {
     if (p[0] > 200 && p[1] > 200 && p[2] > 200 && p[3] > 60) wave = true;
   }
   assert.ok(wave, "wave line inside the lake");
+});
+
+test("land takes the texture under it — including texture painted outside the old coast", () => {
+  const w = 200,
+    h = 120,
+    fx = {
+      ...DEFAULT_COAST,
+      roughness: 0,
+      islets: 0,
+      outlineWidth: 0,
+      shoreStrength: 0,
+    };
+  // land only on the left at first; the texture covers the whole map
+  const small = landInput(
+    w,
+    h,
+    (x, y) => x > 20 && x < 90 && y > 20 && y < 100,
+  );
+  const before = renderCoastEffect({ ...small, fx, seed: 1 });
+  assert.equal(before.land[60 * w + 150], 0, "right half is water");
+  // grow the land over the right half: the brown texture painted there shows
+  const big = landInput(w, h, (x, y) => x > 20 && x < 180 && y > 20 && y < 100);
+  const after = renderCoastEffect({ ...big, fx, seed: 1 });
+  assert.deepEqual(px(after, w, 150, 60), [140, 100, 60, 255]);
+  assert.deepEqual(px(after, w, 50, 60), [90, 150, 60, 255]);
+});
+
+test("decoration changes reuse the coastline shape exactly", () => {
+  const w = 160,
+    h = 120,
+    input = landInput(w, h, (x, y) => Math.hypot(x - 80, y - 60) < 40),
+    shape = buildCoastShape(input.mask, w, h, DEFAULT_COAST, 9);
+  const a = composeCoast(shape, input.rgba, DEFAULT_COAST, 9),
+    b = composeCoast(
+      shape,
+      input.rgba,
+      { ...DEFAULT_COAST, waves: 8, glowOpacity: 0 },
+      9,
+    );
+  assert.deepEqual(a.land, b.land, "same coastline");
+  assert.notDeepEqual(a.image, b.image, "different decoration");
+  // the shape key ignores decoration but not the shape settings
+  assert.equal(
+    coastShapeKey(DEFAULT_COAST),
+    coastShapeKey({ ...DEFAULT_COAST, waves: 1 }),
+  );
+  assert.notEqual(
+    coastShapeKey(DEFAULT_COAST),
+    coastShapeKey({ ...DEFAULT_COAST, roughness: 0.1 }),
+  );
+});
+
+test("coast decoration off keeps the coastline shape", () => {
+  const layer = (coast) => ({ id: "l", role: "land", coast });
+  const off = resolveCoast(layer({ ...DEFAULT_COAST, enabled: false }));
+  assert.equal(off.roughness, DEFAULT_COAST.roughness);
+  assert.equal(off.waves, 0);
+  assert.equal(off.glowOpacity, 0);
+  assert.equal(off.outlineWidth, 0);
+  assert.equal(resolveCoast({ id: "w", role: "water" }), null);
 });
