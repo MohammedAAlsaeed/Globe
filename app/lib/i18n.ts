@@ -1,14 +1,15 @@
 import { studioEn, studioAr } from "./locales/studio";
 import { mapmakerEn } from "./locales/mapmaker.en";
 import { mapmakerAr } from "./locales/mapmaker.ar";
+import { accountEn, accountAr } from "./locales/account";
 import i18n from "i18next";
 import { initReactI18next } from "react-i18next";
 import { en } from "./locales/en";
 import { ar } from "./locales/ar";
 i18n.use(initReactI18next).init({
   resources: {
-    en: { translation: { ...en, ...studioEn, ...mapmakerEn } },
-    ar: { translation: { ...ar, ...studioAr, ...mapmakerAr } },
+    en: { translation: { ...en, ...studioEn, ...mapmakerEn, ...accountEn } },
+    ar: { translation: { ...ar, ...studioAr, ...mapmakerAr, ...accountAr } },
   },
   lng: "en",
   fallbackLng: "en",

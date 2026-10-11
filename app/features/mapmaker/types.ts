@@ -336,6 +336,16 @@ export interface MMLayer {
 export type ResolutionTier = "low" | "medium" | "high" | "ultra";
 export type AspectPreset = "landscape" | "portrait" | "square" | "custom";
 
+/** Links a project to its cloud copy: the map's id and the revision these
+ * edits are based on. Device-only — never part of the saved document. */
+export interface CloudBinding {
+  id: string;
+  revision: number;
+  /** When this device last saved (or loaded) that revision — a local copy
+   * edited after it (updatedAt > savedAt) has unsaved changes. */
+  savedAt?: number;
+}
+
 export interface MMProject {
   id: string;
   name: string;
@@ -349,6 +359,8 @@ export interface MMProject {
   snapToGrid: boolean;
   layers: MMLayer[];
   updatedAt: number;
+  /** Set when the project is saved in the cloud (see features/account). */
+  cloud?: CloudBinding;
 }
 
 export function objectCount(layer: MMLayer) {

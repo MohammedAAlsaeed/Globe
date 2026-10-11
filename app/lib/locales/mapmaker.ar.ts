@@ -13,13 +13,9 @@ export const mapmakerAr: typeof mapmakerEn = {
     "لديك صورة خريطة جاهزة؟ ارفعها مباشرة وجهّزها للطباعة كقطع كروية — دون الحاجة لأي محرر.",
   mmPrintCardButton: "اطبع خريطتك",
   mmLandingFooter:
-    "كلتا الأداتين تعملان بالكامل على هذا الجهاز. لا شيء يُرفع لأي خادم.",
+    "عند تسجيل الدخول تُحفظ خرائطك في حسابك وتفتحها من أي جهاز، وبدونه تبقى في هذا المتصفح.",
   mmMyMaps: "خرائطي",
-  mmGalleryTitle: "خرائطي",
-  mmGalleryEmpty: "لا توجد خرائط محفوظة بعد. أنشئ أول خريطة لك.",
-  mmConfirmDelete: "حذف نهائي؟",
   mmExportMap: "تصدير الخريطة",
-  mmImportMap: "استيراد خريطة",
   mmImportError: "تعذّر استيراد هذا الملف — لا يبدو أنه ملف خريطة صالح.",
 
   mmModalTitle: "إنشاء خريطة جديدة",
@@ -134,9 +130,6 @@ export const mapmakerAr: typeof mapmakerEn = {
   mmNoSelection: "لا يوجد تحديد.",
   mmBaseLayer: "الخلفية",
 
-  mmStatusSaved: "تم حفظ كل التغييرات",
-  mmStatusSaving: "جارِ الحفظ…",
-  mmStatusOnline: "العمل بلا اتصال · على هذا الجهاز",
   mmZoom: "التكبير",
   mmFitScreen: "ملء الشاشة",
   mmSnapToGrid: "الالتصاق بالشبكة",
