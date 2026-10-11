@@ -1,0 +1,856 @@
+/*
+ * The site's look outside the editor: landing, sign-in pages, My maps.
+ * Lapis and gold leaf, after the compass rose — the palette of illuminated
+ * Islamic maps — with Amiri (classical naskh, with matching Latin) for
+ * display and IBM Plex Sans Arabic for everything else.
+ */
+.site {
+  --night: #0d1636;
+  --lapis: #17265e;
+  --lapis-2: #1e3274;
+  --rule: rgba(217, 169, 59, 0.28);
+  --gold: #d9a93b;
+  --gold-pale: #f1d58a;
+  --vellum: #f3e8cc;
+  --muted: #a9b0cf;
+  --ink-red: #e0866c;
+  --ok: #8fcfa0;
+  --display: "Amiri", Georgia, "Times New Roman", serif;
+  --body: "IBM Plex Sans Arabic", "Segoe UI", Tahoma, sans-serif;
+
+  min-height: 100vh;
+  background: var(--night);
+  color: var(--vellum);
+  font-family: var(--body);
+  font-size: 15px;
+  line-height: 1.55;
+}
+html:has(.site) body {
+  background: #0d1636;
+}
+.site ::selection {
+  background: rgba(217, 169, 59, 0.35);
+}
+.site a,
+.site button {
+  color: inherit;
+}
+.site button:hover {
+  color: inherit;
+}
+.site :focus-visible {
+  outline: 2px solid var(--gold-pale);
+  outline-offset: 3px;
+}
+
+/* ---- header -------------------------------------------------------------- */
+.site-header {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  height: 72px;
+  padding: 0 clamp(16px, 4vw, 48px);
+  border-bottom: 1px solid var(--rule);
+}
+.site-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-family: var(--display);
+  font-size: 22px;
+  letter-spacing: 0.3px;
+  color: var(--vellum);
+  white-space: nowrap;
+}
+.site-brand img {
+  width: 38px;
+  height: 38px;
+}
+.site-nav {
+  display: flex;
+  gap: 22px;
+  margin-inline-start: 12px;
+}
+.site-nav a {
+  color: var(--muted);
+  font-size: 14px;
+}
+.site-nav a:hover,
+.site-nav a[aria-current="page"] {
+  color: var(--gold-pale);
+}
+.site-header-end {
+  margin-inline-start: auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.site-lang {
+  font-size: 13px;
+  color: var(--muted);
+  padding: 6px 8px;
+}
+.site-lang:hover {
+  color: var(--gold-pale) !important;
+}
+.site-account {
+  position: relative;
+}
+.site-account-button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 4px 4px 12px;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+}
+[dir="rtl"] .site-account-button {
+  padding: 4px 12px 4px 4px;
+}
+.site-avatar {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--gold);
+  color: var(--night);
+  font-weight: 600;
+  overflow: hidden;
+}
+.site-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.site-plan {
+  font-size: 12px;
+  color: var(--gold-pale);
+}
+.site-menu {
+  position: absolute;
+  inset-inline-end: 0;
+  top: calc(100% + 8px);
+  min-width: 230px;
+  padding: 8px;
+  background: var(--lapis);
+  border: 1px solid var(--rule);
+  border-radius: 10px;
+  box-shadow: 0 18px 40px rgba(3, 7, 22, 0.55);
+}
+.site-menu-who {
+  padding: 8px 10px 10px;
+  border-bottom: 1px solid var(--rule);
+  margin-bottom: 6px;
+}
+.site-menu-who b {
+  display: block;
+  font-weight: 600;
+}
+.site-menu-who small {
+  color: var(--muted);
+  word-break: break-all;
+}
+.site-menu a,
+.site-menu button {
+  display: block;
+  width: 100%;
+  text-align: start;
+  padding: 8px 10px;
+  border-radius: 6px;
+  font-size: 14px;
+}
+.site-menu a:hover,
+.site-menu button:hover {
+  background: rgba(241, 213, 138, 0.08);
+}
+
+/* ---- buttons & fields -------------------------------------------------------- */
+.site-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 42px;
+  padding: 0 20px;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 15px;
+  background: var(--gold);
+  color: var(--night) !important;
+  transition: background 0.15s;
+  white-space: nowrap;
+}
+.site-btn:hover {
+  background: var(--gold-pale);
+}
+.site-btn:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+.site-btn.quiet {
+  background: transparent;
+  color: var(--vellum) !important;
+  border: 1px solid var(--rule);
+}
+.site-btn.quiet:hover {
+  border-color: var(--gold);
+  background: rgba(217, 169, 59, 0.08);
+}
+.site-btn.small {
+  min-height: 34px;
+  padding: 0 14px;
+  font-size: 14px;
+}
+.site-field {
+  display: grid;
+  gap: 6px;
+  font-size: 14px;
+  color: var(--muted);
+}
+.site-field input {
+  height: 44px;
+  padding: 0 14px;
+  border-radius: 8px;
+  border: 1px solid rgba(169, 176, 207, 0.28);
+  background: rgba(13, 22, 54, 0.6);
+  color: var(--vellum);
+  font-size: 15px;
+}
+.site-field input:focus {
+  outline: none;
+  border-color: var(--gold);
+  box-shadow: 0 0 0 3px rgba(217, 169, 59, 0.18);
+}
+.site-field input[aria-invalid="true"] {
+  border-color: var(--ink-red);
+}
+.site-field-error {
+  color: var(--ink-red);
+  font-size: 13px;
+}
+.site-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: var(--muted);
+}
+.site-check input {
+  accent-color: var(--gold);
+  width: 16px;
+  height: 16px;
+}
+.site-notice {
+  padding: 12px 14px;
+  border-radius: 8px;
+  font-size: 14px;
+  border: 1px solid var(--rule);
+  background: rgba(217, 169, 59, 0.08);
+}
+.site-notice.error {
+  border-color: rgba(224, 134, 108, 0.5);
+  background: rgba(224, 134, 108, 0.1);
+  color: #f5c2b3;
+}
+.site-notice.ok {
+  border-color: rgba(143, 207, 160, 0.45);
+  background: rgba(143, 207, 160, 0.08);
+}
+
+/* ---- compass loader ---------------------------------------------------------- */
+/* The rose swings round and settles on north, like a needle finding it. */
+@keyframes compass-seek {
+  0% {
+    transform: rotate(0deg);
+  }
+  50% {
+    transform: rotate(395deg);
+  }
+  66% {
+    transform: rotate(348deg);
+  }
+  80% {
+    transform: rotate(366deg);
+  }
+  90%,
+  100% {
+    transform: rotate(360deg);
+  }
+}
+.compass-loader {
+  /* The image size; components set it inline (style={{ "--size": "132px" }}). */
+  --size: 120px;
+  display: grid;
+  justify-items: center;
+  gap: 18px;
+  color: var(--muted, #a9b0cf);
+  font-family: var(--body, sans-serif);
+  font-size: 15px;
+}
+.compass-loader img {
+  width: var(--size);
+  height: var(--size);
+  animation: compass-seek 2.6s cubic-bezier(0.45, 0.05, 0.3, 1) infinite;
+  filter: drop-shadow(0 10px 28px rgba(0, 0, 0, 0.45));
+}
+.compass-screen {
+  --muted: #a9b0cf;
+  --body: "IBM Plex Sans Arabic", "Segoe UI", Tahoma, sans-serif;
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  background: radial-gradient(circle at 50% 42%, #1a2a66 0%, #0d1636 62%);
+}
+@media (prefers-reduced-motion: reduce) {
+  .compass-loader img {
+    animation: none;
+  }
+}
+
+/* ---- sign-in pages ------------------------------------------------------------- */
+.auth-page {
+  position: relative;
+  overflow: hidden;
+  display: grid;
+  grid-template-rows: auto 1fr;
+}
+/* The rose, large and dim, half off the page behind the form. */
+.auth-rose {
+  position: absolute;
+  z-index: 0;
+  width: min(118vmin, 1100px);
+  aspect-ratio: 1;
+  inset-inline-end: calc(min(118vmin, 1100px) * -0.32);
+  top: 50%;
+  translate: 0 -46%;
+  --rose-opacity: 0.2;
+  opacity: var(--rose-opacity);
+  pointer-events: none;
+  animation: rose-arrive 2.2s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+@keyframes rose-arrive {
+  from {
+    opacity: 0;
+    rotate: -50deg;
+  }
+  to {
+    opacity: var(--rose-opacity);
+    rotate: 0deg;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .auth-rose {
+    animation: none;
+  }
+}
+.auth-main {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  padding: 40px clamp(16px, 7vw, 120px) 64px;
+}
+.auth-card {
+  width: min(420px, 100%);
+  display: grid;
+  gap: 18px;
+}
+.auth-card h1 {
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: clamp(32px, 4vw, 42px);
+  line-height: 1.15;
+  color: var(--vellum);
+}
+.auth-lead {
+  color: var(--muted);
+  margin-top: -6px;
+}
+.auth-form {
+  display: grid;
+  gap: 14px;
+}
+.auth-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  font-size: 14px;
+}
+.auth-row a,
+.auth-switch a {
+  color: var(--gold-pale);
+}
+.auth-row a:hover,
+.auth-switch a:hover {
+  text-decoration: underline;
+}
+.auth-or {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--muted);
+  font-size: 13px;
+}
+.auth-or::before,
+.auth-or::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--rule);
+}
+.auth-google {
+  width: 100%;
+}
+.auth-google svg {
+  width: 18px;
+  height: 18px;
+}
+.auth-switch {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+/* ---- My maps --------------------------------------------------------------------- */
+.maps-main {
+  width: min(1180px, 100%);
+  margin: 0 auto;
+  padding: 40px clamp(16px, 4vw, 40px) 80px;
+  display: grid;
+  gap: 36px;
+}
+.maps-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  justify-content: space-between;
+  gap: 20px;
+}
+.maps-head h1 {
+  font-family: var(--display);
+  font-size: clamp(32px, 4vw, 44px);
+  font-weight: 700;
+  line-height: 1.1;
+}
+.maps-head-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+/* Plan and usage: one line and a gold meter. */
+.maps-plan {
+  display: grid;
+  gap: 8px;
+  width: min(420px, 100%);
+  color: var(--muted);
+  font-size: 14px;
+}
+.maps-plan b {
+  color: var(--gold-pale);
+  font-weight: 600;
+}
+.maps-meter {
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(169, 176, 207, 0.18);
+  overflow: hidden;
+}
+.maps-meter span {
+  display: block;
+  height: 100%;
+  background: var(--gold);
+  border-radius: inherit;
+}
+.maps-meter.full span {
+  background: var(--ink-red);
+}
+.maps-section {
+  display: grid;
+  gap: 16px;
+}
+.maps-section h2 {
+  font-family: var(--display);
+  font-size: 24px;
+  font-weight: 700;
+}
+.maps-section-note {
+  color: var(--muted);
+  font-size: 14px;
+  margin-top: -10px;
+}
+.maps-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 22px;
+}
+.map-tile {
+  position: relative;
+  display: grid;
+  gap: 10px;
+}
+.map-tile-open {
+  display: block;
+  aspect-ratio: 4 / 3;
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--lapis);
+  border: 1px solid var(--rule);
+  transition: border-color 0.15s;
+}
+.map-tile-open:hover {
+  border-color: var(--gold);
+}
+.map-tile-open img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.map-tile-blank {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+}
+.map-tile-blank img {
+  width: 34%;
+  height: auto;
+  opacity: 0.35;
+  object-fit: contain;
+}
+.map-tile-info {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 8px;
+}
+.map-tile-info b {
+  display: block;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.map-tile-info small {
+  color: var(--muted);
+  font-size: 13px;
+}
+.map-tile-actions {
+  display: flex;
+  gap: 2px;
+  flex: none;
+}
+.map-tile-actions button {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 6px;
+  color: var(--muted);
+}
+.map-tile-actions button:hover {
+  color: var(--gold-pale);
+  background: rgba(241, 213, 138, 0.08);
+}
+.map-tile-confirm {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 13px;
+}
+.maps-new {
+  aspect-ratio: 4 / 3;
+  border-radius: 10px;
+  border: 1px dashed rgba(217, 169, 59, 0.5);
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 8px;
+  color: var(--gold-pale) !important;
+  font-weight: 600;
+}
+.maps-new:hover {
+  background: rgba(217, 169, 59, 0.07);
+}
+.maps-new span {
+  font-size: 34px;
+  line-height: 1;
+}
+.maps-empty {
+  padding: 36px;
+  border-radius: 10px;
+  border: 1px solid var(--rule);
+  display: grid;
+  justify-items: start;
+  gap: 14px;
+  color: var(--muted);
+}
+
+/* ---- landing ---------------------------------------------------------------------- */
+.landing-hero {
+  position: relative;
+  overflow: hidden;
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+  align-items: center;
+  gap: 24px;
+  min-height: calc(100vh - 72px);
+  padding: 32px clamp(16px, 6vw, 96px) 56px;
+}
+.landing-copy {
+  display: grid;
+  gap: 22px;
+  max-width: 560px;
+}
+.landing-copy h1 {
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: clamp(40px, 6vw, 76px);
+  line-height: 1.04;
+}
+.landing-copy p {
+  color: var(--muted);
+  font-size: 17px;
+  max-width: 46ch;
+}
+.landing-ctas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.landing-rose {
+  justify-self: center;
+  width: min(100%, 560px);
+  aspect-ratio: 1;
+  animation: rose-arrive-full 2.4s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+@keyframes rose-arrive-full {
+  from {
+    opacity: 0;
+    rotate: -70deg;
+    scale: 0.92;
+  }
+  to {
+    opacity: 1;
+    rotate: 0deg;
+    scale: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .landing-rose {
+    animation: none;
+  }
+}
+.landing-paths {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1px;
+  background: var(--rule);
+  border-top: 1px solid var(--rule);
+  border-bottom: 1px solid var(--rule);
+}
+.landing-path {
+  display: grid;
+  gap: 10px;
+  align-content: start;
+  padding: 40px clamp(16px, 6vw, 96px);
+  background: var(--night);
+}
+.landing-path h2 {
+  font-family: var(--display);
+  font-size: 28px;
+  font-weight: 700;
+}
+.landing-path p {
+  color: var(--muted);
+  max-width: 48ch;
+}
+.landing-path a {
+  justify-self: start;
+  margin-top: 6px;
+}
+.landing-foot {
+  padding: 28px clamp(16px, 6vw, 96px) 40px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+@media (max-width: 860px) {
+  .site-nav-secondary {
+    display: none;
+  }
+  .site-plan {
+    display: none;
+  }
+  .landing-hero {
+    grid-template-columns: 1fr;
+    min-height: auto;
+    padding-top: 40px;
+  }
+  .landing-rose {
+    width: min(70vw, 360px);
+    grid-row: 1;
+  }
+  .landing-paths {
+    grid-template-columns: 1fr;
+  }
+  .auth-rose {
+    inset-inline-end: auto;
+    left: 50%;
+    translate: -50% -50%;
+    --rose-opacity: 0.12;
+  }
+  .auth-main {
+    justify-content: center;
+  }
+}
+
+@media (max-width: 560px) {
+  .site-header {
+    gap: 12px;
+  }
+  .site-brand-name,
+  .site-register {
+    display: none;
+  }
+}
+
+/* ---- map-maker dialogs (create map, conflict): lapis like the rest ---------- */
+dialog.mm-modal {
+  background: #17265e;
+  color: #f3e8cc;
+  border: 1px solid rgba(217, 169, 59, 0.3);
+  border-radius: 12px;
+  font-family: "IBM Plex Sans Arabic", "Segoe UI", Tahoma, sans-serif;
+  font-size: 14px;
+  box-shadow: 0 30px 90px rgba(3, 7, 22, 0.6);
+}
+dialog.mm-modal::backdrop {
+  background: rgba(6, 10, 28, 0.72);
+  backdrop-filter: blur(3px);
+}
+dialog.mm-modal .eyebrow,
+dialog.mm-modal h2 {
+  font-family: "Amiri", Georgia, serif;
+  font-size: 26px;
+  font-weight: 700;
+  color: #f3e8cc;
+  letter-spacing: 0;
+  text-transform: none;
+  margin: 0;
+}
+dialog.mm-modal .eyebrow > span {
+  display: none;
+}
+dialog.mm-modal p,
+dialog.mm-modal .mm-modal-sub,
+dialog.mm-modal .mm-modal-label,
+dialog.mm-modal .field-label,
+dialog.mm-modal .mm-option-card small {
+  color: #a9b0cf;
+}
+dialog.mm-modal .mm-modal-sub {
+  font-size: 14px;
+  margin: 6px 0 18px;
+}
+dialog.mm-modal .mm-modal-label {
+  font-size: 13px;
+  text-transform: none;
+  letter-spacing: 0;
+}
+dialog.mm-modal .field-label {
+  font-size: 13px;
+}
+dialog.mm-modal .field-label > input {
+  height: 42px;
+  border-radius: 8px;
+  border: 1px solid rgba(169, 176, 207, 0.28);
+  background: rgba(13, 22, 54, 0.6);
+  color: #f3e8cc;
+  font-size: 15px;
+}
+dialog.mm-modal .field-label > input:focus {
+  outline: none;
+  border-color: #d9a93b;
+}
+dialog.mm-modal .mm-option-card {
+  background: rgba(13, 22, 54, 0.5);
+  border: 1px solid rgba(169, 176, 207, 0.22);
+  color: #f3e8cc;
+  border-radius: 8px;
+  padding: 12px 8px;
+}
+dialog.mm-modal .mm-option-card b {
+  font-size: 14px;
+  font-weight: 600;
+}
+dialog.mm-modal .mm-option-card small {
+  font-size: 12px;
+}
+dialog.mm-modal .mm-option-card:hover:not(:disabled) {
+  border-color: rgba(217, 169, 59, 0.6);
+  color: #f3e8cc;
+}
+dialog.mm-modal .mm-option-card.selected {
+  border-color: #d9a93b;
+  background: rgba(217, 169, 59, 0.14);
+}
+dialog.mm-modal .mm-option-card:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+dialog.mm-modal .mm-aspect-swatch {
+  border-color: #a9b0cf;
+}
+dialog.mm-modal .mm-dimensions-preview {
+  background: rgba(13, 22, 54, 0.5);
+  border: 1px dashed rgba(217, 169, 59, 0.35);
+  color: #a9b0cf;
+  font-size: 13px;
+}
+dialog.mm-modal .export-button {
+  background: #d9a93b;
+  border-color: #d9a93b;
+  color: #0d1636;
+  font-weight: 600;
+  font-size: 14px;
+  border-radius: 8px;
+}
+dialog.mm-modal .export-button:hover {
+  background: #f1d58a;
+  color: #0d1636;
+}
+dialog.mm-modal .secondary-button {
+  background: transparent;
+  border: 1px solid rgba(217, 169, 59, 0.3);
+  color: #f3e8cc;
+  font-size: 14px;
+  border-radius: 8px;
+  min-height: 38px;
+}
+dialog.mm-modal .secondary-button:hover {
+  border-color: #d9a93b;
+  color: #f3e8cc;
+}
+dialog.mm-modal .mm-field-error {
+  color: #e0866c;
+  font-size: 13px;
+  margin: 8px 0;
+}
+dialog.mm-modal .dialog-header button {
+  color: #a9b0cf;
+  font-size: 24px;
+}
+.site-link {
+  color: #f1d58a !important;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.landing-verified {
+  margin: 16px clamp(16px, 6vw, 96px) 0;
+}

@@ -64,15 +64,18 @@ import {
 import { useHistory } from "./hooks/useHistory";
 import { ColorControl, MenuHint, MenuRow, MultiSelectionBar, ObjectQuickBar, Slider } from "./components/EditorControls";
 import { EditTarget } from "./components/EditTarget";
-import { exportProjectToFile, saveProject } from "./storage";
-import { CreateMapModal } from "./CreateMapModal";
-import { MapGallery } from "./MapGallery";
+import { deleteProject, exportProjectToFile, saveProject } from "./storage";
+import { useCloudSync } from "./cloud/useCloudSync";
+import { CloudStatusBar, ConflictDialog } from "./cloud/CloudControls";
+import { maps } from "../account/api";
+import { useAuth } from "../account/AuthProvider";
 import { ICONS, ICON_IDS, type IconId } from "../studio/domain/icons";
 import { saveHandoff } from "../studio/storage/projects";
 import { DEFAULT_DOCUMENT } from "../studio/domain/types";
 import type {
   Biome,
   LabelAlign,
+  CloudBinding,
   CoastEffect,
   LandMode,
   LayerRole,
@@ -92,6 +95,7 @@ import type {
   Point,
 } from "./types";
 import {SelectField} from "@/components/ui/fields";
+import {ApiError} from "@/lib/api/client";
 
 type Tool = "select" | "brush" | "land" | "icon" | "path" | "region" | "label";
 const TOOLS: { key: Tool; labelKey: string }[] = [
@@ -280,9 +284,17 @@ function labelLayout(o: MMLabel, W: number) {
 // =============================================================================
 // The standalone map-creator page/editor
 // =============================================================================
-export function MapCreatorEditor({ initial }: { initial: MMProject }) {
+export function MapCreatorEditor({
+  initial,
+  onReplaceProject,
+}: {
+  initial: MMProject;
+  /** Opens another version of the map in place of this one (cloud conflicts). */
+  onReplaceProject: (project: MMProject) => void;
+}) {
   const { t, i18n } = useTranslation(),
-    router = useRouter();
+    router = useRouter(),
+    { user, refresh: refreshUser } = useAuth();
 
   // ---- Project state (undo/redo history) ----------------------------------
   const { project, updateProject, undo, redo, canUndo, canRedo } = useHistory(initial);
@@ -297,12 +309,13 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
   const [panelTab, setPanelTab] = useState<"objects" | "layers">("layers");
   const [objectSearch, setObjectSearch] = useState("");
   const [shortcutsVisible, setShortcutsVisible] = useState(true);
-  const [saveStatus, setSaveStatus] = useState<"saved" | "saving">("saved");
+  /** The cloud map this project is saved as (unset: this device only). */
+  const [cloud, setCloud] = useState<CloudBinding | undefined>(initial.cloud);
+  /** A message over the canvas (e.g. an export the plan doesn't allow). */
+  const [notice, setNotice] = useState<string | null>(null);
   const [printing, setPrinting] = useState(false);
   const [zoom, setZoom] = useState(1);
   const [fitWidth, setFitWidth] = useState(900);
-  const [showGallery, setShowGallery] = useState(false);
-  const [showCreate, setShowCreate] = useState(false);
 
   const [color, setColor] = useState("#e7dcb8"),
     [recentColors, setRecentColors] = useState<string[]>([]),
@@ -442,14 +455,50 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
     return () => ro.disconnect();
   }, []);
 
-  const persist = useCallback((p: MMProject) => {
-    setSaveStatus("saving");
-    saveProject(p).then(() => setSaveStatus("saved"));
+  // Every change is also kept on this device (under the cloud map's id once
+  // it has one), so work survives going offline or closing the tab. Edits
+  // are written after a short pause; a finished cloud save is written at
+  // once (so the device copy is never mistaken for newer unsaved work), and
+  // anything still waiting is written when the page is left.
+  const pendingLocal = useRef<MMProject | null>(null);
+  const writeLocal = useCallback(() => {
+    const next = pendingLocal.current;
+    pendingLocal.current = null;
+    if (next) void saveProject(next);
   }, []);
+  const lastLocalBinding = useRef(cloud);
   useEffect(() => {
-    const timer = setTimeout(() => persist(project), 700);
+    pendingLocal.current = { ...project, id: cloud?.id ?? project.id, cloud };
+    const bindingChanged = lastLocalBinding.current !== cloud;
+    lastLocalBinding.current = cloud;
+    if (bindingChanged) return writeLocal();
+    const timer = setTimeout(writeLocal, 700);
     return () => clearTimeout(timer);
-  }, [project, persist]);
+  }, [project, cloud, writeLocal]);
+  useEffect(() => {
+    window.addEventListener("pagehide", writeLocal);
+    return () => {
+      window.removeEventListener("pagehide", writeLocal);
+      writeLocal();
+    };
+  }, [writeLocal]);
+  // Once uploaded, the device copy lives under the cloud id: drop the old one.
+  useEffect(() => {
+    if (cloud && cloud.id !== initial.id) void deleteProject(initial.id).catch(() => {});
+  }, [cloud, initial.id]);
+
+  // ---- Cloud saving (see ./cloud/useCloudSync) ----
+  const sync = useCloudSync({
+    project,
+    binding: cloud,
+    setBinding: setCloud,
+    user,
+    onSignedOut: () => void refreshUser(),
+    onReplaceProject,
+    onRename: (name) => setProject((p) => ({ ...p, name, updatedAt: Date.now() })),
+    captureThumbnail,
+    copySuffix: t("mmCopySuffix"),
+  });
 
   const fitScale = fitWidth / project.width,
     displayScale = fitScale * zoom,
@@ -572,6 +621,11 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
         e.preventDefault();
         if (e.shiftKey) redo();
         else undo();
+        return;
+      }
+      if (mod && e.key.toLowerCase() === "s") {
+        e.preventDefault();
+        sync.saveNow();
         return;
       }
       if (mod && e.key.toLowerCase() === "y") {
@@ -1616,11 +1670,42 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
       for (const { node, attrs } of swapped.reverse()) node.setAttrs(attrs);
     }
   }
+  /** A small preview of the map for the gallery (editor chrome hidden). */
+  async function captureThumbnail(): Promise<Blob | null> {
+    const stage = stageRef.current;
+    if (!stage || W <= 0) return null;
+    const chrome = [gridGroupRef.current, overlayLayerRef.current, uiLayerRef.current].filter(
+      (n): n is Konva.Group | Konva.Layer => !!n,
+    );
+    const wasVisible = chrome.map((n) => n.visible());
+    chrome.forEach((n) => n.visible(false));
+    let canvas: HTMLCanvasElement;
+    try {
+      canvas = stage.toCanvas({ x: 0, y: 0, width: W, height: H, pixelRatio: Math.min(1, 480 / W) });
+    } finally {
+      chrome.forEach((n, i) => n.visible(wasVisible[i]));
+    }
+    return new Promise((resolve) => canvas.toBlob(resolve, "image/webp", 0.82));
+  }
   async function handlePrint() {
     const stage = stageRef.current;
     if (!stage || printing) return;
     setPrinting(true);
+    setNotice(null);
     try {
+      // Cloud maps record each export with the plan's license; the server
+      // refuses sizes above what the plan exports.
+      if (user && cloud) {
+        try {
+          await maps.recordExport(cloud.id, project.width, project.height);
+        } catch (e) {
+          if (e instanceof ApiError && e.code === "plan_limit_reached") {
+            setNotice(t("mmExportLimit", { px: e.body.max, w: project.width }));
+            return;
+          }
+          // Offline or a hiccup: printing doesn't wait on the record.
+        }
+      }
       // Let the button show its busy state before the (heavy) full-res render.
       await new Promise((resolve) => requestAnimationFrame(() => setTimeout(resolve, 0)));
       const canvas = await renderMapCanvas(stage);
@@ -1695,7 +1780,7 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
         <Link href="/" className="mm-back" title={t("mmBackHome")}>
           <Glyph name="chevronLeft" />
         </Link>
-        <button className="mm-back" title={t("mmMyMaps")} onClick={() => setShowGallery(true)}>
+        <button className="mm-back" title={t("mmMyMaps")} onClick={() => router.push("/maps")}>
           <Glyph name="folder" size={16} />
         </button>
         <button className="mm-back" title={t("mmExportMap")} onClick={() => exportProjectToFile(project)}>
@@ -1706,7 +1791,7 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
           value={project.name}
           maxLength={80}
           placeholder={t("mmUntitledMap")}
-          onChange={(e) => setProject((p) => ({ ...p, name: e.target.value }))}
+          onChange={(e) => setProject((p) => ({ ...p, name: e.target.value, updatedAt: Date.now() }))}
         />
         <button className="mm-back" title={t("undo")} disabled={!canUndo} onClick={undo}>
           <Glyph name="undo" size={16} />
@@ -2082,6 +2167,14 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
               />
             )}
           </div>
+          {notice && (
+            <div className="mm-editor-notice" role="alert">
+              <span>{notice}</span>
+              <button onClick={() => setNotice(null)} aria-label={t("close")}>
+                ×
+              </button>
+            </div>
+          )}
           <div
             className="mm-canvas-wrap"
             ref={containerRef}
@@ -2318,12 +2411,7 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
             </Stage>
           </div>
           <div className="mm-status-bar">
-            <div className="mm-status-group">
-              <span className="mm-status-dot" />
-              <span>{t("mmStatusOnline")}</span>
-              <span className="mm-status-sep" />
-              <span>{t(saveStatus === "saving" ? "mmStatusSaving" : "mmStatusSaved")}</span>
-            </div>
+            <CloudStatusBar status={sync.status} onSave={sync.saveNow} />
             <div className="mm-status-group mm-status-center">
               <button onClick={() => setZoom((z) => Math.max(0.25, z - 0.25))} title={t("mmZoom")}>
                 <Glyph name="zoomOut" size={15} />
@@ -2529,17 +2617,10 @@ export function MapCreatorEditor({ initial }: { initial: MMProject }) {
           )}
         </aside>
       </div>
-      {showGallery && (
-        <MapGallery
-          currentId={project.id}
-          onClose={() => setShowGallery(false)}
-          onCreate={() => {
-            setShowGallery(false);
-            setShowCreate(true);
-          }}
-        />
+      {sync.conflict && (
+        <ConflictDialog busy={sync.resolving} error={sync.resolveError} onChoose={(c) => void sync.resolveConflict(c)} />
       )}
-      {showCreate && <CreateMapModal onClose={() => setShowCreate(false)} />}
+
       {contextMenu && (
         <div
           ref={contextMenuRef}

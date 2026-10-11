@@ -12,13 +12,9 @@ export const mapmakerEn = {
     "Already have a map image? Upload it directly and prepare it for globe-gore printing — no editor required.",
   mmPrintCardButton: "Print your Map",
   mmLandingFooter:
-    "Both tools run entirely on this device. Nothing is uploaded anywhere.",
+    "Signed in, your maps are saved to your account and open on any device. Signed out, they stay in this browser.",
   mmMyMaps: "My maps",
-  mmGalleryTitle: "My maps",
-  mmGalleryEmpty: "No saved maps yet. Create your first one.",
-  mmConfirmDelete: "Delete for good?",
   mmExportMap: "Export map",
-  mmImportMap: "Import map",
   mmImportError:
     "Could not import that file \u2014 it does not look like a valid map file.",
 
@@ -134,9 +130,6 @@ export const mapmakerEn = {
   mmNoSelection: "Nothing selected.",
   mmBaseLayer: "Background",
 
-  mmStatusSaved: "All changes saved",
-  mmStatusSaving: "Saving…",
-  mmStatusOnline: "Working offline · on this device",
   mmZoom: "Zoom",
   mmFitScreen: "Fit screen",
   mmSnapToGrid: "Snap to grid",

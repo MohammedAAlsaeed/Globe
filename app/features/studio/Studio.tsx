@@ -2,8 +2,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useTranslation } from "react-i18next";
-import "../../lib/i18n";
-import { Icon, Astrolabe } from "../../components/ui/ornaments";
 import { SourcePanel } from "./components/SourcePanel";
 import { GlobeControls } from "./components/GlobeControls";
 import { PrintControls } from "./components/PrintControls";
@@ -16,6 +14,8 @@ import { planPrint } from "./domain/layout";
 import { loadHandoff, clearHandoff } from "./storage/projects";
 import type { GlobeSettings, PrintSettings } from "./domain/types";
 import type { SavedProject } from "./storage/projects";
+import {rememberLanguage} from "@/lib/language";
+import {Astrolabe, Icon} from "@/components/ui/ornaments";
 export default function Studio() {
   const { t, i18n } = useTranslation(),
     state = useDocument(),
@@ -31,12 +31,6 @@ export default function Studio() {
     sourceState = useSource(notify, !handoffPending),
     d = state.document;
   const plan = useMemo(() => planPrint(d.globe, d.print), [d.globe, d.print]);
-  useEffect(() => {
-    try {
-      const lang = localStorage.getItem("atelier-language");
-      if (lang === "ar" || lang === "en") i18n.changeLanguage(lang);
-    } catch {}
-  }, [i18n]);
   useEffect(() => {
     document.documentElement.lang = i18n.language;
     document.documentElement.dir = i18n.language === "ar" ? "rtl" : "ltr";
@@ -99,9 +93,7 @@ export default function Studio() {
           onClick={() => {
             const lang = i18n.language === "en" ? "ar" : "en";
             i18n.changeLanguage(lang);
-            try {
-              localStorage.setItem("atelier-language", lang);
-            } catch {}
+            rememberLanguage(lang);
           }}
         >
           <Icon name="globe" size={17} />

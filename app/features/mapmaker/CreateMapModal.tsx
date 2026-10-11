@@ -5,11 +5,26 @@ import { useTranslation } from "react-i18next";
 import { ASPECTS, RESOLUTIONS, computeCanvasSize, createProject } from "./domain";
 import { stashInitialProject } from "./storage";
 import type { AspectPreset, ResolutionTier } from "./types";
+import { maps } from "../account/api";
+import { useAuth } from "../account/AuthProvider";
+import { GUEST_LIMITS } from "../account/types";
+import { errorMessage } from "../account/ui";
+import {ApiError} from "@/lib/api/client";
 
+/**
+ * "Create a map". Signed in, the map is created in the cloud straight away
+ * (so it counts toward the plan and opens at its own address); signed out,
+ * it starts on this device. Resolutions above what the plan exports are
+ * shown but locked.
+ */
 export function CreateMapModal({ onClose }: { onClose: () => void }) {
   const { t } = useTranslation(),
     router = useRouter(),
+    { user } = useAuth(),
     dialog = useRef<HTMLDialogElement>(null);
+  const maxPx = user?.plan.max_export_px ?? GUEST_LIMITS.max_export_px;
+  const [busy, setBusy] = useState(false),
+    [error, setError] = useState<string | null>(null);
   const [name, setName] = useState(""),
     [resolution, setResolution] = useState<ResolutionTier>("medium"),
     [aspect, setAspect] = useState<AspectPreset>("landscape"),
@@ -31,7 +46,7 @@ export function CreateMapModal({ onClose }: { onClose: () => void }) {
     dialog.current?.close();
     onClose();
   }
-  function create() {
+  async function create() {
     if (!name.trim()) {
       setNameError(true);
       return;
@@ -43,8 +58,24 @@ export function CreateMapModal({ onClose }: { onClose: () => void }) {
       cols: effectiveCols,
       rows: effectiveRows,
     });
-    stashInitialProject(project);
-    router.push("/editor");
+    if (!user) {
+      stashInitialProject(project);
+      router.push("/editor");
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      const { map } = await maps.create(project);
+      router.push(`/editor?map=${map.id}`);
+    } catch (e) {
+      setError(
+        e instanceof ApiError && e.code === "plan_limit_reached"
+          ? t("mmMapLimitCreate", { max: e.body.max })
+          : errorMessage(t, e),
+      );
+      setBusy(false);
+    }
   }
   return (
     <dialog
@@ -79,17 +110,21 @@ export function CreateMapModal({ onClose }: { onClose: () => void }) {
       <div className="mm-modal-section">
         <span className="mm-modal-label">{t("mmFieldResolution")}</span>
         <div className="mm-option-grid mm-option-grid-4">
-          {RESOLUTIONS.map((r) => (
-            <button
-              key={r.key}
-              type="button"
-              className={`mm-option-card ${resolution === r.key ? "selected" : ""}`}
-              onClick={() => setResolution(r.key)}
-            >
-              <b>{t(r.labelKey)}</b>
-              <small>{t(`${r.labelKey}Note`)}</small>
-            </button>
-          ))}
+          {RESOLUTIONS.map((r) => {
+            const locked = r.longEdge > maxPx;
+            return (
+              <button
+                key={r.key}
+                type="button"
+                disabled={locked}
+                className={`mm-option-card ${resolution === r.key ? "selected" : ""}`}
+                onClick={() => setResolution(r.key)}
+              >
+                <b>{t(r.labelKey)}</b>
+                <small>{locked ? t("mmPlanLocked") : t(`${r.labelKey}Note`)}</small>
+              </button>
+            );
+          })}
         </div>
       </div>
       <div className="mm-modal-section">
@@ -144,8 +179,13 @@ export function CreateMapModal({ onClose }: { onClose: () => void }) {
       <p className="mm-dimensions-preview">
         {t("mmDimensionsPreview", { w: size.width, h: size.height, tile })}
       </p>
+      {error && (
+        <p className="mm-field-error" role="alert">
+          {error}
+        </p>
+      )}
       <div className="button-row mm-modal-actions">
-        <button className="export-button" onClick={create}>
+        <button className="export-button" disabled={busy} onClick={create}>
           {t("mmCreateConfirm")}
         </button>
         <button className="secondary-button" onClick={close}>
