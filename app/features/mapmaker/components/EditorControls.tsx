@@ -85,6 +85,32 @@ export function Slider({
   );
 }
 
+/**
+ * A slider with a reset button that returns it to its default value (shown
+ * only once the value differs, but always taking its space so rows line up).
+ */
+export function ResetSlider({
+  defaultValue,
+  resetLabel,
+  ...slider
+}: Parameters<typeof Slider>[0] & { defaultValue: number; resetLabel: string }) {
+  const changed = Math.abs(slider.value - defaultValue) > 1e-9;
+  return (
+    <div className="mm-reset-row">
+      <Slider {...slider} />
+      <button
+        className="mm-reset"
+        title={resetLabel}
+        aria-label={`${resetLabel}: ${slider.label}`}
+        style={{ visibility: changed ? "visible" : "hidden" }}
+        onClick={() => slider.onChange(defaultValue)}
+      >
+        <Glyph name="reset" size={12} />
+      </button>
+    </div>
+  );
+}
+
 export function ColorControl({
   color,
   recents,

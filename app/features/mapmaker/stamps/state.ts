@@ -8,10 +8,17 @@
  *              or auto (a click places one, a drag scatters).
  *   variety    random variant / size / rotation / flip / tone per stamp, so
  *              a forest never looks like copies of one tree.
+ *
+ * Three kinds of values, never mixed up:
+ *   factory    a set's own defaults (factoryLook) — what "Reset" returns to;
+ *   tool       the look the next stamps get; each set remembers its own, so
+ *              switching from trees to castles and back keeps both;
+ *   placed     every stamp on the map keeps its own values.
+ * Placement, scatter and variety settings are shared by all sets.
  */
 import { mulberry32 } from "../brush/noise";
 import { DEFAULT_SOURCE } from "../brush/presets";
-import type { BlendMode, MMStamp, PaintSource, Point, ShadowSettings, StampClip } from "../types";
+import type { BlendMode, MMStamp, PaintSource, Point, ShadowSettings, StampClip, StampPivot } from "../types";
 import { builtinKey, stampSet, type StampSet } from "./catalog";
 import { DEFAULT_SHADOW } from "./render";
 
@@ -20,7 +27,21 @@ export type StampPlacement = "single" | "multiple" | "auto";
 export type StampLook = Pick<
   MMStamp,
   "size" | "rotation" | "flipX" | "flipY" | "ink" | "fill" | "opacity" | "hue" | "saturation" | "brightness" | "contrast" | "shadow"
-> & { customShadow: ShadowSettings; blend: BlendMode; clip: StampClip; clipSource: PaintSource };
+> & {
+  customShadow: ShadowSettings;
+  blend: BlendMode;
+  clip: StampClip;
+  clipSource: PaintSource;
+  pivot: StampPivot;
+  stretch: number;
+};
+
+/** What a set remembers of how you last used it. */
+interface SetMemory {
+  look: StampLook;
+  rotationJitter: number;
+  randomFlip: boolean;
+}
 
 export interface StampToolState {
   /** Selected set, and its selected variant (when not random). */
@@ -44,6 +65,8 @@ export interface StampToolState {
   /** Multiple: stamps lower on the map are drawn in front. */
   depthSort: boolean;
   look: StampLook;
+  /** Each set's last look and variety habits (see selectSet). */
+  memory: Record<string, SetMemory>;
 }
 
 const BASE_LOOK: StampLook = {
@@ -63,18 +86,35 @@ const BASE_LOOK: StampLook = {
   blend: "normal",
   clip: "none",
   clipSource: DEFAULT_SOURCE,
+  pivot: "base",
+  stretch: 1,
 };
 
-/** Switching set brings in its own colors, size and placement habits;
- * filters, opacity and shadow choices carry over. */
+/** A set's own look: what its stamps start with, and what Reset returns to. */
+export function factoryLook(set: StampSet | undefined): StampLook {
+  return set ? { ...BASE_LOOK, ink: set.ink, fill: set.fill, size: set.size, pivot: set.pivot } : BASE_LOOK;
+}
+/** A stamp's size as a scale of its set's default size (1 = 100%). */
+export function scaleOf(size: number, set: StampSet | undefined) {
+  return size / (set?.size ?? BASE_LOOK.size);
+}
+
+/**
+ * Switching set: the set comes back as you last used it (else with its own
+ * defaults), and the set you leave remembers your settings. Placement,
+ * scatter and variety stay as they are.
+ */
 export function selectSet(s: StampToolState, set: StampSet, variant = 0): StampToolState {
+  const memory = s.set === set.id ? s.memory : { ...s.memory, [s.set]: { look: s.look, rotationJitter: s.rotationJitter, randomFlip: s.randomFlip } },
+    back = memory[set.id];
   return {
     ...s,
+    memory,
     set: set.id,
     variant: Math.min(variant, set.assets.length - 1),
-    rotationJitter: set.rotationJitter,
-    randomFlip: set.randomFlip,
-    look: { ...s.look, ink: set.ink, fill: set.fill, size: set.size, rotation: 0, flipX: false, flipY: false },
+    rotationJitter: back?.rotationJitter ?? set.rotationJitter,
+    randomFlip: back?.randomFlip ?? set.randomFlip,
+    look: back ? { ...factoryLook(set), ...back.look } : factoryLook(set),
   };
 }
 
@@ -93,6 +133,7 @@ export function initialStampState(): StampToolState {
     spread: 0.6,
     depthSort: true,
     look: BASE_LOOK,
+    memory: {},
   };
   const set = stampSet(base.set);
   return set ? selectSet(base, set) : base;
@@ -106,7 +147,7 @@ export function loadStampState(): StampToolState {
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "null") as Partial<StampToolState> | null;
     if (!saved || typeof saved !== "object") return base;
     // Uploaded sets may not be loaded yet: fall back to a built-in one.
-    const merged = { ...base, ...saved, look: { ...base.look, ...saved.look } };
+    const merged = { ...base, ...saved, look: { ...base.look, ...saved.look }, memory: saved.memory ?? {} };
     return stampSet(merged.set) ? merged : { ...merged, set: base.set, variant: 0 };
   } catch {
     return base;
@@ -137,6 +178,8 @@ export function lookOf(o: MMStamp): StampLook {
     blend: o.blend ?? "normal",
     clip: o.clip ?? "none",
     clipSource: o.clipSource ?? DEFAULT_SOURCE,
+    pivot: o.pivot ?? "center",
+    stretch: o.stretch ?? 1,
   };
 }
 
@@ -172,6 +215,8 @@ export function makeStamp(s: StampToolState, at: Point, rand: () => number): MMS
     ...(l.blend !== "normal" ? { blend: l.blend } : {}),
     ...(l.clip !== "none" ? { clip: l.clip } : {}),
     ...(l.clip === "texture" ? { clipSource: l.clipSource } : {}),
+    pivot: l.pivot,
+    ...(l.stretch !== 1 ? { stretch: l.stretch } : {}),
   };
 }
 

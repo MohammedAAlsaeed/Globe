@@ -79,3 +79,42 @@ test("older maps' icons open as Classic stamps", () => {
   const clean = { layers: [{ id: "l", objects: [st] }] };
   assert.equal(migrateProject(clean), clean);
 });
+
+test("each set remembers its own look; placement settings are shared", async () => {
+  const { factoryLook, scaleOf } = await import("../features/mapmaker/stamps/state.ts");
+  let s = selectSet(initialStampState(), stampSet("tree"));
+  s = { ...s, spread: 2, look: { ...s.look, size: s.look.size * 1.5, rotation: 30 } };
+  s = selectSet(s, stampSet("castle"));
+  assert.deepEqual(s.look, factoryLook(stampSet("castle"))); // first time: its own defaults
+  assert.equal(s.spread, 2); // shared
+  s = { ...s, look: { ...s.look, ink: "#123456" } };
+  s = selectSet(s, stampSet("tree"));
+  assert.equal(s.look.rotation, 30);
+  assert.ok(Math.abs(scaleOf(s.look.size, stampSet("tree")) - 1.5) < 1e-9);
+  s = selectSet(s, stampSet("castle"));
+  assert.equal(s.look.ink, "#123456");
+  assert.equal(factoryLook(stampSet("rock")).pivot, "center");
+  assert.equal(factoryLook(stampSet("pine")).pivot, "base");
+});
+
+test("changing the anchor point doesn't move the stamp", async () => {
+  const { repivot, stampCenter, stampExtent } = await import("../features/mapmaker/stamps/geometry.ts");
+  const W = 1000, H = 800;
+  const st = makeStamp({ ...selectSet(initialStampState(), stampSet("pine")), sizeJitter: 0 }, { x: 0.4, y: 0.6 }, mulberry32(3));
+  for (const rotation of [0, 37, -120]) {
+    for (const flipY of [false, true]) {
+      const o = { ...st, rotation, flipY, pivot: "base" };
+      const c = stampCenter(o, W, H);
+      const moved = { ...o, ...repivot(o, "center", W, H) };
+      const c2 = stampCenter(moved, W, H);
+      assert.ok(Math.hypot(c.x - c2.x, c.y - c2.y) < 1e-6);
+      assert.ok(Math.abs(moved.x * W - c.x) < 1e-6 && Math.abs(moved.y * H - c.y) < 1e-6);
+      const back = { ...moved, ...repivot(moved, "base", W, H) };
+      assert.ok(Math.abs(back.x - o.x) < 1e-12 && Math.abs(back.y - o.y) < 1e-12);
+    }
+  }
+  // Upright, the center is half the height above the base.
+  const { h } = stampExtent(st, W);
+  const c = stampCenter({ ...st, rotation: 0, flipY: false, pivot: "base" }, W, H);
+  assert.ok(Math.abs(c.y - (st.y * H - h / 2)) < 1e-9);
+});

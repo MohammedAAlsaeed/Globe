@@ -415,6 +415,7 @@
   color: #1a1408;
 }
 .mm-canvas-column {
+  position: relative;
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -1490,7 +1491,12 @@
 .mm-conflict-options .mm-option-card {
   text-align: start;
 }
+/* Floats over the top of the canvas, so it never pushes the map down. */
 .mm-editor-notice {
+  position: absolute;
+  top: 46px;
+  inset-inline: 0;
+  z-index: 5;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1498,12 +1504,13 @@
   padding: 8px 14px;
   font-size: 12px;
   color: #f5c2b3;
-  background: rgba(224, 134, 108, 0.12);
+  background: #2b2124;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.3);
   border-bottom: 1px solid rgba(224, 134, 108, 0.4);
 }
 .mm-editor-notice.ok {
   color: #e9d29a;
-  background: rgba(224, 164, 88, 0.1);
+  background: #2a2619;
   border-bottom-color: rgba(224, 164, 88, 0.4);
 }
 .mm-editor-notice.beside-floating {
@@ -1770,4 +1777,58 @@
 }
 .mm-object-row button.on {
   color: var(--mm-accent);
+}
+
+/* Sliders with a reset-to-default button */
+.mm-reset-row {
+  display: grid;
+  grid-template-columns: 1fr 20px;
+  align-items: center;
+  gap: 4px;
+}
+.mm-reset {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  background: none;
+  color: var(--mm-muted);
+}
+.mm-reset:hover {
+  background: var(--mm-panel-2);
+  color: var(--mm-accent);
+}
+.mm-st-resets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+/* In reset rows the label column is narrower, so long values ("122% · 65 px") fit on one line. */
+.mm-stamp-panel .mm-reset-row .mm-slider {
+  grid-template-columns: 64px 1fr auto;
+}
+.mm-stamp-panel .mm-reset-row .mm-slider b {
+  white-space: nowrap;
+  min-width: 34px;
+}
+.mm-st-resets .mm-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.mm-layer-stamps .mm-bp-section-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.mm-layer-stamps .mm-slider {
+  display: grid;
+  grid-template-columns: 80px 1fr 44px;
+  gap: 8px;
+}
+.mm-layer-stamps .mm-slider input[type="range"] {
+  width: 100%;
 }

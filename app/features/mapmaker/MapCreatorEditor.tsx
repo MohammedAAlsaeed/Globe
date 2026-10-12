@@ -45,7 +45,7 @@ import {
   saveLandTool,
   type LandToolState,
 } from "./brush/land";
-import { newSeed } from "./brush/noise";
+import { mulberry32, newSeed } from "./brush/noise";
 import { DEFAULT_SOURCE, loadFavorites, saveFavorites, type FavoriteBrush } from "./brush/presets";
 import { loadBrushState, saveBrushState, type BrushState } from "./brush/state";
 import { textureDef } from "./brush/textures";
@@ -101,6 +101,7 @@ import { uploadStamps } from "./stamps/upload";
 import { errorMessage } from "../account/ui";
 import { migrateProject } from "./stamps/migrate";
 import { STAMP_IMAGE, StampNode } from "./stamps/StampNode";
+import { repivot } from "./stamps/geometry";
 import { LayerStampSettings } from "./stamps/LayerStampSettings";
 import { alignDeltas, distributeDeltas, pickable, shiftPatch, withGroups, type AlignMode, type Rect as Box } from "./arrange";
 import { StampPanel, setLabel } from "./stamps/StampPanel";
@@ -187,6 +188,16 @@ function storedClipboard(): { layerId: string; objs: MMObject[] } | null {
     return Array.isArray(objs) && objs.length ? { layerId: "", objs } : null;
   } catch {
     return null;
+  }
+}
+/** What Ctrl/⌘ + wheel does over the canvas (a per-browser preference). */
+type CtrlWheel = "zoom" | "rotate";
+const CTRL_WHEEL_KEY = "mapmaker-ctrl-wheel";
+function loadCtrlWheel(): CtrlWheel {
+  try {
+    return localStorage.getItem(CTRL_WHEEL_KEY) === "rotate" ? "rotate" : "zoom";
+  } catch {
+    return "zoom";
   }
 }
 function findNode(stage: Konva.Stage, id: string): Konva.Node | null {
@@ -318,6 +329,8 @@ export function MapCreatorEditor({
   // ---- Project state (undo/redo history) ----------------------------------
   // Maps saved before the Stamp Tool open with their icons as stamps.
   const [migratedInitial] = useState(() => migrateProject(initial));
+  /** The preview that follows the pointer while placing stamps. */
+  const stampGhostRef = useRef<Konva.Group>(null);
   const { project, updateProject, undo, redo, canUndo, canRedo } = useHistory(migratedInitial);
   const setProject = updateProject;
   /** Each map layer's Konva layer (its own canvas), for layer blend modes. */
@@ -357,6 +370,11 @@ export function MapCreatorEditor({
     /** Multiple placement in progress: the stamps dropped so far. */
     [scatterDraft, setScatterDraft] = useState<MMStamp[] | null>(null),
     [stampUpload, setStampUpload] = useState<{ busy: boolean; error: string | null }>({ busy: false, error: null }),
+    /** What Ctrl/⌘ + wheel does over the canvas: zoom the map, or (as in
+     * Inkarnate) turn the stamp being placed or the selected stamps. */
+    [ctrlWheel, setCtrlWheel] = useState<CtrlWheel>(loadCtrlWheel),
+    /** Bumped after each placement, so the next stamp (and its preview) is a new draw. */
+    [stampDraw, setStampDraw] = useState(1),
     [pathKind, setPathKind] = useState<PathKind>("river"),
     [pathWidth, setPathWidth] = useState(0.006),
     [pathOpacity, setPathOpacity] = useState(1),
@@ -768,8 +786,26 @@ export function MapCreatorEditor({
         selectTool(TOOLS[hotkeyIndex].key);
         return;
       }
-      // ---- Brush Tool shortcuts ----
       const key = e.key.toLowerCase();
+      // ---- Stamp size & direction: W/S or ] / [ resize, < / > turn
+      // (Alt: fine steps) ----
+      if (!mod && stampStepsActive()) {
+        // By physical key, so Alt (fine steps) works on every layout.
+        const fine = e.altKey,
+          c = e.code;
+        if (c === "KeyW" || c === "BracketRight" || c === "KeyS" || c === "BracketLeft") {
+          e.preventDefault();
+          const grow = c === "KeyW" || c === "BracketRight";
+          scaleStamps(grow ? (fine ? 1.01 : 1.1) : 1 / (fine ? 1.01 : 1.1));
+          return;
+        }
+        if (c === "Comma" || c === "Period") {
+          e.preventDefault();
+          turnStamps((c === "Period" ? 1 : -1) * (fine ? 1 : 15));
+          return;
+        }
+      }
+      // ---- Brush Tool shortcuts ----
       if (!mod && !e.altKey && (key === "b" || key === "l")) {
         e.preventDefault();
         selectTool(key === "b" ? "brush" : "land");
@@ -806,7 +842,7 @@ export function MapCreatorEditor({
       window.removeEventListener("keyup", onKeyUp);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tool, selectedIds, selectedObjs, undo, redo, spaceHeld, polyDraft, project.width]);
+  }, [tool, selectedIds, selectedObjs, undo, redo, spaceHeld, polyDraft, project.width, stampTool]);
 
   // ---- Shared small helpers (used by keyboard shortcuts, the Edit menu and
   // the toolbars, so all three stay in sync with one implementation) ----
@@ -921,9 +957,10 @@ export function MapCreatorEditor({
     if (select) setSelectedIds(list.map((o) => o.id));
   }
   /** Applies a look change to stamps (the Stamp panel while stamps are selected). */
-  function updateStamps(ids: string[], patch: Partial<MMStamp>) {
+  /** Changes stamps relative to their own values (keyboard and wheel steps). */
+  function adjustStamps(ids: string[], change: (o: MMStamp) => Partial<MMStamp>) {
     setProject((p) =>
-      applyObjectPatches(p, new Map(ids.map((id) => [id, (cur: MMObject) => (cur.kind === "stamp" ? patch : {})]))),
+      applyObjectPatches(p, new Map(ids.map((id) => [id, (cur: MMObject) => (cur.kind === "stamp" ? change(cur) : {})]))),
     );
   }
   function updateObject(id: string, patch: MMPatch) {
@@ -1417,16 +1454,94 @@ export function MapCreatorEditor({
     setNotice(error ?? t("stSceneSaved"));
   }
 
+  // The canvas wheel, as a native listener so it can stop the page scrolling:
+  //   Shift + wheel        resize stamps (placing, or the selected ones)
+  //   Alt + wheel          turn them
+  //   Ctrl/⌘ + wheel       zoom the map — or turn stamps, by preference
+  //   wheel / two fingers  scroll the map
+  const wheelRef = useRef<(e: WheelEvent) => void>(() => {});
+  useLayoutEffect(() => {
+    wheelRef.current = (e: WheelEvent) => {
+      const mod = e.ctrlKey || e.metaKey,
+        // macOS turns Shift + wheel into a sideways scroll.
+        d = e.deltaY || e.deltaX;
+      if (stampStepsActive() && d && (e.shiftKey || e.altKey || (mod && ctrlWheel === "rotate"))) {
+        e.preventDefault();
+        if (e.shiftKey && !e.altKey && !mod) scaleStamps(d < 0 ? 1.05 : 1 / 1.05);
+        else turnStamps(d < 0 ? -5 : 5);
+        return;
+      }
+      if (!mod) return;
+      e.preventDefault();
+      const el = containerRef.current;
+      const nextZoom = Math.max(0.25, Math.min(4, zoom - e.deltaY * 0.0015));
+      if (el) {
+        const rect = el.getBoundingClientRect(),
+          clientX = e.clientX - rect.left,
+          clientY = e.clientY - rect.top;
+        zoomAnchorRef.current = {
+          contentX: el.scrollLeft + clientX,
+          contentY: el.scrollTop + clientY,
+          scaleRatio: nextZoom / zoom,
+          clientX,
+          clientY,
+        };
+      }
+      setZoom(nextZoom);
+    };
+  });
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => wheelRef.current(e);
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, []);
+
+  // ---- Stamp size & direction from the keyboard and wheel -----------------------
+  // The same steps work while placing (they change the next stamp, and its
+  // preview follows) and on selected stamps (each changes where it stands).
+  /** Stamps the steps act on, or null while placing. */
+  function nudgeTargets() {
+    return tool === "select" && selectedStamps.length ? selectedStamps.map((o) => o.id) : null;
+  }
+  const stampStepsActive = () => tool === "stamp" || (tool === "select" && selectedStamps.length > 0);
+  function scaleStamps(k: number) {
+    const ids = nudgeTargets();
+    if (ids) adjustStamps(ids, (o) => ({ size: clamp(o.size * k, 0.002, 0.8) }));
+    else setStampTool((st) => ({ ...st, look: { ...st.look, size: clamp(st.look.size * k, 0.002, 0.8) } }));
+  }
+  function turnStamps(deg: number) {
+    const ids = nudgeTargets();
+    if (ids) adjustStamps(ids, (o) => ({ rotation: normalizeAngle(o.rotation + deg) }));
+    else setStampTool((st) => ({ ...st, look: { ...st.look, rotation: normalizeAngle(st.look.rotation + deg) } }));
+  }
+  function changeCtrlWheel(next: CtrlWheel) {
+    setCtrlWheel(next);
+    try {
+      localStorage.setItem(CTRL_WHEEL_KEY, next);
+    } catch {}
+  }
+
   // ---- Stamp tool ---------------------------------------------------------------
+  /** The stamp the next click places (variant, size and turn already drawn),
+   * shown as a preview under the pointer. */
+  const nextStamp = useMemo(
+    () => (tool === "stamp" ? makeStamp(stampTool, { x: 0, y: 0 }, mulberry32(stampDraw * 7907)) : null),
+    [tool, stampTool, stampDraw],
+  );
   /** Single: a click places one stamp. Multiple: a drag scatters stamps along
    * the stroke (previewed live, added as one undo step on release). Auto: a
    * click places one, a drag scatters. */
   function startStamping(start: StagePoint, pointerId: number) {
     const s = stampTool,
       { w, h } = viewRef.current;
+    // A click places exactly the stamp its preview showed.
     const placeOne = () => {
-      const st = makeStamp(s, snap({ x: clamp(start.x / w, 0, 1), y: clamp(start.y / h, 0, 1) }), Math.random);
-      if (st) addObjects([st], s.autoSelect);
+      if (!nextStamp) return;
+      const at = snap({ x: clamp(start.x / w, 0, 1), y: clamp(start.y / h, 0, 1) });
+      addObjects([{ ...nextStamp, id: crypto.randomUUID(), x: at.x, y: at.y }], s.autoSelect);
+      setStampDraw((n) => n + 1);
     };
     if (s.placement === "single") return placeOne();
     let scatter: Scatter | null = null;
@@ -1468,6 +1583,7 @@ export function MapCreatorEditor({
           count: selectedStamps.length,
           look: lookOf(selectedStamps[0]),
           vector: selectedStamps.every((o) => setOfAsset(o.asset)?.vector ?? true),
+          setId: setOfAsset(selectedStamps[0].asset)?.id ?? null,
         }
       : null;
   /** Clip "texture" starts from the land texture at or below the active layer. */
@@ -1476,10 +1592,22 @@ export function MapCreatorEditor({
       if (project.layers[i].role === "land") return landSettings(project.layers[i]).base;
     return DEFAULT_SOURCE;
   })();
+  /** Applies a look change to every selected stamp, each where it stands.
+   * A new anchor point moves (x, y) so the stamp itself doesn't move. */
   function editSelectedStamps(patch: Partial<StampLook>) {
-    updateStamps(
-      selectedStamps.map((o) => o.id),
-      patch,
+    const { pivot, ...rest } = patch,
+      w = W,
+      h = H;
+    setProject((p) =>
+      applyObjectPatches(
+        p,
+        new Map(
+          selectedStamps.map((o) => [
+            o.id,
+            (cur: MMObject) => (cur.kind === "stamp" ? { ...rest, ...(pivot ? repivot({ ...cur, ...rest }, pivot, w, h) : {}) } : {}),
+          ]),
+        ),
+      ),
     );
   }
 
@@ -1738,6 +1866,7 @@ export function MapCreatorEditor({
   }
   /** Brush size cursor: follows the pointer over the canvas (imperatively). */
   function handleStageHover(e: Konva.KonvaEventObject<PointerEvent>) {
+    moveStampGhost(e.target.getStage()?.getPointerPosition() ?? null);
     const c = brushCursorRef.current;
     if (!c) return;
     const pos = e.target.getStage()?.getPointerPosition();
@@ -1747,7 +1876,23 @@ export function MapCreatorEditor({
     else c.visible(false);
     c.getLayer()?.batchDraw();
   }
+  /** Moves the placing preview to the pointer (snapped like the click will be). */
+  function moveStampGhost(pos: StagePoint | null) {
+    const g = stampGhostRef.current;
+    if (!g) return;
+    if (!pos || spaceHeld) {
+      if (g.visible()) {
+        g.visible(false);
+        g.getLayer()?.batchDraw();
+      }
+      return;
+    }
+    const at = stampTool.placement === "multiple" ? toNorm(pos) : snap(toNorm(pos));
+    g.setAttrs({ x: at.x * W, y: at.y * H, visible: true });
+    g.getLayer()?.batchDraw();
+  }
   function hideBrushCursor() {
+    moveStampGhost(null);
     const c = brushCursorRef.current;
     if (c?.visible()) {
       c.visible(false);
@@ -2137,6 +2282,10 @@ export function MapCreatorEditor({
               <MenuHint label={t("mmPan")} hint={t("mmPanHint")} />
               <MenuHint label={t("mmCancelDraft")} hint={t("mmEscapeHint")} />
               <MenuHint label={t("mmMultiSelect")} hint={t("mmMultiSelectHint")} />
+              <div className="mm-menu-heading">{t("stWheelHeading")}</div>
+              <MenuRow label={t("stWheelZoom")} icon={ctrlWheel === "zoom" ? "check" : undefined} onClick={() => changeCtrlWheel("zoom")} />
+              <MenuRow label={t("stWheelRotate")} icon={ctrlWheel === "rotate" ? "check" : undefined} onClick={() => changeCtrlWheel("rotate")} />
+              <MenuHint label={t("stStampKeys")} hint={t("stStampKeysHint")} />
             </div>
           )}
         </div>
@@ -2514,25 +2663,6 @@ export function MapCreatorEditor({
             onPointerMove={movePan}
             onPointerUp={endPan}
             onPointerCancel={endPan}
-            onWheel={(e) => {
-              if (!e.ctrlKey && !e.metaKey) return;
-              e.preventDefault();
-              const el = containerRef.current;
-              const nextZoom = Math.max(0.25, Math.min(4, zoom - e.deltaY * 0.0015));
-              if (el) {
-                const rect = el.getBoundingClientRect(),
-                  clientX = e.clientX - rect.left,
-                  clientY = e.clientY - rect.top;
-                zoomAnchorRef.current = {
-                  contentX: el.scrollLeft + clientX,
-                  contentY: el.scrollTop + clientY,
-                  scaleRatio: nextZoom / zoom,
-                  clientX,
-                  clientY,
-                };
-              }
-              setZoom(nextZoom);
-            }}
           >
             <Stage
               ref={stageRef}
@@ -2708,6 +2838,20 @@ export function MapCreatorEditor({
                       <Circle key={i} x={p.x * W} y={p.y * H} radius={i === 0 ? 5 : 4} fill={i === 0 ? "#f2a65a" : "#cfd7de"} />
                     ))}
                   </>
+                )}
+                {tool === "stamp" && nextStamp && (
+                  <Group ref={stampGhostRef} name="stampGhost" visible={false} opacity={0.7}>
+                    <StampNode o={nextStamp} W={W} H={H} shadow={active ? resolveShadow(nextStamp, active) : null} />
+                    {stampTool.placement !== "single" && stampTool.spread > 0 && (
+                      <Circle
+                        radius={(stampTool.spread * stampTool.look.size * W) / 2}
+                        stroke="rgba(255,255,255,0.7)"
+                        strokeWidth={1}
+                        dash={[4, 4]}
+                        opacity={stampTool.placement === "multiple" ? 1 : 0.45}
+                      />
+                    )}
+                  </Group>
                 )}
                 {marqueeStart && (
                   <Rect

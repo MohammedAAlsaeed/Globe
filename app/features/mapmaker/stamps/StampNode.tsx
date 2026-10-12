@@ -13,7 +13,8 @@ import { Group, Image as KonvaImage, Rect } from "react-konva";
 import type Konva from "konva";
 import type { MMStamp, ShadowSettings } from "../types";
 import { catalogVersion, subscribeCatalog } from "./catalog";
-import { stampAspect, stampPicture, stampRaster } from "./render";
+import { stampExtent } from "./geometry";
+import { stampPicture, stampRaster } from "./render";
 
 type Handlers = {
   id: string;
@@ -52,22 +53,22 @@ export const StampNode = memo(function StampNode({
   const [, loaded] = useReducer((n: number) => n + 1, 0);
   // Uploaded stamps appear once the server's library has been loaded.
   useSyncExternalStore(subscribeCatalog, catalogVersion, catalogVersion);
-  const w = Math.max(1, o.size * W),
-    h = w * stampAspect(o.asset),
+  const { w, h } = stampExtent(o, W),
     image = stampPicture(o, w * dpr(), W, H);
   // An uploaded image may still be loading: draw again once it arrives.
   useEffect(() => {
     if (!image) stampRaster(o, w * dpr(), loaded);
   }, [image, o, w]);
 
-  // The group carries position, rotation and the Transformer's resizing;
-  // the flips live on the picture inside it, so the selection box (and its
-  // rotate handle) always stays upright.
+  // The group sits at the pivot and carries rotation and the Transformer's
+  // resizing; the flips live on the picture inside it, so the selection box
+  // (and its rotate handle) always stays upright. A base pivot draws the
+  // picture upward from (x, y), so it grows and turns standing on the ground.
   const flip = {
     width: w,
     height: h,
     offsetX: w / 2,
-    offsetY: h / 2,
+    offsetY: o.pivot === "base" ? h : h / 2,
     scaleX: o.flipX ? -1 : 1,
     scaleY: o.flipY ? -1 : 1,
   };

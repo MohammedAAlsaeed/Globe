@@ -33,6 +33,7 @@ function imageSet(id: string, pack: string, name: string, category: StampCategor
     shadow: false,
     rotationJitter: 0,
     randomFlip: false,
+    pivot: "center",
     ...extra,
   };
 }

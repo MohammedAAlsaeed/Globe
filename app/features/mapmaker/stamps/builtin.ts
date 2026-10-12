@@ -449,6 +449,8 @@ export interface BuiltinSet {
   /** Placement defaults: random rotation (degrees either way), flips. */
   rotationJitter: number;
   randomFlip: boolean;
+  /** Side-view art stands on its base; top-down art turns about its center. */
+  pivot: "base" | "center";
 }
 const INK = "#3a2e22";
 const seedOf = (id: string, v: number) => {
@@ -476,6 +478,7 @@ const set = (
   shadow: true,
   rotationJitter: 0,
   randomFlip: true,
+  pivot: "base",
   ...look,
 });
 
@@ -484,7 +487,7 @@ export const BUILTIN_SETS: BuiltinSet[] = [
   set("snowMountain", "terrain", 4, (s) => mountain(s, { snow: true }), { size: 0.075, fill: "#d9cdb2", tags: ["peak", "snow", "alpine"] }),
   set("hill", "terrain", 4, hill, { size: 0.06, fill: "#c9c48f", tags: ["mound"] }),
   set("volcano", "terrain", 3, volcano, { size: 0.075, fill: "#b9a58c", tags: ["lava", "fire"] }),
-  set("rock", "terrain", 5, rock, { size: 0.02, fill: "#aaa08e", rotationJitter: 180, tags: ["stone", "boulder"] }),
+  set("rock", "terrain", 5, rock, { size: 0.02, fill: "#aaa08e", rotationJitter: 180, pivot: "center", tags: ["stone", "boulder"] }),
   set("dune", "terrain", 3, dune, { size: 0.06, fill: "#dcc189", shadow: false, tags: ["desert", "sand"] }),
   set("tree", "vegetation", 6, tree, { size: 0.026, ink: "#26301c", fill: "#71904a", tags: ["forest", "oak", "wood"] }),
   set("pine", "vegetation", 6, pine, { size: 0.026, ink: "#1f2a1c", fill: "#4c6b3e", tags: ["forest", "conifer", "fir"] }),
@@ -499,8 +502,8 @@ export const BUILTIN_SETS: BuiltinSet[] = [
   set("tent", "settlements", 3, tent, { size: 0.02, fill: "#d8c08e", tags: ["camp", "nomad"] }),
   set("ship", "water", 3, ship, { size: 0.045, ink: "#2c2418", fill: "#efe6cf", tags: ["sail", "galleon", "boat"] }),
   set("boat", "water", 3, boat, { size: 0.022, ink: "#2c2418", fill: "#efe6cf", tags: ["dhow", "sail"] }),
-  set("waves", "water", 4, waves, { size: 0.03, ink: "#d6e4ea", fill: null, shadow: false, tags: ["sea", "ocean"] }),
-  set("whirlpool", "water", 2, whirlpool, { size: 0.035, ink: "#d6e4ea", fill: null, shadow: false, rotationJitter: 180, tags: ["vortex", "maelstrom"] }),
+  set("waves", "water", 4, waves, { size: 0.03, ink: "#d6e4ea", fill: null, shadow: false, pivot: "center", tags: ["sea", "ocean"] }),
+  set("whirlpool", "water", 2, whirlpool, { size: 0.035, ink: "#d6e4ea", fill: null, shadow: false, rotationJitter: 180, pivot: "center", tags: ["vortex", "maelstrom"] }),
 ];
 
 /** The original line-art symbols as one-variant sets ("classic/<icon>"). */
@@ -518,6 +521,7 @@ export const CLASSIC_SETS: BuiltinSet[] = ICON_IDS.map((icon: IconId) => ({
   shadow: false,
   rotationJitter: 0,
   randomFlip: false,
+  pivot: "center",
 }));
 
 /** A classic symbol: its 24×24 line art, unchanged. */
