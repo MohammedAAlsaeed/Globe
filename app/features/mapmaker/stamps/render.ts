@@ -11,7 +11,8 @@ import { fillSource } from "../brush/engine";
 import { filterHex, filterRgb, hasFilters, hexToRgb, rgbToHex } from "../brush/textures";
 import type { MMLayer, MMStamp, ShadowSettings } from "../types";
 import type { ArtPart, VectorArt } from "./art";
-import { assetSize, setOfAsset, stampAsset, type StampAsset } from "./catalog";
+import { setOfAsset, stampAsset, type StampAsset } from "./catalog";
+import { stampCenter, stampExtent } from "./geometry";
 
 /** What decides a stamp's pixels (not where or how big it is placed). */
 export type StampColors = Pick<MMStamp, "asset" | "ink" | "fill" | "hue" | "saturation" | "brightness" | "contrast">;
@@ -176,14 +177,14 @@ export function stampPicture(o: MMStamp, px: number, W: number, H: number, onRea
   c.width = base.width;
   c.height = base.height;
   const ctx = c.getContext("2d")!,
-    w = o.size * W,
-    h = (w * c.height) / c.width,
-    k = c.width / w;
+    { w, h } = stampExtent(o, W),
+    center = stampCenter(o, W, H);
   ctx.drawImage(base, 0, 0);
   ctx.globalCompositeOperation = "source-in";
   ctx.save();
-  ctx.scale(k, k);
-  fillSource(ctx, o.clipSource, W, o.x * W - w / 2, o.y * H - h / 2, w, h);
+  // The raster has the art's proportions; the stamp may be stretched.
+  ctx.scale(c.width / w, c.height / h);
+  fillSource(ctx, o.clipSource, W, center.x - w / 2, center.y - h / 2, w, h);
   ctx.restore();
   ctx.globalCompositeOperation = "multiply";
   ctx.drawImage(base, 0, 0);
@@ -201,13 +202,7 @@ export function stampCompositeOp(o: Pick<MMStamp, "clip" | "blend">, layer: Pick
   return o.blend && o.blend !== "normal" ? o.blend : undefined;
 }
 
-/** Height / width of an asset (1 when it's unknown). */
-export function stampAspect(assetKey: string) {
-  const a = stampAsset(assetKey);
-  if (!a) return 1;
-  const { w, h } = assetSize(a);
-  return w > 0 ? h / w : 1;
-}
+export { stampAspect } from "./geometry";
 
 // ---- thumbnails ----------------------------------------------------------------------
 const thumbs = new Map<string, string>();

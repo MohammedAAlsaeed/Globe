@@ -259,7 +259,9 @@ function validObject(o: unknown): o is MMObject {
       (obj.customShadow === undefined || validShadow(obj.customShadow)) &&
       (obj.blend === undefined || BLEND_MODES.includes(obj.blend as string)) &&
       (obj.clip === undefined || CLIPS.includes(obj.clip as string)) &&
-      (obj.clipSource === undefined || validSource(obj.clipSource))
+      (obj.clipSource === undefined || validSource(obj.clipSource)) &&
+      (obj.pivot === undefined || obj.pivot === "base" || obj.pivot === "center") &&
+      (obj.stretch === undefined || finite(obj.stretch, 0.2, 5))
     );
   if (obj.kind === "path")
     return (

@@ -297,6 +297,9 @@ export type StampShadowMode = "none" | "default" | "layer" | "custom";
  *           below by default), keeping the picture's lines and shading
  *  erase    the shape cuts through everything beneath it in its layer */
 export type StampClip = "none" | "texture" | "erase";
+/** The point a stamp is placed at, turns and grows around: its base (where
+ * a tree or a house meets the ground) or its center. */
+export type StampPivot = "base" | "center";
 
 export interface MMStamp extends MMObjectBase {
   kind: "stamp";
@@ -331,6 +334,11 @@ export interface MMStamp extends MMObjectBase {
   clip?: StampClip;
   /** Clip "texture": what fills the shape. */
   clipSource?: PaintSource;
+  /** What (x, y) is: the stamp's base or its center (unset = center, as
+   * stamps were placed before pivots existed). */
+  pivot?: StampPivot;
+  /** Height relative to the art's own proportions (unset = 1). */
+  stretch?: number;
 }
 
 export type MMObject = MMBrush | MMStamp | MMPath | MMRegion | MMLabel | MMPaint | MMLand;

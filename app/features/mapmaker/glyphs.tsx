@@ -77,6 +77,13 @@ const PATHS: Record<string, React.ReactNode> = {
       <path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3" />
     </>
   ),
+  reset: (
+    <>
+      <path d="M4 12a8 8 0 1 0 2.4-5.7" />
+      <path d="M4 4v4h4" />
+    </>
+  ),
+  check: <path d="M5 12.5l4.5 4.5L19 7" />,
   path: <path d="M3 17c3-7 6 7 9 0s6-7 9 0" />,
   region: <path d="M12 3.5 20 8l-2.5 12h-11L4 8Z" />,
   label: <path d="M4 5h16M12 5v14" />,

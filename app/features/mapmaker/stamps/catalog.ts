@@ -50,6 +50,8 @@ export interface StampSet {
   shadow: boolean;
   rotationJitter: number;
   randomFlip: boolean;
+  /** Where new stamps of this set are anchored (see MMStamp.pivot). */
+  pivot: "base" | "center";
   /** Server packs above the person's plan: shown, but not placeable. */
   locked?: boolean;
   /** Not listed in the catalog: uploaded stamps a map uses, loaded only to draw it. */
@@ -85,6 +87,7 @@ function addBuiltin(b: BuiltinSet) {
     shadow: b.shadow,
     rotationJitter: b.rotationJitter,
     randomFlip: b.randomFlip,
+    pivot: b.pivot,
   });
 }
 for (const b of [...BUILTIN_SETS, ...CLASSIC_SETS]) addBuiltin(b);

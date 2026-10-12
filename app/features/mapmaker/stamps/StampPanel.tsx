@@ -12,7 +12,7 @@
 import { useMemo, useReducer, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import Link from "next/link";
 import { Glyph } from "../glyphs";
-import { ColorControl, Section, Slider, Toggle } from "../components/EditorControls";
+import { ColorControl, ResetSlider, Section, Slider, Toggle } from "../components/EditorControls";
 import { BLEND_MODES } from "../brush/BrushPanel";
 import { SourcePicker } from "../brush/SourcePicker";
 import type { BlendMode, PaintSource, ShadowSettings, StampClip, StampShadowMode } from "../types";
@@ -26,7 +26,7 @@ import {
   type StampSet,
 } from "./catalog";
 import { stampThumb } from "./render";
-import { selectSet, type StampLook, type StampPlacement, type StampToolState } from "./state";
+import { factoryLook, selectSet, type StampLook, type StampPlacement, type StampToolState } from "./state";
 
 type T = (k: string, opts?: Record<string, unknown>) => string;
 
@@ -152,7 +152,7 @@ export function StampPanel({
   state: StampToolState;
   onChange: (next: StampToolState) => void;
   /** Selected stamps being edited (their shared look), or null. */
-  editing: { count: number; look: StampLook; vector: boolean } | null;
+  editing: { count: number; look: StampLook; vector: boolean; setId: string | null } | null;
   onEditLook: (patch: Partial<StampLook>) => void;
   onDoneEditing: () => void;
   t: T;
@@ -184,7 +184,9 @@ export function StampPanel({
 
   const patch = (p: Partial<StampToolState>) => onChange({ ...s, ...p });
   const look = editing ? editing.look : s.look,
-    vector = editing ? editing.vector : (set?.vector ?? true);
+    vector = editing ? editing.vector : (set?.vector ?? true),
+    // The set's own values: what each Reset returns to, and 100% size.
+    factory = factoryLook(editing ? (editing.setId ? stampSet(editing.setId) : undefined) : set);
   const setLook = (p: Partial<StampLook>) => (editing ? onEditLook(p) : patch({ look: { ...s.look, ...p } }));
   const setShadow = (p: Partial<ShadowSettings>) => setLook({ customShadow: { ...look.customShadow, ...p } });
   const px = (v: number) => `${Math.max(1, Math.round(v * mapWidthPx))} px`;
@@ -313,16 +315,39 @@ export function StampPanel({
 
       {/* ---- look: new stamps, or the selected ones ---- */}
       <Section title={t("stTransform")} open>
-        <Slider
+        <ResetSlider
           label={t("stSize")}
           value={look.size}
-          min={0.003}
-          max={0.4}
-          step={0.001}
+          defaultValue={factory.size}
+          resetLabel={t("stReset")}
+          min={Math.max(0.002, factory.size * 0.1)}
+          max={Math.min(0.8, factory.size * 5)}
+          step={factory.size * 0.01}
           onChange={(v) => setLook({ size: v })}
-          format={px}
+          format={(v) => `${Math.round((v / factory.size) * 100)}% · ${px(v)}`}
         />
-        <Slider label={t("stRotation")} value={Math.round(look.rotation)} min={-180} max={180} step={1} onChange={(v) => setLook({ rotation: v })} format={(v) => `${v}°`} />
+        <ResetSlider
+          label={t("stRotation")}
+          value={Math.round(look.rotation)}
+          defaultValue={0}
+          resetLabel={t("stReset")}
+          min={-180}
+          max={180}
+          step={1}
+          onChange={(v) => setLook({ rotation: v })}
+          format={(v) => `${v}°`}
+        />
+        <ResetSlider
+          label={t("stStretch")}
+          value={look.stretch}
+          defaultValue={1}
+          resetLabel={t("stReset")}
+          min={0.5}
+          max={2}
+          step={0.01}
+          onChange={(v) => setLook({ stretch: v })}
+          format={pct}
+        />
         <div className="mm-st-flips">
           <button className={`mm-pill ${look.flipX ? "selected" : ""}`} aria-pressed={look.flipX} onClick={() => setLook({ flipX: !look.flipX })}>
             <Glyph name="flipH" size={14} />
@@ -331,6 +356,26 @@ export function StampPanel({
           <button className={`mm-pill ${look.flipY ? "selected" : ""}`} aria-pressed={look.flipY} onClick={() => setLook({ flipY: !look.flipY })}>
             <Glyph name="flipV" size={14} />
             {t("stFlipV")}
+          </button>
+        </div>
+        <span className="mm-bp-subtitle">{t("stPivot")}</span>
+        <div className="mm-bp-segment" role="radiogroup" aria-label={t("stPivot")}>
+          {(["base", "center"] as const).map((p) => (
+            <button key={p} className={look.pivot === p ? "active" : ""} role="radio" aria-checked={look.pivot === p} onClick={() => setLook({ pivot: p })}>
+              {t(p === "base" ? "stPivotBase" : "stPivotCenter")}
+            </button>
+          ))}
+        </div>
+        <p className="mm-bp-hint">{t(look.pivot === "base" ? "stPivotBaseHint" : "stPivotCenterHint")}</p>
+        <div className="mm-st-resets">
+          <button
+            className="mm-pill"
+            onClick={() => setLook({ size: factory.size, rotation: 0, stretch: 1, flipX: false, flipY: false })}
+          >
+            <Glyph name="reset" size={12} /> {t("stResetTransform")}
+          </button>
+          <button className="mm-pill" onClick={() => setLook(factory)} title={t("stResetAllHint")}>
+            <Glyph name="reset" size={12} /> {t("stResetAll")}
           </button>
         </div>
       </Section>
@@ -370,14 +415,17 @@ export function StampPanel({
             </div>
           </>
         )}
-        <Slider label={t("stOpacity")} value={look.opacity} min={0.05} max={1} step={0.01} onChange={(v) => setLook({ opacity: v })} format={pct} />
-        <Slider label={t("mmHue")} value={look.hue} min={-180} max={180} step={1} onChange={(v) => setLook({ hue: v })} format={(v) => `${Math.round(v)}°`} />
-        <Slider label={t("mmSaturation")} value={look.saturation} min={-1} max={1} step={0.01} onChange={(v) => setLook({ saturation: v })} format={signed} />
-        <Slider label={t("mmBrightness")} value={look.brightness} min={-1} max={1} step={0.01} onChange={(v) => setLook({ brightness: v })} format={signed} />
-        <Slider label={t("mmContrast")} value={look.contrast} min={-1} max={1} step={0.01} onChange={(v) => setLook({ contrast: v })} format={signed} />
-        {(look.hue || look.saturation || look.brightness || look.contrast) !== 0 && (
-          <button className="mm-pill" onClick={() => setLook({ hue: 0, saturation: 0, brightness: 0, contrast: 0 })}>
-            {t("stResetColors")}
+        <ResetSlider label={t("stOpacity")} value={look.opacity} defaultValue={1} resetLabel={t("stReset")} min={0.05} max={1} step={0.01} onChange={(v) => setLook({ opacity: v })} format={pct} />
+        <ResetSlider label={t("mmHue")} value={look.hue} defaultValue={0} resetLabel={t("stReset")} min={-180} max={180} step={1} onChange={(v) => setLook({ hue: v })} format={(v) => `${Math.round(v)}°`} />
+        <ResetSlider label={t("mmSaturation")} value={look.saturation} defaultValue={0} resetLabel={t("stReset")} min={-1} max={1} step={0.01} onChange={(v) => setLook({ saturation: v })} format={signed} />
+        <ResetSlider label={t("mmBrightness")} value={look.brightness} defaultValue={0} resetLabel={t("stReset")} min={-1} max={1} step={0.01} onChange={(v) => setLook({ brightness: v })} format={signed} />
+        <ResetSlider label={t("mmContrast")} value={look.contrast} defaultValue={0} resetLabel={t("stReset")} min={-1} max={1} step={0.01} onChange={(v) => setLook({ contrast: v })} format={signed} />
+        {((look.hue || look.saturation || look.brightness || look.contrast) !== 0 || (vector && (look.ink !== factory.ink || look.fill !== factory.fill))) && (
+          <button
+            className="mm-pill"
+            onClick={() => setLook({ hue: 0, saturation: 0, brightness: 0, contrast: 0, ...(vector ? { ink: factory.ink, fill: factory.fill } : {}) })}
+          >
+            <Glyph name="reset" size={12} /> {t("stResetColors")}
           </button>
         )}
       </Section>
