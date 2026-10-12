@@ -16,6 +16,8 @@ class AssetResource extends JsonResource
             'id' => $this->id,
             'pack_id' => $this->pack_id,
             'name' => $this->name,
+            'set_key' => $this->set_key,
+            'category' => $this->category,
             'tags' => $this->tags ?? [],
             'mime' => $this->mime,
             'bytes' => $this->bytes,

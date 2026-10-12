@@ -4,6 +4,7 @@ namespace App\Http\Resources;
 
 use App\Models\AssetPack;
 use App\Services\Entitlements;
+use App\Services\FileUrls;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -22,6 +23,10 @@ class AssetPackResource extends JsonResource
             // Locked: visible in the library, but the plan doesn't include it.
             'locked' => ! app(Entitlements::class)->canUsePack($request->user(), $this->resource),
             'assets_count' => $this->whenCounted('assets'),
+            // A preview picture, so a locked pack can still be shown.
+            'cover_url' => $this->whenLoaded('cover', fn () => $this->cover
+                ? app(FileUrls::class)->temporary($this->cover->disk, $this->cover->path)
+                : null),
         ];
     }
 }

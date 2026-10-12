@@ -11,7 +11,6 @@ import {
   Layer,
   Rect,
   Line,
-  Path as KonvaPath,
   Text as KonvaText,
   Circle,
   Group,
@@ -47,7 +46,7 @@ import {
   type LandToolState,
 } from "./brush/land";
 import { newSeed } from "./brush/noise";
-import { loadFavorites, saveFavorites, type FavoriteBrush } from "./brush/presets";
+import { DEFAULT_SOURCE, loadFavorites, saveFavorites, type FavoriteBrush } from "./brush/presets";
 import { loadBrushState, saveBrushState, type BrushState } from "./brush/state";
 import { textureDef } from "./brush/textures";
 import { biomeSwatchDataUrl, biomeTexture } from "./textures";
@@ -69,7 +68,6 @@ import { useCloudSync } from "./cloud/useCloudSync";
 import { CloudStatusBar, ConflictDialog } from "./cloud/CloudControls";
 import { maps } from "../account/api";
 import { useAuth } from "../account/AuthProvider";
-import { ICONS, ICON_IDS, type IconId } from "../studio/domain/icons";
 import { saveHandoff } from "../studio/storage/projects";
 import { DEFAULT_DOCUMENT } from "../studio/domain/types";
 import type {
@@ -93,16 +91,28 @@ import type {
   PaintSource,
   PathKind,
   Point,
+  MMStamp,
 } from "./types";
 import {SelectField} from "@/components/ui/fields";
 import {ApiError} from "@/lib/api/client";
+import { setOfAsset, stampSet } from "./stamps/catalog";
+import { clearLibrary, loadLibrary, resolvePlaced } from "./stamps/remote";
+import { uploadStamps } from "./stamps/upload";
+import { errorMessage } from "../account/ui";
+import { migrateProject } from "./stamps/migrate";
+import { STAMP_IMAGE, StampNode } from "./stamps/StampNode";
+import { LayerStampSettings } from "./stamps/LayerStampSettings";
+import { alignDeltas, distributeDeltas, pickable, shiftPatch, withGroups, type AlignMode, type Rect as Box } from "./arrange";
+import { StampPanel, setLabel } from "./stamps/StampPanel";
+import { resolveShadow, stampCompositeOp, stampPicture } from "./stamps/render";
+import { Scatter, loadStampState, lookOf, makeStamp, saveStampState, selectSet, type StampLook, type StampToolState } from "./stamps/state";
 
-type Tool = "select" | "brush" | "land" | "icon" | "path" | "region" | "label";
+type Tool = "select" | "brush" | "land" | "stamp" | "path" | "region" | "label";
 const TOOLS: { key: Tool; labelKey: string }[] = [
   { key: "select", labelKey: "mmToolSelect" },
   { key: "brush", labelKey: "mmToolBrush" },
   { key: "land", labelKey: "mmToolLand" },
-  { key: "icon", labelKey: "mmToolStamp" },
+  { key: "stamp", labelKey: "mmToolStamp" },
   { key: "path", labelKey: "mmToolPath" },
   { key: "region", labelKey: "mmToolRegion" },
   { key: "label", labelKey: "mmToolLabel" },
@@ -111,7 +121,7 @@ const HINT_KEY: Record<Tool, string> = {
   select: "mmShortcutHintSelect",
   brush: "mmShortcutHintBrush",
   land: "mmShortcutHintLand",
-  icon: "mmShortcutHintStamp",
+  stamp: "mmShortcutHintStamp",
   path: "mmShortcutHintPath",
   region: "mmShortcutHintRegion",
   label: "mmShortcutHintLabel",
@@ -138,8 +148,6 @@ const MAX_LAYERS = 20,
   REGION_CLOSE_PX = 10,
   /** A click this close to the last vertex is ignored (double-click, jitter). */
   REGION_DUPLICATE_PX = 4,
-  /** An icon at scale 1 is this fraction of the map width. */
-  ICON_BASE = 0.05,
   /** Display width that stroke softness and texture sizes were tuned at. Both
    * are scaled by `W / EFFECT_REF_WIDTH`, so they stay proportional to the
    * map at every zoom level and in the full-resolution print export. */
@@ -150,7 +158,7 @@ const MAX_LAYERS = 20,
   NO_POINTS: number[] = [];
 
 type StrokeDraft = Omit<MMBrush, "points"> | Omit<MMPath, "points">;
-type ObjUpdater = (o: MMObject) => MMPatch;
+type ObjUpdater = (o: MMObject) => MMPatch | Partial<MMStamp>;
 type StagePoint = { x: number; y: number };
 /** Drawing on a land layer: its base texture and its current land coverage
  * (null while it has no land) — texture previews are clipped to the land. */
@@ -170,6 +178,17 @@ const q5 = (v: number) => Math.round(v * 1e5) / 1e5;
  * CSS-escaped: `CSS.escape` turns a UUID's leading digit into `\3X `, which
  * then never matches (≈10 in 16 objects). A predicate lookup sidesteps
  * selector parsing entirely. */
+/** The copied objects, kept per browser so they can be pasted into another map. */
+const CLIPBOARD_KEY = "mapmaker-clipboard";
+function storedClipboard(): { layerId: string; objs: MMObject[] } | null {
+  try {
+    const raw = localStorage.getItem(CLIPBOARD_KEY),
+      objs = raw ? (JSON.parse(raw) as MMObject[]) : null;
+    return Array.isArray(objs) && objs.length ? { layerId: "", objs } : null;
+  } catch {
+    return null;
+  }
+}
 function findNode(stage: Konva.Stage, id: string): Konva.Node | null {
   return stage.findOne((n: Konva.Node) => n.id() === id) ?? null;
 }
@@ -297,8 +316,21 @@ export function MapCreatorEditor({
     { user, refresh: refreshUser } = useAuth();
 
   // ---- Project state (undo/redo history) ----------------------------------
-  const { project, updateProject, undo, redo, canUndo, canRedo } = useHistory(initial);
+  // Maps saved before the Stamp Tool open with their icons as stamps.
+  const [migratedInitial] = useState(() => migrateProject(initial));
+  const { project, updateProject, undo, redo, canUndo, canRedo } = useHistory(migratedInitial);
   const setProject = updateProject;
+  /** Each map layer's Konva layer (its own canvas), for layer blend modes. */
+  const konvaLayersRef = useRef(new Map<string, Konva.Layer>());
+  /** A Konva layer's blend mode, as a canvas composite operation. */
+  function layerBlendOf(node: Konva.Layer): GlobalCompositeOperation {
+    for (const [id, n] of konvaLayersRef.current)
+      if (n === node) {
+        const blend = project.layers.find((l) => l.id === id)?.blend;
+        return blend && blend !== "normal" ? blend : "source-over";
+      }
+    return "source-over";
+  }
 
   // ---- UI state: active layer/tool/selection, panels, view ----------------
   const [activeLayerId, setActiveLayerId] = useState(
@@ -312,17 +344,19 @@ export function MapCreatorEditor({
   /** The cloud map this project is saved as (unset: this device only). */
   const [cloud, setCloud] = useState<CloudBinding | undefined>(initial.cloud);
   /** A message over the canvas (e.g. an export the plan doesn't allow). */
-  const [notice, setNotice] = useState<string | null>(null);
+  /** A message above the canvas: a problem (export limit) or a confirmation. */
+  const [notice, setNotice] = useState<string | null>(null),
+    [noticeOk, setNoticeOk] = useState(false);
   const [printing, setPrinting] = useState(false);
   const [zoom, setZoom] = useState(1);
   const [fitWidth, setFitWidth] = useState(900);
 
   const [color, setColor] = useState("#e7dcb8"),
     [recentColors, setRecentColors] = useState<string[]>([]),
-    [iconId, setIconId] = useState<IconId>("mountain"),
-    [recentIcons, setRecentIcons] = useState<IconId[]>([]),
-    [iconScale, setIconScale] = useState(1),
-    [iconRotation, setIconRotation] = useState(0),
+    [stampTool, setStampTool] = useState<StampToolState>(loadStampState),
+    /** Multiple placement in progress: the stamps dropped so far. */
+    [scatterDraft, setScatterDraft] = useState<MMStamp[] | null>(null),
+    [stampUpload, setStampUpload] = useState<{ busy: boolean; error: string | null }>({ busy: false, error: null }),
     [pathKind, setPathKind] = useState<PathKind>("river"),
     [pathWidth, setPathWidth] = useState(0.006),
     [pathOpacity, setPathOpacity] = useState(1),
@@ -384,7 +418,7 @@ export function MapCreatorEditor({
     landMasksRef = useRef(new Map<string, HTMLCanvasElement>());
   const [spaceHeld, setSpaceHeld] = useState(false),
     [panningActive, setPanningActive] = useState(false),
-    [hasClipboard, setHasClipboard] = useState(false),
+    [hasClipboard, setHasClipboard] = useState(() => typeof window !== "undefined" && !!storedClipboard()),
     [showEditMenu, setShowEditMenu] = useState(false),
     [marqueeStart, setMarqueeStart] = useState<StagePoint | null>(null),
     [contextMenu, setContextMenu] = useState<{ x: number; y: number; targetId: string | null } | null>(null);
@@ -410,8 +444,8 @@ export function MapCreatorEditor({
       m.set(l.id, {
         fx,
         base: landSettings(l).base,
-        lands: l.objects.filter((o): o is MMLand => o.kind === "land"),
-        paints: l.objects.filter((o): o is MMPaint => o.kind === "paint"),
+        lands: l.objects.filter((o): o is MMLand => o.kind === "land" && !o.hidden),
+        paints: l.objects.filter((o): o is MMPaint => o.kind === "paint" && !o.hidden),
       });
     }
     return m;
@@ -487,6 +521,51 @@ export function MapCreatorEditor({
     if (cloud && cloud.id !== initial.id) void deleteProject(initial.id).catch(() => {});
   }, [cloud, initial.id]);
 
+  // Layer blend modes: each layer is its own canvas, so the browser blends it
+  // with the canvases beneath (and printing does the same, see renderMapCanvas).
+  useEffect(() => {
+    for (const l of project.layers) {
+      const canvas = konvaLayersRef.current.get(l.id)?.getCanvas()._canvas;
+      if (canvas) canvas.style.mixBlendMode = l.blend && l.blend !== "normal" ? l.blend : "";
+    }
+  });
+
+  // ---- Stamps from the server's library (see ./stamps/remote) ----
+  useEffect(() => {
+    if (user) void loadLibrary();
+    else if (user === null) clearLibrary();
+  }, [user]);
+  // Uploaded stamps this map uses, even ones the library no longer lists.
+  useEffect(() => {
+    if (!user) return;
+    const keys = project.layers.flatMap((l) => l.objects.flatMap((o) => (o.kind === "stamp" ? [o.asset] : [])));
+    void resolvePlaced(keys);
+  }, [user, project.layers]);
+  /** Uploads pictures to My stamps. Returns the error message (also shown
+   * in the panel), or null when it worked. */
+  async function uploadOwnStamps(files: File[], asSet: boolean): Promise<string | null> {
+    setStampUpload({ busy: true, error: null });
+    try {
+      const setId = await uploadStamps(files, asSet),
+        set = setId ? stampSet(setId) : undefined;
+      if (set) setStampTool((st) => selectSet(st, set));
+      setStampUpload({ busy: false, error: null });
+      return null;
+    } catch (e) {
+      const quota = user?.plan.upload_quota_bytes ?? 0,
+        error =
+          e instanceof ApiError && e.code === "plan_limit_reached"
+            ? t("stUploadLimit", { quota: `${Math.round(quota / 1024 / 1024)} MB` })
+            : e instanceof Error && e.message === "emptyImage"
+              ? t("stUploadEmpty")
+              : errorMessage(t, e);
+      setStampUpload({ busy: false, error });
+      return error;
+    } finally {
+      void refreshUser();
+    }
+  }
+
   // ---- Cloud saving (see ./cloud/useCloudSync) ----
   const sync = useCloudSync({
     project,
@@ -531,7 +610,7 @@ export function MapCreatorEditor({
     const tr = transformerRef.current,
       stage = stageRef.current;
     if (!tr || !stage) return;
-    const handleIds = selectedObjs.filter((o) => o.kind !== "paint" && o.kind !== "land").map((o) => o.id);
+    const handleIds = selectedObjs.filter((o) => o.kind !== "paint" && o.kind !== "land" && !o.locked && !o.hidden).map((o) => o.id);
     const nodes =
       tool === "select" && selectionEditable
         ? handleIds.map((id) => findNode(stage, id)).filter((n): n is Konva.Node => !!n)
@@ -541,6 +620,11 @@ export function MapCreatorEditor({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tool, selectedIds, project, selectionEditable]);
 
+  // The Stamp tool's settings persist per browser too.
+  useEffect(() => {
+    const timer = setTimeout(() => saveStampState(stampTool), 400);
+    return () => clearTimeout(timer);
+  }, [stampTool]);
   // Brush settings and favorites persist per browser (debounced while sliding).
   useEffect(() => {
     const timer = setTimeout(() => saveBrushState(brushState), 400);
@@ -638,7 +722,13 @@ export function MapCreatorEditor({
         copySelection();
         return;
       }
-      if (mod && e.key.toLowerCase() === "v" && clipboardRef.current) {
+      if (mod && e.key.toLowerCase() === "g" && selectedIds.length) {
+        e.preventDefault();
+        if (e.shiftKey) ungroupSelection();
+        else groupSelection();
+        return;
+      }
+      if (mod && e.key.toLowerCase() === "v" && (clipboardRef.current || storedClipboard())) {
         e.preventDefault();
         pasteClipboard();
         return;
@@ -733,11 +823,17 @@ export function MapCreatorEditor({
     // The Land tool edits land layers: pick one if another layer is active.
     if (next === "land" && active?.role !== "land" && topLand) setActiveLayerId(topLand.id);
   }
+  /** The objects of the layer holding `id` (groups never span layers). */
+  function siblingsOf(id: string) {
+    return project.layers.find((l) => l.objects.some((o) => o.id === id))?.objects ?? [];
+  }
+  /** Picking one member of a group picks the whole group. */
   function selectOnly(id: string) {
-    setSelectedIds([id]);
+    setSelectedIds(withGroups([id], siblingsOf(id)));
   }
   function toggleSelect(id: string) {
-    setSelectedIds((ids) => (ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id]));
+    const unit = withGroups([id], siblingsOf(id));
+    setSelectedIds((ids) => (ids.includes(id) ? ids.filter((x) => !unit.includes(x)) : [...new Set([...ids, ...unit])]));
   }
   function clearSelection() {
     setSelectedIds([]);
@@ -748,6 +844,10 @@ export function MapCreatorEditor({
       layerId: selectedLayer?.id ?? "",
       objs: selectedObjs.map((o) => structuredClone(o)),
     };
+    // Also kept for this browser, so it can be pasted into another map.
+    try {
+      localStorage.setItem(CLIPBOARD_KEY, JSON.stringify(clipboardRef.current.objs));
+    } catch {}
     setHasClipboard(true);
   }
 
@@ -808,7 +908,23 @@ export function MapCreatorEditor({
       ),
     );
     setSelectedIds([o.id]);
-    if (o.kind === "icon") setRecentIcons((r) => [o.icon, ...r.filter((i) => i !== o.icon)].slice(0, 10));
+  }
+  /** Adds many objects to the active layer as one undo step (scattered stamps). */
+  function addObjects(list: MMObject[], select: boolean) {
+    if (!active || active.locked || !list.length) return;
+    const layerId = active.id;
+    setProject((p) =>
+      mapLayer(p, layerId, (l) =>
+        l.locked ? l : { ...l, objects: [...l.objects, ...list].slice(0, MAX_OBJECTS_PER_LAYER) },
+      ),
+    );
+    if (select) setSelectedIds(list.map((o) => o.id));
+  }
+  /** Applies a look change to stamps (the Stamp panel while stamps are selected). */
+  function updateStamps(ids: string[], patch: Partial<MMStamp>) {
+    setProject((p) =>
+      applyObjectPatches(p, new Map(ids.map((id) => [id, (cur: MMObject) => (cur.kind === "stamp" ? patch : {})]))),
+    );
   }
   function updateObject(id: string, patch: MMPatch) {
     setProject((p) => applyObjectPatches(p, new Map([[id, () => patch]])));
@@ -835,7 +951,7 @@ export function MapCreatorEditor({
   }
   function cloneWithOffset(o: MMObject): MMObject {
     const nid = crypto.randomUUID();
-    if (o.kind === "icon" || o.kind === "label")
+    if (o.kind === "stamp" || o.kind === "label")
       return { ...o, id: nid, x: Math.min(1, o.x + 0.02), y: Math.min(1, o.y + 0.02) };
     return {
       ...o,
@@ -843,11 +959,20 @@ export function MapCreatorEditor({
       points: o.points.map((p) => ({ x: Math.min(1, p.x + 0.02), y: Math.min(1, p.y + 0.02) })),
     };
   }
+  /** Copies of grouped objects form new groups of their own. */
+  function regroup(clones: MMObject[]): MMObject[] {
+    const fresh = new Map<string, string>();
+    return clones.map((c) => {
+      if (!c.group) return c;
+      if (!fresh.has(c.group)) fresh.set(c.group, crypto.randomUUID());
+      return { ...c, group: fresh.get(c.group) };
+    });
+  }
   function duplicateObjects(ids: string[]) {
     const idSet = new Set(ids);
     const layer = project.layers.find((l) => l.objects.some((o) => idSet.has(o.id)));
     if (!layer || layer.locked) return;
-    const clones = layer.objects.filter((o) => idSet.has(o.id)).map(cloneWithOffset);
+    const clones = regroup(layer.objects.filter((o) => idSet.has(o.id)).map(cloneWithOffset));
     if (!clones.length) return;
     setProject((p) => mapLayer(p, layer.id, (l) => ({ ...l, objects: [...l.objects, ...clones] })));
     setSelectedIds(clones.map((c) => c.id));
@@ -856,13 +981,13 @@ export function MapCreatorEditor({
     duplicateObjects([id]);
   }
   function pasteClipboard() {
-    const clip = clipboardRef.current;
+    const clip = clipboardRef.current ?? storedClipboard();
     if (!clip || !clip.objs.length) return;
     const layer =
       active && !active.locked ? active : project.layers.find((l) => l.id === clip.layerId);
     if (!layer || layer.locked) return;
     // Land shapes only make sense on a land layer.
-    const clones = clip.objs.filter((o) => o.kind !== "land" || layer.role === "land").map(cloneWithOffset);
+    const clones = regroup(clip.objs.filter((o) => o.kind !== "land" || layer.role === "land").map(cloneWithOffset));
     if (!clones.length) return;
     setProject((p) => mapLayer(p, layer.id, (l) => ({ ...l, objects: [...l.objects, ...clones] })));
     setSelectedIds(clones.map((c) => c.id));
@@ -937,7 +1062,7 @@ export function MapCreatorEditor({
     pending.set(id, updater);
   }
   function onObjectDragEnd(o: MMObject, node: Konva.Node) {
-    if (o.kind === "icon" || o.kind === "label") {
+    if (o.kind === "stamp" || o.kind === "label") {
       const x = node.x() / W,
         y = node.y() / H;
       queuePatch(o.id, () => ({ x, y }));
@@ -949,22 +1074,21 @@ export function MapCreatorEditor({
       dy = node.y() / H;
     node.position({ x: 0, y: 0 });
     queuePatch(o.id, (cur) =>
-      cur.kind === "icon" || cur.kind === "label"
+      cur.kind === "stamp" || cur.kind === "label"
         ? {}
         : { points: cur.points.map((p) => ({ x: p.x + dx, y: p.y + dy })) },
     );
   }
   function onObjectTransformEnd(o: MMObject, node: Konva.Node) {
     const uniform = Math.sqrt(Math.abs(node.scaleX() * node.scaleY())) || 1;
-    if (o.kind === "icon") {
-      const k = (W * ICON_BASE) / 24,
-        scale = clamp(uniform / k, 0.1, 8),
-        rotation = normalizeAngle(node.rotation()),
+    if (o.kind === "stamp") {
+      // The stamp's group is drawn at scale 1: fold the resize into the
+      // size and put the scale back.
+      const rotation = normalizeAngle(node.rotation()),
         x = node.x() / W,
-        y = node.y() / H,
-        s = Math.max(1, scale * W * ICON_BASE) / 24;
-      node.scale({ x: s, y: s }); // exactly what the next render will set
-      queuePatch(o.id, () => ({ scale, rotation, x, y }));
+        y = node.y() / H;
+      node.scale({ x: 1, y: 1 });
+      queuePatch(o.id, (cur) => (cur.kind === "stamp" ? { size: clamp(cur.size * uniform, 0.002, 0.8), rotation, x, y } : {}));
       return;
     }
     if (o.kind === "label") {
@@ -987,7 +1111,7 @@ export function MapCreatorEditor({
     node.rotation(0);
     node.skew({ x: 0, y: 0 });
     queuePatch(o.id, (cur) => {
-      if (cur.kind === "icon" || cur.kind === "label") return {};
+      if (cur.kind === "stamp" || cur.kind === "label") return {};
       const points = cur.points.map((p) => {
         const a = m.point({ x: p.x * w, y: p.y * h });
         return { x: a.x / w, y: a.y / h };
@@ -1001,7 +1125,9 @@ export function MapCreatorEditor({
   function objectHandlers(o: MMObject, layer: MMLayer) {
     return {
       id: o.id,
-      draggable: tool === "select" && !layer.locked,
+      // Locked objects let clicks pass through to whatever is beneath.
+      listening: !o.locked,
+      draggable: tool === "select" && !layer.locked && !o.locked,
       onClick: (e: Konva.KonvaEventObject<MouseEvent>) => {
         if (tool !== "select") return;
         if (e.evt.shiftKey) toggleSelect(o.id);
@@ -1143,18 +1269,8 @@ export function MapCreatorEditor({
       startDraw(pos, e.evt);
     } else if (tool === "path") {
       startStroke(p, e.evt.pointerId);
-    } else if (tool === "icon") {
-      const sp = snap(p);
-      addObject({
-        id: crypto.randomUUID(),
-        kind: "icon",
-        icon: iconId,
-        x: sp.x,
-        y: sp.y,
-        rotation: iconRotation,
-        scale: iconScale,
-        color,
-      });
+    } else if (tool === "stamp") {
+      startStamping(pos, e.evt.pointerId);
     } else if (tool === "region") {
       addRegionPoint(snap(p));
     } else if (tool === "label") {
@@ -1196,6 +1312,174 @@ export function MapCreatorEditor({
         if (!commit) return;
         if (points.length >= 2) addObject({ ...style, points });
       },
+    );
+  }
+
+  // ---- Arranging: groups, lock/hide, align & distribute (see ./arrange) -------
+  function groupSelection() {
+    if (selectedObjs.length < 2) return;
+    const group = crypto.randomUUID(),
+      ids = selectedObjs.map((o) => o.id);
+    setProject((p) => applyObjectPatches(p, new Map(ids.map((id) => [id, () => ({ group })]))));
+  }
+  function ungroupSelection() {
+    const ids = selectedObjs.filter((o) => o.group).map((o) => o.id);
+    if (!ids.length) return;
+    setProject((p) => applyObjectPatches(p, new Map(ids.map((id) => [id, () => ({ group: undefined })]))));
+  }
+  /** Locks/unlocks or hides/shows objects. Locked or hidden objects leave the selection. */
+  function setObjectFlags(ids: string[], flags: { locked?: boolean; hidden?: boolean }) {
+    if (!ids.length) return;
+    setProject((p) => applyObjectPatches(p, new Map(ids.map((id) => [id, () => flags]))));
+    if (flags.locked || flags.hidden) setSelectedIds((cur) => cur.filter((id) => !ids.includes(id)));
+  }
+  /** Selected objects' boxes on the stage, a group counting as one unit. */
+  function selectionUnits() {
+    const stage = stageRef.current,
+      units = new Map<string, { ids: string[]; rect: Box }>();
+    if (!stage) return units;
+    for (const o of selectedObjs) {
+      if (o.kind === "paint" || o.kind === "land" || o.locked) continue;
+      const node = findNode(stage, o.id);
+      if (!node) continue;
+      const r = node.getClientRect({ relativeTo: stage, skipShadow: true }),
+        key = o.group ?? o.id,
+        u = units.get(key);
+      if (!u) units.set(key, { ids: [o.id], rect: r });
+      else {
+        const x = Math.min(u.rect.x, r.x),
+          y = Math.min(u.rect.y, r.y);
+        u.rect = { x, y, width: Math.max(u.rect.x + u.rect.width, r.x + r.width) - x, height: Math.max(u.rect.y + u.rect.height, r.y + r.height) - y };
+        u.ids.push(o.id);
+      }
+    }
+    return units;
+  }
+  function arrangeSelection(how: AlignMode | "distributeX" | "distributeY") {
+    const units = selectionUnits();
+    if (units.size < 2) return;
+    const rects = new Map([...units].map(([k, u]) => [k, u.rect]));
+    const deltas =
+      how === "distributeX" ? distributeDeltas(rects, "x") : how === "distributeY" ? distributeDeltas(rects, "y") : alignDeltas(rects, how);
+    const updaters = new Map<string, ObjUpdater>();
+    for (const [key, d] of deltas) {
+      if (!d.dx && !d.dy) continue;
+      for (const id of units.get(key)!.ids) updaters.set(id, (cur) => shiftPatch(cur, d.dx / W, d.dy / H));
+    }
+    if (updaters.size) setProject((p) => applyObjectPatches(p, updaters));
+  }
+
+  /** Scene stamp: the selection drawn into one picture and saved to My
+   * stamps, to place again in any map. */
+  async function saveSelectionAsStamp() {
+    const stage = stageRef.current;
+    if (!stage || !user || !selectedObjs.length) return;
+    const parts = selectedObjs
+      .filter((o) => o.kind !== "paint" && o.kind !== "land" && !o.hidden)
+      .map((o) => ({ o, node: findNode(stage, o.id) }))
+      .filter((x): x is { o: MMObject; node: Konva.Node } => !!x.node);
+    if (!parts.length) return;
+    const rects = parts.map((x) => x.node.getClientRect({ relativeTo: stage })),
+      x0 = Math.min(...rects.map((r) => r.x)),
+      y0 = Math.min(...rects.map((r) => r.y)),
+      x1 = Math.max(...rects.map((r) => r.x + r.width)),
+      y1 = Math.max(...rects.map((r) => r.y + r.height)),
+      // As sharp as the map itself, at most 2048 px on the long side.
+      k = Math.min(project.width / W, 2048 / Math.max(1, x1 - x0, y1 - y0));
+    const out = document.createElement("canvas");
+    out.width = Math.max(1, Math.round((x1 - x0) * k));
+    out.height = Math.max(1, Math.round((y1 - y0) * k));
+    const ctx = out.getContext("2d")!,
+      restore: (() => void)[] = [];
+    try {
+      parts.forEach(({ o, node }, i) => {
+        // Stamps drawn from art sized for the picture, not the screen.
+        if (o.kind === "stamp") {
+          const img = (node as Konva.Group).findOne(`.${STAMP_IMAGE}`) as Konva.Image | undefined,
+            hi = stampPicture(o, o.size * W * k, W, H);
+          if (img && hi) {
+            const old = img.image();
+            img.image(hi);
+            restore.push(() => img.image(old));
+          }
+        }
+        const r = rects[i];
+        ctx.drawImage(node.toCanvas({ pixelRatio: k }), (r.x - x0) * k, (r.y - y0) * k, r.width * k, r.height * k);
+      });
+    } finally {
+      restore.forEach((f) => f());
+    }
+    const blob = await new Promise<Blob | null>((r) => out.toBlob(r, "image/png"));
+    if (!blob) return;
+    const name = t("stSceneName", { n: new Date().toLocaleDateString(i18n.language) });
+    const error = await uploadOwnStamps([new File([blob], `${name}.png`, { type: "image/png" })], false);
+    setNoticeOk(!error);
+    setNotice(error ?? t("stSceneSaved"));
+  }
+
+  // ---- Stamp tool ---------------------------------------------------------------
+  /** Single: a click places one stamp. Multiple: a drag scatters stamps along
+   * the stroke (previewed live, added as one undo step on release). Auto: a
+   * click places one, a drag scatters. */
+  function startStamping(start: StagePoint, pointerId: number) {
+    const s = stampTool,
+      { w, h } = viewRef.current;
+    const placeOne = () => {
+      const st = makeStamp(s, snap({ x: clamp(start.x / w, 0, 1), y: clamp(start.y / h, 0, 1) }), Math.random);
+      if (st) addObjects([st], s.autoSelect);
+    };
+    if (s.placement === "single") return placeOne();
+    let scatter: Scatter | null = null;
+    const placed: MMStamp[] = [];
+    const begin = () => {
+      scatter = new Scatter(s, w, h, newSeed());
+      placed.push(...scatter.feed(start.x, start.y));
+      setScatterDraft([...placed]);
+    };
+    if (s.placement === "multiple") begin();
+    trackPointer(
+      pointerId,
+      (pos) => {
+        // Auto: a drag (not a click) turns into scattering.
+        if (!scatter) {
+          if (Math.hypot(pos.x - start.x, pos.y - start.y) < 6) return;
+          begin();
+        }
+        const more = scatter!.feed(pos.x, pos.y);
+        if (more.length && placed.length < MAX_OBJECTS_PER_LAYER) {
+          placed.push(...more);
+          setScatterDraft([...placed]);
+        }
+      },
+      (commit) => {
+        setScatterDraft(null);
+        if (!commit) return;
+        if (!scatter) return placeOne();
+        const list = s.depthSort ? [...placed].sort((a, b) => a.y - b.y) : placed;
+        addObjects(list, false);
+      },
+    );
+  }
+  /** The look shared by the selected stamps (the first one's), for the panel. */
+  const selectedStamps = selectedObjs.filter((o): o is MMStamp => o.kind === "stamp");
+  const stampEditing =
+    selectedStamps.length > 0 && selectedStamps.length === selectedObjs.length && (tool === "select" || (tool === "stamp" && stampTool.autoSelect))
+      ? {
+          count: selectedStamps.length,
+          look: lookOf(selectedStamps[0]),
+          vector: selectedStamps.every((o) => setOfAsset(o.asset)?.vector ?? true),
+        }
+      : null;
+  /** Clip "texture" starts from the land texture at or below the active layer. */
+  const clipDefault = (() => {
+    for (let i = project.layers.findIndex((l) => l.id === active?.id); i >= 0; i--)
+      if (project.layers[i].role === "land") return landSettings(project.layers[i]).base;
+    return DEFAULT_SOURCE;
+  })();
+  function editSelectedStamps(patch: Partial<StampLook>) {
+    updateStamps(
+      selectedStamps.map((o) => o.id),
+      patch,
     );
   }
 
@@ -1510,14 +1794,15 @@ export function MapCreatorEditor({
     const nodes = new Map(stage.find((n: Konva.Node) => !!n.id()).map((n) => [n.id(), n]));
     const hits = active.objects
       .filter((o) => {
-        if (o.kind === "paint" || o.kind === "land") return false; // raster-like, not selectable on canvas
+        if (o.kind === "paint" || o.kind === "land" || !pickable(o)) return false; // raster-like, or locked/hidden
         const node = nodes.get(o.id);
         if (!node) return false;
         const r = node.getClientRect({ relativeTo: stage });
         return r.x < x1 && r.x + r.width > x0 && r.y < y1 && r.y + r.height > y0;
       })
       .map((o) => o.id);
-    setSelectedIds((cur) => (additive ? Array.from(new Set([...cur, ...hits])) : hits));
+    const unit = withGroups(hits, active.objects);
+    setSelectedIds((cur) => (additive ? Array.from(new Set([...cur, ...unit])) : unit));
   }
 
   /** Region (polygon) tool: click to add vertices; click the first vertex,
@@ -1638,6 +1923,16 @@ export function MapCreatorEditor({
     };
     // Not-yet-merged land edits: the full-res images already contain them.
     for (const n of stage.find((x: Konva.Node) => x.name() === LAND_PENDING_NAME)) swap(n, { visible: false });
+    // Stamps: their art redrawn at print size (uploaded images are already full size).
+    for (const layer of project.layers) {
+      if (!layer.visible) continue;
+      for (const o of layer.objects) {
+        if (o.kind !== "stamp") continue;
+        const node = (findNode(stage, o.id) as Konva.Group | null)?.findOne(`.${STAMP_IMAGE}`),
+          hi = node ? stampPicture(o, o.size * outW, outW, outH) : null;
+        if (node && hi) swap(node, { image: hi });
+      }
+    }
     for (const layer of project.layers) {
       if (!layer.visible) continue;
       if (landImages.has(layer.id)) {
@@ -1662,6 +1957,7 @@ export function MapCreatorEditor({
       const ctx = out.getContext("2d")!;
       for (const layer of stage.getLayers()) {
         if (!layer.visible() || layer === overlayLayerRef.current || layer === uiLayerRef.current) continue;
+        ctx.globalCompositeOperation = layerBlendOf(layer);
         ctx.drawImage(layer.toCanvas({ x: 0, y: 0, width: W, height: H, pixelRatio: ratio }), 0, 0, outW, outH);
       }
       return out;
@@ -1700,6 +1996,7 @@ export function MapCreatorEditor({
           await maps.recordExport(cloud.id, project.width, project.height);
         } catch (e) {
           if (e instanceof ApiError && e.code === "plan_limit_reached") {
+            setNoticeOk(false);
             setNotice(t("mmExportLimit", { px: e.body.max, w: project.width }));
             return;
           }
@@ -1737,8 +2034,10 @@ export function MapCreatorEditor({
     switch (o.kind) {
       case "label":
         return o.text || t("mmToolLabel");
-      case "icon":
-        return t(ICONS[o.icon].labelKey);
+      case "stamp": {
+        const set = setOfAsset(o.asset);
+        return set ? setLabel(t, set) : t("mmToolStamp");
+      }
       case "region":
         return t(BIOME_LABEL_KEY[o.biome]);
       case "path":
@@ -1822,6 +2121,8 @@ export function MapCreatorEditor({
               <MenuRow label={t("undo")} shortcut="⌘Z" disabled={!canUndo} onClick={() => { undo(); setShowEditMenu(false); }} />
               <MenuRow label={t("redo")} shortcut="⌘⇧Z" disabled={!canRedo} onClick={() => { redo(); setShowEditMenu(false); }} />
               <MenuRow label={t("mmDuplicateObject")} shortcut="⌘D" disabled={!selectedObjs.length} onClick={() => { duplicateObjects(selectedIds); setShowEditMenu(false); }} />
+              <MenuRow label={t("mmGroup")} shortcut="⌘G" disabled={selectedObjs.length < 2} onClick={() => { groupSelection(); setShowEditMenu(false); }} />
+              <MenuRow label={t("mmUngroup")} shortcut="⇧⌘G" disabled={!selectedObjs.some((o) => o.group)} onClick={() => { ungroupSelection(); setShowEditMenu(false); }} />
               <MenuRow label={t("mmCopyObject")} shortcut="⌘C" disabled={!selectedObjs.length} onClick={() => { copySelection(); setShowEditMenu(false); }} />
               <MenuRow label={t("mmPasteObject")} shortcut="⌘V" disabled={!hasClipboard} onClick={() => { pasteClipboard(); setShowEditMenu(false); }} />
               <MenuRow label={t("mmDeleteObject")} shortcut="⌫" disabled={!selectedObjs.length} onClick={() => { removeObjects(selectedIds); setShowEditMenu(false); }} />
@@ -1854,7 +2155,7 @@ export function MapCreatorEditor({
               title={t(tl.labelKey)}
               onClick={() => selectTool(tl.key)}
             >
-              <Glyph name={tl.key === "icon" ? "stamp" : tl.key} />
+              <Glyph name={tl.key} />
             </button>
           ))}
         </nav>
@@ -1936,8 +2237,43 @@ export function MapCreatorEditor({
             onEditCoast={landTarget ? showCoastPanel : null}
           />
         )}
+        {(tool === "stamp" || stampEditing) && (
+          <StampPanel
+            state={stampTool}
+            onChange={setStampTool}
+            editing={stampEditing}
+            onEditLook={editSelectedStamps}
+            onDoneEditing={clearSelection}
+            floating={tool !== "stamp"}
+            defaultClipSource={clipDefault}
+            layerBlends={!!active?.blend && active.blend !== "normal"}
+            uploads={{
+              signedIn: !!user,
+              used: user?.usage.upload_bytes ?? 0,
+              quota: user?.plan.upload_quota_bytes ?? 0,
+              busy: stampUpload.busy,
+              error: stampUpload.error,
+              onUpload: (files, asSet) => void uploadOwnStamps(files, asSet),
+            }}
+            t={t}
+            mapWidthPx={project.width}
+            recentColors={recentColors}
+            onCommitColor={(c) => setRecentColors((r) => pushRecent(r, c))}
+            target={
+              active && (
+                <EditTarget
+                  role={active.role ?? "custom"}
+                  layerName={active.name}
+                  what={t("stTarget")}
+                  note={active.locked ? t("mmTargetLocked") : undefined}
+                  warning={active.locked}
+                />
+              )
+            }
+          />
+        )}
         <div className="mm-canvas-column">
-          <div className="mm-top-toolbar">
+          <div className={`mm-top-toolbar ${stampEditing && tool !== "stamp" ? "beside-floating" : ""}`}>
             {tool === "select" && selectedObjs.length === 0 && (
               <span className="mm-toolbar-note">{t("mmNoSelection")}</span>
             )}
@@ -1951,6 +2287,14 @@ export function MapCreatorEditor({
                 onFront={() => reorderObjects(selectedIds, "front")}
                 onBack={() => reorderObjects(selectedIds, "back")}
                 onClear={clearSelection}
+                grouped={selectedObjs.some((o) => o.group)}
+                onGroup={groupSelection}
+                onUngroup={ungroupSelection}
+                onAlign={(mode) => arrangeSelection(mode)}
+                onDistribute={(axis) => arrangeSelection(axis === "x" ? "distributeX" : "distributeY")}
+                onLock={() => setObjectFlags(selectedIds, { locked: true })}
+                onHide={() => setObjectFlags(selectedIds, { hidden: true })}
+                onSaveStamp={user ? () => void saveSelectionAsStamp() : null}
               />
             )}
             {tool === "brush" && (
@@ -2044,41 +2388,26 @@ export function MapCreatorEditor({
                 )}
               </>
             )}
-            {tool === "icon" && (
+            {tool === "stamp" && (
               <>
-                <div className="mm-icon-picker">
-                  {ICON_IDS.map((id) => (
-                    <button
-                      key={id}
-                      className={`mm-icon-swatch ${iconId === id ? "selected" : ""}`}
-                      title={t(ICONS[id].labelKey)}
-                      onClick={() => setIconId(id)}
-                    >
-                      <svg viewBox="0 0 24 24" width={18} height={18} aria-hidden="true">
-                        {ICONS[id].stroke && (
-                          <path d={ICONS[id].stroke} fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" />
-                        )}
-                        {ICONS[id].fill && <path d={ICONS[id].fill} fill="currentColor" />}
-                      </svg>
-                    </button>
-                  ))}
-                </div>
-                {recentIcons.length > 0 && (
-                  <div className="mm-recents-row">
-                    <small>{t("mmRecents")}</small>
-                    {recentIcons.map((id) => (
-                      <button key={id} className="mm-icon-swatch small" onClick={() => setIconId(id)} title={t(ICONS[id].labelKey)}>
-                        <svg viewBox="0 0 24 24" width={14} height={14} aria-hidden="true">
-                          {ICONS[id].stroke && <path d={ICONS[id].stroke} fill="none" stroke="currentColor" strokeWidth={1.8} />}
-                          {ICONS[id].fill && <path d={ICONS[id].fill} fill="currentColor" />}
-                        </svg>
-                      </button>
-                    ))}
-                  </div>
-                )}
-                <ColorControl color={color} recents={recentColors} onChange={commitColor} label={t("mmColor")} recentLabel={t("mmRecents")} />
-                <Slider label={t("mmIconSize")} value={iconScale} min={0.3} max={4} step={0.1} onChange={setIconScale} />
-                <Slider label={t("mmIconRotation")} value={iconRotation} min={-180} max={180} step={1} onChange={setIconRotation} format={(v) => `${v}°`} />
+                <Slider
+                  label={t("stSize")}
+                  value={stampTool.look.size}
+                  min={0.003}
+                  max={0.4}
+                  step={0.001}
+                  onChange={(v) => setStampTool((st) => ({ ...st, look: { ...st.look, size: v } }))}
+                  format={(v) => `${Math.round(v * project.width)} px`}
+                />
+                <Slider
+                  label={t("stRotation")}
+                  value={Math.round(stampTool.look.rotation)}
+                  min={-180}
+                  max={180}
+                  step={1}
+                  onChange={(v) => setStampTool((st) => ({ ...st, look: { ...st.look, rotation: v } }))}
+                  format={(v) => `${v}°`}
+                />
               </>
             )}
             {tool === "path" && (
@@ -2168,7 +2497,7 @@ export function MapCreatorEditor({
             )}
           </div>
           {notice && (
-            <div className="mm-editor-notice" role="alert">
+            <div className={`mm-editor-notice ${noticeOk ? "ok" : ""} ${stampEditing && tool !== "stamp" ? "beside-floating" : ""}`} role={noticeOk ? "status" : "alert"}>
               <span>{notice}</span>
               <button onClick={() => setNotice(null)} aria-label={t("close")}>
                 ×
@@ -2232,7 +2561,16 @@ export function MapCreatorEditor({
               {project.layers.map((layer) => {
                 const land = landByLayer.get(layer.id);
                 return (
-                  <Layer key={layer.id} visible={layer.visible} opacity={layer.opacity} listening={layer.id === active?.id && !layer.locked}>
+                  <Layer
+                    key={layer.id}
+                    ref={(node) => {
+                      if (node) konvaLayersRef.current.set(layer.id, node);
+                      else konvaLayersRef.current.delete(layer.id);
+                    }}
+                    visible={layer.visible}
+                    opacity={layer.opacity}
+                    listening={layer.id === active?.id && !layer.locked}
+                  >
                     {/* Land layers: land shapes, textured, inside one coastline. */}
                     {land && (
                       <LandLayerNode
@@ -2252,7 +2590,7 @@ export function MapCreatorEditor({
                     )}
                     {layer.objects.map((o) => {
                       // Land shapes and land texture are drawn by LandLayerNode.
-                      if (o.kind === "land") return null;
+                      if (o.kind === "land" || o.hidden) return null;
                       if (o.kind === "paint") return land ? null : <PaintNode key={o.id} o={o} W={W} H={H} />;
                       const handlers = objectHandlers(o, layer);
                       if (o.kind === "region")
@@ -2276,29 +2614,10 @@ export function MapCreatorEditor({
                             {...strokeAppearance(o, W)}
                           />
                         );
-                      if (o.kind === "icon") {
-                        const def = ICONS[o.icon],
-                          s = Math.max(1, o.scale * W * ICON_BASE) / 24;
+                      if (o.kind === "stamp")
                         return (
-                          <Group
-                            key={o.id}
-                            {...handlers}
-                            x={o.x * W}
-                            y={o.y * H}
-                            rotation={o.rotation}
-                            scaleX={s}
-                            scaleY={s}
-                            offsetX={12}
-                            offsetY={12}
-                          >
-                            {/* Invisible hit area: the whole 24×24 icon cell is
-                                clickable/draggable, not just its thin strokes. */}
-                            <Rect width={24} height={24} fill="rgba(0,0,0,0)" />
-                            {def.stroke && <KonvaPath data={def.stroke} stroke={o.color} strokeWidth={1.6} lineCap="round" lineJoin="round" />}
-                            {def.fill && <KonvaPath data={def.fill} fill={o.color} />}
-                          </Group>
+                          <StampNode key={o.id} o={o} W={W} H={H} shadow={resolveShadow(o, layer)} op={stampCompositeOp(o, layer)} handlers={handlers} />
                         );
-                      }
                       const label = labelLayout(o, W);
                       return (
                         <KonvaText
@@ -2319,6 +2638,12 @@ export function MapCreatorEditor({
                         />
                       );
                     })}
+                    {/* Stamps being scattered (Multiple placement), not yet added. */}
+                    {scatterDraft &&
+                      layer.id === active?.id &&
+                      scatterDraft.map((o) => (
+                        <StampNode key={o.id} o={o} W={W} H={H} shadow={resolveShadow(o, layer)} op={stampCompositeOp(o, layer)} />
+                      ))}
                     {/* Live Brush / Land preview — inside the active layer, so
                         erasers and blend modes preview exactly as they commit.
                         Its image/position are set imperatively per frame. */}
@@ -2404,7 +2729,7 @@ export function MapCreatorEditor({
                     ref={transformerRef}
                     rotateEnabled
                     anchorSize={9}
-                    keepRatio={selectedObjs.length === 1 && (selectedObj?.kind === "icon" || selectedObj?.kind === "label")}
+                    keepRatio={selectedObjs.every((o) => o.kind === "stamp" || o.kind === "label")}
                   />
                 )}
               </Layer>
@@ -2472,7 +2797,7 @@ export function MapCreatorEditor({
               {objectRows.length === 0 && <p className="mm-empty-note">{t("mmNoObjects")}</p>}
               <div className="mm-object-list">
                 {objectRows.map(({ layer, o }) => (
-                  <div key={o.id} className={`mm-object-row ${selectedIdSet.has(o.id) ? "selected" : ""}`}>
+                  <div key={o.id} className={`mm-object-row ${selectedIdSet.has(o.id) ? "selected" : ""} ${o.hidden ? "hidden-object" : ""}`}>
                     <button
                       className="mm-object-main"
                       onClick={() => {
@@ -2483,7 +2808,7 @@ export function MapCreatorEditor({
                     >
                       <Glyph
                         name={
-                          o.kind === "icon"
+                          o.kind === "stamp"
                             ? "stamp"
                             : o.kind === "label"
                               ? "label"
@@ -2505,6 +2830,22 @@ export function MapCreatorEditor({
                       />
                       <span>{objectLabel(o)}</span>
                       <small className="mm-layer-badge">{layer.name}</small>
+                    </button>
+                    <button
+                      title={t(o.hidden ? "mmShowObject" : "mmHideObjects")}
+                      aria-pressed={!!o.hidden}
+                      className={o.hidden ? "on" : ""}
+                      onClick={() => setObjectFlags([o.id], { hidden: !o.hidden })}
+                    >
+                      <Glyph name={o.hidden ? "eyeOff" : "eye"} size={13} />
+                    </button>
+                    <button
+                      title={t(o.locked ? "mmUnlockObject" : "mmLockObjects")}
+                      aria-pressed={!!o.locked}
+                      className={o.locked ? "on" : ""}
+                      onClick={() => setObjectFlags([o.id], { locked: !o.locked })}
+                    >
+                      <Glyph name={o.locked ? "lock" : "unlock"} size={13} />
                     </button>
                     <button title={t("mmDuplicateObject")} onClick={() => duplicateObject(o.id)}>
                       <Glyph name="duplicate" size={13} />
@@ -2602,6 +2943,7 @@ export function MapCreatorEditor({
                   <b>{Math.round(active.opacity * 100)}%</b>
                 </label>
               )}
+              {active && <LayerStampSettings layer={active} onChange={(patch) => updateLayer(active.id, patch)} t={t} />}
               {landTarget && (
                 <div ref={coastPanelRef}>
                   <CoastEffectPanel
@@ -2631,6 +2973,14 @@ export function MapCreatorEditor({
           <MenuRow label={t("mmCopyObject")} shortcut="⌘C" disabled={!selectedObjs.length} onClick={() => { copySelection(); setContextMenu(null); }} />
           <MenuRow label={t("mmPasteObject")} shortcut="⌘V" disabled={!hasClipboard} onClick={() => { pasteClipboard(); setContextMenu(null); }} />
           <MenuRow label={t("mmDeleteObject")} shortcut="⌫" disabled={!selectedObjs.length} onClick={() => { removeObjects(selectedIds); setContextMenu(null); }} />
+          <div className="mm-menu-divider" />
+          <MenuRow label={t("mmGroup")} shortcut="⌘G" disabled={selectedObjs.length < 2} onClick={() => { groupSelection(); setContextMenu(null); }} />
+          <MenuRow label={t("mmUngroup")} shortcut="⇧⌘G" disabled={!selectedObjs.some((o) => o.group)} onClick={() => { ungroupSelection(); setContextMenu(null); }} />
+          <MenuRow label={t("mmLockObjects")} disabled={!selectedObjs.length} onClick={() => { setObjectFlags(selectedIds, { locked: true }); setContextMenu(null); }} />
+          <MenuRow label={t("mmHideObjects")} disabled={!selectedObjs.length} onClick={() => { setObjectFlags(selectedIds, { hidden: true }); setContextMenu(null); }} />
+          {user && (
+            <MenuRow label={t("stSaveAsStamp")} disabled={!selectedObjs.length} onClick={() => { void saveSelectionAsStamp(); setContextMenu(null); }} />
+          )}
           <div className="mm-menu-divider" />
           <MenuRow label={t("mmBringToFront")} shortcut="⌘]" disabled={!selectedObjs.length} onClick={() => { reorderObjects(selectedIds, "front"); setContextMenu(null); }} />
           <MenuRow label={t("mmBringForward")} disabled={selectedObjs.length !== 1} onClick={() => { if (selectedObj) reorderObject(selectedObj.id, "forward"); setContextMenu(null); }} />

@@ -45,5 +45,35 @@ export interface CloudMap {
   updated_at: string;
 }
 
+/** A pack of the asset library: official (by the atelier) or the user's own. */
+export interface AssetPack {
+  id: string;
+  name: string;
+  kind: "stamps" | "textures";
+  tier: number;
+  official: boolean;
+  published: boolean;
+  /** The plan doesn't include it: shown, but its assets can't be used. */
+  locked: boolean;
+  assets_count?: number;
+  cover_url?: string | null;
+}
+
+/** One uploaded image. Assets of a pack sharing a `set_key` form one stamp set. */
+export interface Asset {
+  id: string;
+  pack_id: string;
+  name: string;
+  set_key: string | null;
+  category: string | null;
+  tags: string[];
+  mime: string;
+  bytes: number;
+  width: number | null;
+  height: number | null;
+  /** Short-lived signed URL. */
+  url: string;
+}
+
 /** The plan limits a signed-out visitor works under (the free plan). */
 export const GUEST_LIMITS = { max_export_px: 2048 } as const;

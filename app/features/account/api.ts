@@ -1,9 +1,9 @@
 /**
- * Typed calls to the API: accounts and maps. Components use these, never
+ * Typed calls to the API: accounts, maps and the asset library. Components use these, never
  * `api` directly, so every endpoint has one place that knows its shape.
  */
 import type { MMProject } from "../mapmaker/types";
-import type { CloudMap, User } from "./types";
+import type { Asset, AssetPack, CloudMap, User } from "./types";
 import {api, API_URL} from "@/lib/api/client";
 
 type One<T> = { data: T };
@@ -87,4 +87,35 @@ export const maps = {
   /** Checks an export against the plan and records its license. */
   recordExport: (id: string, width: number, height: number) =>
     api.post<One<{ id: number; plan: string; commercial_use: boolean }>>(`maps/${id}/exports`, { width, height }).then((r) => r.data),
+};
+
+// ---- asset library (stamps) ---------------------------------------------------------
+type Many<T> = { data: T[] };
+type AssetDetails = { name?: string; set_key?: string | null; category?: string | null; tags?: string[] };
+
+export const library = {
+  packs: () => api.get<Many<AssetPack>>("asset-packs?kind=stamps").then((r) => r.data),
+  /** A pack's assets (refused with `plan_limit_reached` for a locked pack). */
+  assets: (packId: string) => api.get<Many<Asset>>(`asset-packs/${packId}/assets`).then((r) => r.data),
+  /** Assets by id, for drawing maps that use them (even from a locked pack). */
+  resolve: (ids: string[]) =>
+    api.get<Many<Asset>>(`assets?${ids.map((id) => `ids[]=${encodeURIComponent(id)}`).join("&")}`).then((r) => r.data),
+
+  createPack: (input: { name: string; official?: boolean; tier?: number; published?: boolean }) =>
+    api.post<One<AssetPack>>("asset-packs", { kind: "stamps", ...input }).then((r) => r.data),
+  updatePack: (id: string, patch: { name?: string; tier?: number; published?: boolean; sort?: number }) =>
+    api.patch<One<AssetPack>>(`asset-packs/${id}`, patch).then((r) => r.data),
+  removePack: (id: string) => api.delete<void>(`asset-packs/${id}`),
+
+  upload(packId: string, file: Blob, filename: string, details: AssetDetails = {}) {
+    const form = new FormData();
+    form.append("file", file, filename);
+    if (details.name) form.append("name", details.name);
+    if (details.set_key) form.append("set_key", details.set_key);
+    if (details.category) form.append("category", details.category);
+    for (const tag of details.tags ?? []) form.append("tags[]", tag);
+    return api.post<One<Asset>>(`asset-packs/${packId}/assets`, form).then((r) => r.data);
+  },
+  updateAsset: (id: string, patch: AssetDetails) => api.patch<One<Asset>>(`assets/${id}`, patch).then((r) => r.data),
+  removeAsset: (id: string) => api.delete<void>(`assets/${id}`),
 };

@@ -4,11 +4,54 @@
  * file (rather than one file per widget) since each is only a few lines and
  * they're only ever used from MapCreatorEditor.tsx — mirrors how the print
  * studio keeps its own editor UI self-contained (features/studio/components). */
+import type { ReactNode } from "react";
 import { Glyph } from "../glyphs";
 import { ARABIC_RANGE } from "../domain";
-import { SelectField } from "../../../components/ui/fields";
 import type { LabelAlign, MMObject, MMPatch } from "../types";
+import {SelectField} from "@/components/ui/fields";
 
+/** A collapsible group of settings in a tool panel. */
+export function Section({
+  title,
+  open,
+  children,
+}: {
+  title: string;
+  open?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <details className="mm-bp-section" open={open}>
+      <summary>
+        <span>{title}</span>
+        <Glyph name="chevronDown" size={13} />
+      </summary>
+      <div className="mm-bp-section-body">{children}</div>
+    </details>
+  );
+}
+/** An on/off switch row in a tool panel. */
+export function Toggle({
+  label,
+  checked,
+  onChange,
+}: {
+  label: string;
+  checked: boolean;
+  onChange: (v: boolean) => void;
+}) {
+  return (
+    <label className="mm-bp-toggle">
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+      />
+      <span className="mm-bp-switch" aria-hidden="true" />
+      <span>{label}</span>
+    </label>
+  );
+}
 export function Slider({
   label,
   value,
@@ -89,13 +132,6 @@ export function ObjectQuickBar({
 }) {
   return (
     <div className="mm-quickbar">
-      {obj.kind === "icon" && (
-        <>
-          <ColorControl color={obj.color} recents={[]} onChange={(v) => onPatch({ color: v })} label={t("mmColor")} recentLabel="" />
-          <Slider label={t("mmIconSize")} value={obj.scale} min={0.3} max={4} step={0.1} onChange={(v) => onPatch({ scale: v })} />
-          <Slider label={t("mmIconRotation")} value={obj.rotation} min={-180} max={180} step={1} onChange={(v) => onPatch({ rotation: v })} format={(v) => `${v}°`} />
-        </>
-      )}
       {obj.kind === "label" && (
         <>
           <input
@@ -194,6 +230,18 @@ export function MenuHint({ label, hint }: { label: string; hint: string }) {
  * marquee-select or shift-click has more than one object selected: batched
  * front/back/duplicate/copy/delete rather than the single-object's
  * per-kind style controls, which don't make sense across mixed kinds. */
+/** A small toolbar button showing just a glyph (its label is the tooltip). */
+function IconButton({ glyph, label, onClick, disabled }: { glyph: string; label: string; onClick: () => void; disabled?: boolean }) {
+  return (
+    <button className="mm-icon-btn" title={label} aria-label={label} onClick={onClick} disabled={disabled}>
+      <Glyph name={glyph} size={15} />
+    </button>
+  );
+}
+
+/** Shown while several objects are selected: arrange, group, align and
+ * distribute them, or turn them into a stamp. Icon buttons, so the whole
+ * set fits the toolbar's one row. */
 export function MultiSelectionBar({
   count,
   t,
@@ -203,6 +251,14 @@ export function MultiSelectionBar({
   onFront,
   onBack,
   onClear,
+  grouped,
+  onGroup,
+  onUngroup,
+  onAlign,
+  onDistribute,
+  onLock,
+  onHide,
+  onSaveStamp,
 }: {
   count: number;
   t: (k: string, opts?: Record<string, unknown>) => string;
@@ -212,29 +268,46 @@ export function MultiSelectionBar({
   onFront: () => void;
   onBack: () => void;
   onClear: () => void;
+  /** Some of the selection is grouped (Ungroup applies). */
+  grouped: boolean;
+  onGroup: () => void;
+  onUngroup: () => void;
+  onAlign: (mode: "left" | "centerX" | "right" | "top" | "centerY" | "bottom") => void;
+  onDistribute: (axis: "x" | "y") => void;
+  onLock: () => void;
+  onHide: () => void;
+  /** Null when it isn't available (signed out). */
+  onSaveStamp: (() => void) | null;
 }) {
   return (
     <div className="mm-quickbar">
       <span className="mm-toolbar-note">{t("mmMultiSelected", { count })}</span>
-      <div className="button-row">
-        <button className="secondary-button" title={t("mmBringToFront")} onClick={onFront}>
-          <Glyph name="toTop" size={13} />
-        </button>
-        <button className="secondary-button" title={t("mmSendToBack")} onClick={onBack}>
-          <Glyph name="toBottom" size={13} />
-        </button>
-        <button className="secondary-button" onClick={onCopy}>
-          {t("mmCopyObject")}
-        </button>
-        <button className="secondary-button" onClick={onDuplicate}>
-          {t("mmDuplicateObject")}
-        </button>
-        <button className="secondary-button" onClick={onDelete}>
-          {t("mmDeleteObject")}
-        </button>
-        <button className="secondary-button" onClick={onClear}>
-          {t("mmClearSelection")}
-        </button>
+      <div className="mm-icon-group">
+        <IconButton glyph="group" label={`${t("mmGroup")} (⌘G)`} onClick={onGroup} />
+        <IconButton glyph="ungroup" label={`${t("mmUngroup")} (⇧⌘G)`} onClick={onUngroup} disabled={!grouped} />
+      </div>
+      <div className="mm-icon-group">
+        <IconButton glyph="alignLeft" label={t("mmAlignLeft")} onClick={() => onAlign("left")} />
+        <IconButton glyph="alignCenterX" label={t("mmAlignCenterX")} onClick={() => onAlign("centerX")} />
+        <IconButton glyph="alignRight" label={t("mmAlignRight")} onClick={() => onAlign("right")} />
+        <IconButton glyph="alignTop" label={t("mmAlignTop")} onClick={() => onAlign("top")} />
+        <IconButton glyph="alignCenterY" label={t("mmAlignCenterY")} onClick={() => onAlign("centerY")} />
+        <IconButton glyph="alignBottom" label={t("mmAlignBottom")} onClick={() => onAlign("bottom")} />
+        <IconButton glyph="distributeX" label={t("mmDistributeX")} onClick={() => onDistribute("x")} disabled={count < 3} />
+        <IconButton glyph="distributeY" label={t("mmDistributeY")} onClick={() => onDistribute("y")} disabled={count < 3} />
+      </div>
+      <div className="mm-icon-group">
+        <IconButton glyph="toTop" label={t("mmBringToFront")} onClick={onFront} />
+        <IconButton glyph="toBottom" label={t("mmSendToBack")} onClick={onBack} />
+        <IconButton glyph="lock" label={t("mmLockObjects")} onClick={onLock} />
+        <IconButton glyph="eyeOff" label={t("mmHideObjects")} onClick={onHide} />
+      </div>
+      <div className="mm-icon-group">
+        <IconButton glyph="copy" label={`${t("mmCopyObject")} (⌘C)`} onClick={onCopy} />
+        <IconButton glyph="duplicate" label={`${t("mmDuplicateObject")} (⌘D)`} onClick={onDuplicate} />
+        <IconButton glyph="trash" label={t("mmDeleteObject")} onClick={onDelete} />
+        {onSaveStamp && <IconButton glyph="stamp" label={t("stSaveAsStamp")} onClick={onSaveStamp} />}
+        <IconButton glyph="close" label={t("mmClearSelection")} onClick={onClear} />
       </div>
     </div>
   );

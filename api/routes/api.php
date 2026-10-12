@@ -54,5 +54,7 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
     Route::delete('asset-packs/{pack}', [AssetPackController::class, 'destroy']);
     Route::get('asset-packs/{pack}/assets', [AssetPackController::class, 'assets']);
     Route::post('asset-packs/{pack}/assets', [AssetController::class, 'store'])->middleware('throttle:uploads');
+    Route::get('assets', [AssetController::class, 'index']);
+    Route::patch('assets/{asset}', [AssetController::class, 'update']);
     Route::delete('assets/{asset}', [AssetController::class, 'destroy']);
 });

@@ -14,9 +14,9 @@ class PlanSeeder extends Seeder
     public function run(): void
     {
         $plans = [
-            // Free: try it out, personal use.
+            // Free: try it out, personal use (a few of your own stamps).
             ['code' => 'explorer', 'name' => 'Explorer', 'tier' => 0, 'max_maps' => 3, 'max_export_px' => 2048,
-                'upload_quota_bytes' => 0, 'commercial_use' => false, 'is_default' => true, 'sort' => 1],
+                'upload_quota_bytes' => 20 * 1024 * 1024, 'commercial_use' => false, 'is_default' => true, 'sort' => 1],
             // Serious map makers: full library, own uploads, 8K exports.
             ['code' => 'cartographer', 'name' => 'Cartographer', 'tier' => 1, 'max_maps' => 100, 'max_export_px' => 8192,
                 'upload_quota_bytes' => 500 * 1024 * 1024, 'commercial_use' => false, 'is_default' => false, 'sort' => 2],

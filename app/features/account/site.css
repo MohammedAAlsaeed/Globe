@@ -854,3 +854,124 @@ dialog.mm-modal .dialog-header button {
 .landing-verified {
   margin: 16px clamp(16px, 6vw, 96px) 0;
 }
+
+/* ---- My stamps (art manager) ------------------------------------------------- */
+.lib-pack {
+  display: grid;
+  gap: 14px;
+  margin-bottom: 20px;
+  padding: 18px;
+  border: 1px solid rgba(217, 169, 59, 0.22);
+  border-radius: 12px;
+  background: rgba(23, 38, 94, 0.55);
+}
+.lib-pack-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 16px;
+}
+.lib-name {
+  flex: 1 1 200px;
+  min-width: 0;
+  padding: 6px 0;
+  border: 0;
+  border-bottom: 1px solid transparent;
+  background: none;
+  color: var(--vellum, #f3e8cc);
+  font: 700 22px/1.2 Amiri, Georgia, serif;
+}
+.lib-name:focus {
+  outline: none;
+  border-bottom-color: #d9a93b;
+}
+.lib-spacer {
+  flex: 1;
+}
+.lib-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #a9b0cf;
+  font-size: 13px;
+}
+.lib-inline select,
+.lib-asset select {
+  padding: 4px 6px;
+  border: 1px solid rgba(217, 169, 59, 0.3);
+  border-radius: 6px;
+  background: #0d1636;
+  color: #f3e8cc;
+  font: inherit;
+  font-size: 12px;
+}
+.lib-pack-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.site-btn.danger {
+  background: #e0866c;
+  border-color: #e0866c;
+  color: #0d1636;
+}
+.lib-sets {
+  display: grid;
+  gap: 16px;
+}
+.lib-set-head {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 8px;
+  color: #f3e8cc;
+}
+.lib-assets {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 10px;
+}
+.lib-asset {
+  display: grid;
+  gap: 6px;
+  padding: 8px;
+  border-radius: 10px;
+  background: rgba(13, 22, 54, 0.7);
+}
+.lib-asset > * {
+  min-width: 0;
+}
+.lib-asset select {
+  width: 100%;
+}
+.lib-asset img {
+  width: 100%;
+  height: 96px;
+  object-fit: contain;
+  padding: 6px;
+  border-radius: 7px;
+  background: #ddd0b0;
+}
+.lib-asset input {
+  padding: 4px 6px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: none;
+  color: #f3e8cc;
+  font: inherit;
+  font-size: 13px;
+}
+.lib-asset input:focus {
+  outline: none;
+  border-color: #d9a93b;
+}
+.lib-asset .site-link {
+  justify-self: start;
+  font-size: 12px;
+}
+.lib-new-pack {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 10px;
+}

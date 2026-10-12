@@ -60,7 +60,6 @@ export const mapmakerAr: typeof mapmakerEn = {
   mmColor: "اللون",
   mmRecents: "المستخدمة مؤخراً",
 
-  mmIconSize: "حجم الرمز",
   mmIconRotation: "الدوران",
 
   mmPathType: "نوع المسار",
@@ -138,7 +137,7 @@ export const mapmakerAr: typeof mapmakerEn = {
   mmShowShortcuts: "إظهار شريط الاختصارات",
   mmShortcutHintSelect: "انقر للتحديد · اسحب المقابض للتحويل · Delete للحذف",
   mmShortcutHintBrush: "انقر واسحب للرسم",
-  mmShortcutHintStamp: "انقر للوضع · انتقل إلى تحديد للتعديل",
+  mmShortcutHintStamp: "انقر لوضع ختم · اسحب للنثر (تلقائي، متعدد) · انتقل إلى تحديد للتعديل",
   mmShortcutHintPath: "اسحب للرسم · حرّر للإنهاء",
   mmShortcutHintRegion: "انقر لإضافة زوايا · انقر مرتين أو أغلق الشكل للتعبئة",
   mmShortcutHintLabel: "انقر على اللوحة، ثم اكتب",
@@ -363,4 +362,19 @@ export const mapmakerAr: typeof mapmakerEn = {
   mmTargetNoLandNote: "أداة اليابسة ترسم على طبقة يابسة.",
   mmUseLandLayer: "استخدم «{{layer}}»",
   mmCoastDecoration: "زخرفة الساحل والمياه",
+  // ترتيب العناصر
+  mmGroup: "تجميع",
+  mmUngroup: "فك التجميع",
+  mmAlignLeft: "محاذاة الحواف اليسرى",
+  mmAlignCenterX: "محاذاة المراكز أفقياً",
+  mmAlignRight: "محاذاة الحواف اليمنى",
+  mmAlignTop: "محاذاة الحواف العليا",
+  mmAlignCenterY: "محاذاة المنتصفات رأسياً",
+  mmAlignBottom: "محاذاة الحواف السفلى",
+  mmDistributeX: "توزيع متساوٍ أفقياً",
+  mmDistributeY: "توزيع متساوٍ رأسياً",
+  mmLockObjects: "قفل",
+  mmUnlockObject: "فتح القفل",
+  mmHideObjects: "إخفاء",
+  mmShowObject: "إظهار",
 };

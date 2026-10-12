@@ -65,6 +65,9 @@ php artisan maps:purge-trashed                                    # runs daily f
 - **The document is stored exactly as sent.** It is re-encoded from the raw JSON body, so `{}` stays `{}` and Arabic text stays as-is. The server only checks the outline; the editor validates the full document when it loads it.
 - **Exports are recorded with their license.** Each export stores the plan in force at that time. A map exported under a commercial plan stays licensed after a downgrade.
 - **Regions.** Every user has a `region`. Their files go to that region's disk. To add a region (for example, for data-residency rules), add an S3 disk in `config/filesystems.php` and an entry in `config/regions.php`.
+- **Stamp sets.** Assets of a pack sharing a `set_key` are variants of one stamp; the Stamp Tool places them at random. Official assets also carry a `category` (terrain, vegetation, settlements, water, symbols) for the catalog.
+- **Uploads on every plan.** Explorer can upload 20 MB of its own stamps, Cartographer 500 MB, Atlas 5 GB (`upload_quota_bytes`). After changing limits, re-run the plan seeder.
+- **Placed stamps always draw.** A map keeps drawing stamps from a pack the plan no longer includes (`GET assets?ids[]=`); only placing new ones is refused.
 - **Errors carry a `code`.** Domain errors are JSON shaped as `{ message, code, ... }`, with codes `plan_limit_reached` (plus `limit` and `max`) and `revision_conflict`, so the web app can show translated messages.
 
 ## API overview (`/api/v1`)
@@ -84,8 +87,9 @@ The web app first calls `GET /sanctum/csrf-cookie`, then sends the `XSRF-TOKEN` 
 | POST | `maps/{id}/exports` | Check the export size against the plan; record the license |
 | GET / POST | `asset-packs` | Library (with `locked`); create your own pack (admins: `official: true`) |
 | PATCH / DELETE | `asset-packs/{id}` | Manage a pack |
-| GET / POST | `asset-packs/{id}/assets` | List (short-lived URLs) / upload (png / webp / jpeg, within quota) |
-| DELETE | `assets/{id}` | Remove an asset |
+| GET / POST | `asset-packs/{id}/assets` | List (short-lived URLs) / upload (png / webp / jpeg, within quota; optional `set_key`, and `category` for official packs) |
+| GET | `assets?ids[]=…` | Assets by id, to draw maps that use them (even from a pack now above the plan) |
+| PATCH / DELETE | `assets/{id}` | Rename, move to another set, re-file (official) / remove |
 
 ## Production checklist
 
@@ -96,4 +100,5 @@ The web app first calls `GET /sanctum/csrf-cookie`, then sends the `XSRF-TOKEN` 
   - `FRONTEND_URL=https://example.com`
 - A real mail driver for verification and reset emails.
 - Storage: `REGION_GLOBAL_DISK=s3`, with AWS S3 or Cloudflare R2 (set `AWS_ENDPOINT` for R2) and a private bucket.
+- Bucket CORS: allow `GET` from the site's origin. The editor draws stamp images on a canvas (and prints it), which browsers only allow for images served with CORS headers. Locally, `config/cors.php` covers `storage/*`.
 - Run `php artisan schedule:run` every minute (cron) and a queue worker.

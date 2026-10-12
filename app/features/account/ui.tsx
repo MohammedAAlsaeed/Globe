@@ -111,6 +111,9 @@ export function SiteHeader() {
                 <Link href="/maps" role="menuitem" onClick={() => setMenu(false)}>
                   {t("acMyMaps")}
                 </Link>
+                <Link href="/library" role="menuitem" onClick={() => setMenu(false)}>
+                  {t("stCatCustom")}
+                </Link>
                 <button
                   role="menuitem"
                   onClick={async () => {
