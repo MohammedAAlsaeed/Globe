@@ -60,7 +60,6 @@ export const mapmakerEn = {
   mmColor: "Color",
   mmRecents: "Recents",
 
-  mmIconSize: "Icon size",
   mmIconRotation: "Rotation",
 
   mmPathType: "Path type",
@@ -139,7 +138,7 @@ export const mapmakerEn = {
   mmShortcutHintSelect:
     "Click to select · drag handles to transform · Delete to remove",
   mmShortcutHintBrush: "Click and drag to paint",
-  mmShortcutHintStamp: "Click to place · switch to Select to adjust",
+  mmShortcutHintStamp: "Click to place one stamp · drag to scatter (Auto, Multiple) · switch to Select to adjust",
   mmShortcutHintPath: "Drag to draw · release to finish",
   mmShortcutHintRegion:
     "Click to add corners · double-click or close the loop to fill",
@@ -366,4 +365,19 @@ export const mapmakerEn = {
   mmTargetNoLandNote: "The Land tool draws on a land layer.",
   mmUseLandLayer: "Use “{{layer}}”",
   mmCoastDecoration: "Coast & water decoration",
+  // Arranging objects
+  mmGroup: "Group",
+  mmUngroup: "Ungroup",
+  mmAlignLeft: "Align left edges",
+  mmAlignCenterX: "Align centers (across)",
+  mmAlignRight: "Align right edges",
+  mmAlignTop: "Align top edges",
+  mmAlignCenterY: "Align middles (down)",
+  mmAlignBottom: "Align bottom edges",
+  mmDistributeX: "Space evenly across",
+  mmDistributeY: "Space evenly down",
+  mmLockObjects: "Lock",
+  mmUnlockObject: "Unlock",
+  mmHideObjects: "Hide",
+  mmShowObject: "Show",
 };

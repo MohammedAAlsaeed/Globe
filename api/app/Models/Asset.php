@@ -9,8 +9,11 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Facades\Storage;
 
-/** One stamp or texture image. */
-#[Fillable(['name', 'tags', 'disk', 'path', 'mime', 'bytes', 'width', 'height'])]
+/**
+ * One stamp or texture image. Stamps sharing a `set_key` in a pack are
+ * variants of one stamp set.
+ */
+#[Fillable(['name', 'set_key', 'category', 'tags', 'disk', 'path', 'mime', 'bytes', 'width', 'height'])]
 #[Hidden(['disk', 'path'])]
 class Asset extends Model
 {

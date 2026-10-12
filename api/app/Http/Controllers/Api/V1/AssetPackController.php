@@ -26,10 +26,17 @@ class AssetPackController extends Controller
     public function index(Request $request): AnonymousResourceCollection
     {
         $data = $request->validate(['kind' => ['sometimes', Rule::enum(AssetKind::class)]]);
+        $user = $request->user();
         $packs = AssetPack::query()
-            ->visibleTo($request->user())
+            // Admins also see unpublished official packs (to prepare them).
+            ->when(
+                $user->isAdmin(),
+                fn ($q) => $q->where(fn ($o) => $o->whereNull('owner_id')->orWhere('owner_id', $user->id)),
+                fn ($q) => $q->visibleTo($user),
+            )
             ->when($data['kind'] ?? null, fn ($q, $kind) => $q->where('kind', $kind))
             ->withCount('assets')
+            ->with('cover')
             ->orderByRaw('owner_id is not null')
             ->orderBy('sort')
             ->orderBy('name')

@@ -10,7 +10,7 @@
  */
 import { useMemo, useState, type ReactNode } from "react";
 import { Glyph } from "../glyphs";
-import { Slider } from "../components/EditorControls";
+import { Section, Slider, Toggle } from "../components/EditorControls";
 import { ICONS, ICON_IDS, type IconId } from "../../studio/domain/icons";
 import { brushPreview } from "./engine";
 import {
@@ -70,7 +70,7 @@ export const PAINT_MODES: {
   },
 ];
 
-const BLEND_MODES: BlendMode[] = [
+export const BLEND_MODES: BlendMode[] = [
   "normal",
   "multiply",
   "screen",
@@ -89,46 +89,6 @@ const BLEND_MODES: BlendMode[] = [
 const pct = (v: number) => `${Math.round(v * 100)}%`;
 const signedPct = (v: number) => `${v > 0 ? "+" : ""}${Math.round(v * 100)}`;
 
-function Section({
-  title,
-  open,
-  children,
-}: {
-  title: string;
-  open?: boolean;
-  children: ReactNode;
-}) {
-  return (
-    <details className="mm-bp-section" open={open}>
-      <summary>
-        <span>{title}</span>
-        <Glyph name="chevronDown" size={13} />
-      </summary>
-      <div className="mm-bp-section-body">{children}</div>
-    </details>
-  );
-}
-function Toggle({
-  label,
-  checked,
-  onChange,
-}: {
-  label: string;
-  checked: boolean;
-  onChange: (v: boolean) => void;
-}) {
-  return (
-    <label className="mm-bp-toggle">
-      <input
-        type="checkbox"
-        checked={checked}
-        onChange={(e) => onChange(e.target.checked)}
-      />
-      <span className="mm-bp-switch" aria-hidden="true" />
-      <span>{label}</span>
-    </label>
-  );
-}
 export function BrushPanel({
   state,
   onChange,

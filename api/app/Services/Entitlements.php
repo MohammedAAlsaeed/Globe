@@ -62,9 +62,10 @@ class Entitlements
         }
     }
 
-    /** Whether the user may use a pack's assets (own packs always). */
+    /** Whether the user may use a pack's assets (own packs always; admins
+     * manage the whole official library). */
     public function canUsePack(User $user, AssetPack $pack): bool
     {
-        return $pack->owner_id === $user->id || $pack->tier <= $this->plan($user)->tier;
+        return $pack->owner_id === $user->id || $user->isAdmin() || $pack->tier <= $this->plan($user)->tier;
     }
 }

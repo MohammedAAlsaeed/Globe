@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 /** A group of stamps or textures: the official library (no owner) or a user's uploads. */
 #[Fillable(['name', 'kind', 'tier', 'published', 'sort'])]
@@ -29,6 +30,12 @@ class AssetPack extends Model
     public function assets(): HasMany
     {
         return $this->hasMany(Asset::class, 'pack_id');
+    }
+
+    /** The pack's first asset, shown as its preview. */
+    public function cover(): HasOne
+    {
+        return $this->hasOne(Asset::class, 'pack_id')->oldestOfMany();
     }
 
     public function isOfficial(): bool

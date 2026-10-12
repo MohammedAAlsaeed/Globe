@@ -14,6 +14,69 @@ const PATHS: Record<string, React.ReactNode> = {
       <circle cx="12" cy="8" r="2.2" />
     </>
   ),
+  scatter: (
+    <>
+      <path d="M3 18c4-5 8-8 18-10" strokeDasharray="1 3" />
+      <path d="M6 9l2-4 2 4Z" />
+      <path d="M12 15l2-4 2 4Z" />
+      <path d="M16 7l2-4 2 4Z" />
+    </>
+  ),
+  auto: (
+    <>
+      <path d="M8 13l2-5 2 5Z" />
+      <path d="M4 20c3-3 7-4 16-4" strokeDasharray="1 3" />
+      <path d="M17 3l.8 2.2L20 6l-2.2.8L17 9l-.8-2.2L14 6l2.2-.8Z" />
+    </>
+  ),
+  shuffle: (
+    <>
+      <path d="M3 7h3c5 0 7 10 12 10h3M18 14l3 3-3 3" />
+      <path d="M3 17h3c2 0 3.3-1.6 4.5-3.5M13.5 9.5C14.7 8.2 16 7 18 7h3M18 4l3 3-3 3" />
+    </>
+  ),
+  flipH: (
+    <>
+      <path d="M12 3v18" strokeDasharray="2 2" />
+      <path d="M9 7 4 12l5 5Z" />
+      <path d="M15 7l5 5-5 5Z" />
+    </>
+  ),
+  flipV: (
+    <>
+      <path d="M3 12h18" strokeDasharray="2 2" />
+      <path d="M7 9l5-5 5 5Z" />
+      <path d="M7 15l5 5 5-5Z" />
+    </>
+  ),
+  group: (
+    <>
+      <rect x="3" y="3" width="18" height="18" rx="2" strokeDasharray="3 2" />
+      <rect x="7" y="7" width="6" height="6" rx="1" />
+      <rect x="11" y="11" width="6" height="6" rx="1" />
+    </>
+  ),
+  ungroup: (
+    <>
+      <rect x="3" y="3" width="8" height="8" rx="1" />
+      <rect x="13" y="13" width="8" height="8" rx="1" />
+      <path d="M14 5h5v5M5 14v5h5" strokeDasharray="2 2" />
+    </>
+  ),
+  alignLeft: <path d="M4 3v18M8 7h10v4H8zM8 14h6v4H8z" />,
+  alignCenterX: <path d="M12 3v18M6 7h12v4H6zM8 14h8v4H8z" />,
+  alignRight: <path d="M20 3v18M6 7h10v4H6zM10 14h6v4h-6z" />,
+  alignTop: <path d="M3 4h18M7 8h4v10H7zM14 8h4v6h-4z" />,
+  alignCenterY: <path d="M3 12h18M7 6h4v12H7zM14 8h4v8h-4z" />,
+  alignBottom: <path d="M3 20h18M7 6h4v10H7zM14 10h4v6h-4z" />,
+  distributeX: <path d="M4 4v16M20 4v16M10 8h4v8h-4z" />,
+  distributeY: <path d="M4 4h16M4 20h16M8 10h8v4H8z" />,
+  copy: (
+    <>
+      <rect x="8" y="8" width="12" height="12" rx="2" />
+      <path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3" />
+    </>
+  ),
   path: <path d="M3 17c3-7 6 7 9 0s6-7 9 0" />,
   region: <path d="M12 3.5 20 8l-2.5 12h-11L4 8Z" />,
   label: <path d="M4 5h16M12 5v14" />,

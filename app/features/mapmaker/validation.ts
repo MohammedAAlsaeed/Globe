@@ -43,6 +43,18 @@ const bool = (v: unknown) => typeof v === "boolean";
 const rec = (v: unknown): v is Record<string, unknown> =>
   !!v && typeof v === "object" && !Array.isArray(v);
 
+const SHADOW_MODES = ["none", "default", "layer", "custom"];
+const CLIPS = ["none", "texture", "erase"];
+function validShadow(v: unknown) {
+  return (
+    rec(v) &&
+    hexColor(v.color) &&
+    finite(v.opacity, 0, 1) &&
+    finite(v.blur, 0, 2) &&
+    finite(v.angle, -360, 360) &&
+    finite(v.distance, 0, 2)
+  );
+}
 function validSource(v: unknown) {
   return (
     rec(v) &&
@@ -213,6 +225,10 @@ function validObject(o: unknown): o is MMObject {
   if (!o || typeof o !== "object") return false;
   const obj = o as Record<string, unknown>;
   if (typeof obj.id !== "string") return false;
+  if (obj.group !== undefined && !(typeof obj.group === "string" && obj.group.length <= 64)) return false;
+  if (obj.locked !== undefined && !bool(obj.locked)) return false;
+  if (obj.hidden !== undefined && !bool(obj.hidden)) return false;
+  // Legacy symbols (converted to stamps when the map is opened).
   if (obj.kind === "icon")
     return (
       ICON_IDS.includes(obj.icon as (typeof ICON_IDS)[number]) &&
@@ -221,6 +237,29 @@ function validObject(o: unknown): o is MMObject {
       finite(obj.rotation, -3600, 3600) &&
       finite(obj.scale, 0.1, 8) &&
       hexColor(obj.color)
+    );
+  if (obj.kind === "stamp")
+    return (
+      typeof obj.asset === "string" &&
+      /^(b:[\w-]{1,40}:\d{1,3}|u:[0-9A-Za-z]{10,40})$/.test(obj.asset) &&
+      finite(obj.x, -1, 2) &&
+      finite(obj.y, -1, 2) &&
+      finite(obj.size, 0.001, 1) &&
+      finite(obj.rotation, -3600, 3600) &&
+      bool(obj.flipX) &&
+      bool(obj.flipY) &&
+      hexColor(obj.ink) &&
+      (obj.fill === null || hexColor(obj.fill)) &&
+      finite(obj.opacity, 0, 1) &&
+      finite(obj.hue, -360, 360) &&
+      finite(obj.saturation, -1, 1) &&
+      finite(obj.brightness, -1, 1) &&
+      finite(obj.contrast, -1, 1) &&
+      SHADOW_MODES.includes(obj.shadow as string) &&
+      (obj.customShadow === undefined || validShadow(obj.customShadow)) &&
+      (obj.blend === undefined || BLEND_MODES.includes(obj.blend as string)) &&
+      (obj.clip === undefined || CLIPS.includes(obj.clip as string)) &&
+      (obj.clipSource === undefined || validSource(obj.clipSource))
     );
   if (obj.kind === "path")
     return (
@@ -279,6 +318,8 @@ function validLayer(l: unknown): l is MMLayer {
     (layer.role === undefined || LAYER_ROLES.includes(layer.role as string)) &&
     (layer.coast === undefined || validCoast(layer.coast)) &&
     (layer.land === undefined || validLandSettings(layer.land)) &&
+    (layer.stampShadow === undefined || validShadow(layer.stampShadow)) &&
+    (layer.blend === undefined || BLEND_MODES.includes(layer.blend as string)) &&
     Array.isArray(layer.objects) &&
     layer.objects.length <= 5000 &&
     layer.objects.every(validObject)

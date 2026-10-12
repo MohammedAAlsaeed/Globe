@@ -20,8 +20,18 @@ export type Biome =
 export type PathKind = "river" | "road" | "border";
 export type LabelAlign = "start" | "center" | "end";
 
-export interface MMBrush {
+/** Fields every object can carry (all optional; older maps lack them). */
+export interface MMObjectBase {
   id: string;
+  /** Objects sharing a group id are selected, moved and copied together. */
+  group?: string;
+  /** Can't be picked or changed on the canvas (select it in the Objects list). */
+  locked?: boolean;
+  /** Not drawn (and not printed). */
+  hidden?: boolean;
+}
+
+export interface MMBrush extends MMObjectBase {
   kind: "brush";
   points: Point[];
   color: string;
@@ -29,6 +39,8 @@ export interface MMBrush {
   opacity: number;
   softness: number;
 }
+/** Legacy map symbol (before the Stamp Tool). Older saved maps may still
+ * contain these; they are converted to stamps when opened (stamps/migrate). */
 export interface MMIcon {
   id: string;
   kind: "icon";
@@ -39,8 +51,7 @@ export interface MMIcon {
   scale: number;
   color: string;
 }
-export interface MMPath {
-  id: string;
+export interface MMPath extends MMObjectBase {
   kind: "path";
   pathKind: PathKind;
   points: Point[];
@@ -49,8 +60,7 @@ export interface MMPath {
   opacity: number;
   softness: number;
 }
-export interface MMRegion {
-  id: string;
+export interface MMRegion extends MMObjectBase {
   kind: "region";
   biome: Biome;
   points: Point[];
@@ -58,8 +68,7 @@ export interface MMRegion {
   textureScale: number;
   textureRotation: number;
 }
-export interface MMLabel {
-  id: string;
+export interface MMLabel extends MMObjectBase {
   kind: "label";
   text: string;
   x: number;
@@ -201,8 +210,7 @@ export interface PaintPoint {
  * clipped to the land shape (MMLand), and paint outside it is kept, hidden,
  * until the land grows over it. On other layers it is drawn as-is.
  */
-export interface MMPaint {
-  id: string;
+export interface MMPaint extends MMObjectBase {
   kind: "paint";
   mode: PaintMode;
   /** Eraser: removes whatever is beneath it in the same layer. */
@@ -238,8 +246,7 @@ export interface MMPaint {
 /** Land sub-tools. */
 export type LandMode = "free" | "edge" | "polygon" | "rect" | "ellipse";
 
-export interface MMLand {
-  id: string;
+export interface MMLand extends MMObjectBase {
   kind: "land";
   mode: LandMode;
   /** Removes land (opens water) instead of adding it. */
@@ -262,7 +269,71 @@ export interface LandSettings {
   base: PaintSource;
 }
 
-export type MMObject = MMBrush | MMIcon | MMPath | MMRegion | MMLabel | MMPaint | MMLand;
+// -----------------------------------------------------------------------------
+// Stamp Tool — placed pictures (mountains, trees, castles, ships…)
+// -----------------------------------------------------------------------------
+// A stamp is a *placement* of a catalog asset (stamps/catalog.ts): the map
+// stores only the asset's key plus how this copy is placed and colored.
+
+/** A drop shadow. Blur and distance are fractions of the stamp's size, so
+ * the shadow scales with the stamp. */
+export interface ShadowSettings {
+  color: string;
+  /** 0..1 */
+  opacity: number;
+  /** 0..1 of the stamp's size. */
+  blur: number;
+  /** Direction the shadow falls, degrees (0 = right, 90 = down). */
+  angle: number;
+  /** 0..1 of the stamp's size. */
+  distance: number;
+}
+/** none: no shadow · default: the stamp set's own shadow · layer: the
+ * layer's shared stamp shadow · custom: this stamp's own settings. */
+export type StampShadowMode = "none" | "default" | "layer" | "custom";
+/** How a stamp's shape is used:
+ *  none     the picture as drawn
+ *  texture  the shape filled with a texture (the land texture of the layer
+ *           below by default), keeping the picture's lines and shading
+ *  erase    the shape cuts through everything beneath it in its layer */
+export type StampClip = "none" | "texture" | "erase";
+
+export interface MMStamp extends MMObjectBase {
+  kind: "stamp";
+  /** Catalog asset key ("b:<set>:<variant>" built-in, "u:<id>" uploaded). */
+  asset: string;
+  /** Center, fractions of the map width / height. */
+  x: number;
+  y: number;
+  /** Width, fraction of the map width (height follows the art's aspect). */
+  size: number;
+  /** Degrees. */
+  rotation: number;
+  flipX: boolean;
+  flipY: boolean;
+  /** Vector stamps: outline color and body color (null = no body). */
+  ink: string;
+  fill: string | null;
+  opacity: number;
+  /** -180..180 degrees. */
+  hue: number;
+  /** -1..1 (0 = unchanged), like the Brush Tool's color filters. */
+  saturation: number;
+  brightness: number;
+  contrast: number;
+  shadow: StampShadowMode;
+  /** Shadow mode "custom". */
+  customShadow?: ShadowSettings;
+  /** How the stamp mixes with what's beneath it in its layer (unset = normal).
+   * Ignored when the layer has a blend mode of its own. */
+  blend?: BlendMode;
+  /** Clip mask (unset = none). */
+  clip?: StampClip;
+  /** Clip "texture": what fills the shape. */
+  clipSource?: PaintSource;
+}
+
+export type MMObject = MMBrush | MMStamp | MMPath | MMRegion | MMLabel | MMPaint | MMLand;
 
 /** Brush-layer role (Inkarnate-style). Optional — older layers read as "custom". */
 export type LayerRole = "land" | "water" | "custom";
@@ -331,6 +402,11 @@ export interface MMLayer {
   coast?: CoastEffect;
   /** Land layers: base texture (unset = defaults). */
   land?: LandSettings;
+  /** The shadow stamps in this layer use in shadow mode "layer" (unset = defaults). */
+  stampShadow?: ShadowSettings;
+  /** How the whole layer mixes with the layers below it (unset = normal).
+   * When set, it replaces its stamps' own blend modes. */
+  blend?: BlendMode;
 }
 
 export type ResolutionTier = "low" | "medium" | "high" | "ultra";
@@ -371,7 +447,6 @@ export function objectCount(layer: MMLayer) {
  * set fields matching the target object's own kind (see MapCreatorEditor's
  * updateObject/onPatch call sites). */
 export interface MMPatch {
-  icon?: IconId;
   x?: number;
   y?: number;
   rotation?: number;

@@ -379,6 +379,7 @@
 }
 
 .mm-body {
+  position: relative;
   flex: 1;
   display: flex;
   min-height: 0;
@@ -426,8 +427,21 @@
   padding: 10px 16px;
   background: var(--mm-panel);
   border-bottom: 1px solid var(--mm-border);
-  flex-wrap: wrap;
-  min-height: 46px;
+  /* One fixed-height row (scrolls sideways when crowded), so selecting an
+     object never pushes the canvas down under the pointer. */
+  flex-wrap: nowrap;
+  height: 46px;
+  flex: none;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+.mm-top-toolbar > *,
+.mm-quickbar > * {
+  flex-shrink: 0;
+}
+.mm-top-toolbar .secondary-button {
+  padding-block: 4px;
 }
 .mm-toolbar-note {
   font-size: 11px;
@@ -483,31 +497,6 @@
   border: 1px solid var(--mm-border);
   padding: 0;
 }
-.mm-icon-picker {
-  display: flex;
-  gap: 4px;
-  flex-wrap: wrap;
-  max-width: 340px;
-}
-.mm-icon-swatch {
-  width: 30px;
-  height: 30px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid var(--mm-border);
-  background: var(--mm-panel-2);
-  border-radius: 6px;
-  color: var(--mm-muted);
-}
-.mm-icon-swatch.small {
-  width: 24px;
-  height: 24px;
-}
-.mm-icon-swatch.selected {
-  border-color: var(--mm-accent);
-  color: var(--mm-accent);
-}
 .mm-swatch-row,
 .mm-pill-row {
   display: flex;
@@ -556,7 +545,6 @@
   display: flex;
   align-items: center;
   gap: 16px;
-  flex-wrap: wrap;
 }
 .mm-inline-text {
   min-width: 200px;
@@ -1513,7 +1501,273 @@
   background: rgba(224, 134, 108, 0.12);
   border-bottom: 1px solid rgba(224, 134, 108, 0.4);
 }
+.mm-editor-notice.ok {
+  color: #e9d29a;
+  background: rgba(224, 164, 88, 0.1);
+  border-bottom-color: rgba(224, 164, 88, 0.4);
+}
+.mm-editor-notice.beside-floating {
+  padding-inline-start: 300px;
+}
 .mm-editor-notice button {
   font-size: 18px;
   line-height: 1;
+}
+
+/* ---- Stamp tool panel ------------------------------------------------------- */
+/* Stamps are previewed on a small parchment tile, the surface they're drawn for. */
+.mm-st-search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 9px;
+  border: 1px solid var(--mm-border);
+  border-radius: 7px;
+  background: var(--mm-panel-2);
+  color: var(--mm-muted);
+}
+.mm-st-search input {
+  flex: 1;
+  min-width: 0;
+  padding: 7px 0;
+  border: 0;
+  background: none;
+  color: var(--mm-text);
+  font: inherit;
+  font-size: 12px;
+  outline: none;
+}
+.mm-st-search:focus-within {
+  border-color: var(--mm-accent);
+}
+.mm-stamp-panel > * {
+  flex-shrink: 0;
+}
+/* Editing selected stamps with the Select tool: the panel floats over the
+   canvas, so selecting never shifts the map under the pointer. */
+.mm-stamp-panel.floating {
+  position: absolute;
+  top: 0;
+  inset-inline-start: 54px;
+  z-index: 6;
+  /* Stops above the status bar, which stays readable. */
+  max-height: calc(100% - 84px);
+  border-bottom: 1px solid var(--mm-border);
+  border-end-end-radius: 10px;
+  box-shadow: 12px 12px 32px rgba(0, 0, 0, 0.35);
+}
+.mm-top-toolbar.beside-floating {
+  padding-inline-start: 300px;
+}
+.mm-st-sets {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  max-height: 290px;
+  overflow-y: auto;
+  padding: 1px;
+}
+.mm-st-set {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 3px;
+  padding: 5px 3px 4px;
+  border: 1px solid var(--mm-border);
+  border-radius: 7px;
+  background: var(--mm-panel-2);
+  color: var(--mm-muted);
+  font-size: 9.5px;
+  line-height: 1.15;
+}
+.mm-st-set img,
+.mm-st-thumb-wait {
+  width: 100%;
+  height: 44px;
+  object-fit: contain;
+  padding: 3px;
+  border-radius: 5px;
+  background: #ddd0b0;
+}
+.mm-st-set span {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mm-st-set small {
+  position: absolute;
+  top: 7px;
+  inset-inline-end: 7px;
+  padding: 0 4px;
+  border-radius: 4px;
+  background: rgba(21, 24, 28, 0.75);
+  color: #e7e9ec;
+  font-size: 8.5px;
+}
+.mm-st-set:hover {
+  color: var(--mm-text);
+}
+.mm-st-set.selected {
+  border-color: var(--mm-accent);
+  color: var(--mm-accent);
+}
+.mm-st-set.locked {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.mm-st-set.locked svg {
+  position: absolute;
+  top: 8px;
+  inset-inline-start: 8px;
+  color: #15181c;
+}
+.mm-st-variants {
+  display: flex;
+  gap: 5px;
+  overflow-x: auto;
+  scrollbar-width: thin;
+  padding-bottom: 2px;
+}
+.mm-st-variant {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  padding: 3px;
+  border: 2px solid transparent;
+  border-radius: 6px;
+  background: #ddd0b0;
+  color: #3a2e22;
+}
+.mm-st-variant img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.mm-st-variant.random {
+  background: var(--mm-panel-2);
+  color: var(--mm-muted);
+  border-color: var(--mm-border);
+}
+.mm-st-variant.selected {
+  border-color: var(--mm-accent);
+  color: var(--mm-accent);
+}
+.mm-st-editing {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid rgba(224, 164, 88, 0.45);
+  border-radius: 7px;
+  background: rgba(224, 164, 88, 0.1);
+  color: var(--mm-accent);
+  font-size: 12px;
+  font-weight: 600;
+}
+.mm-st-flips {
+  display: flex;
+  gap: 6px;
+}
+.mm-st-flips .mm-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.mm-st-color-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--mm-muted);
+}
+.mm-st-shadow-modes button,
+.mm-st-clip-modes button {
+  font-size: 10.5px;
+}
+/* "My stamps": uploads and storage */
+.mm-st-upload {
+  display: grid;
+  gap: 7px;
+  padding: 10px;
+  border: 1px dashed var(--mm-border);
+  border-radius: 8px;
+  background: var(--mm-panel-2);
+}
+.mm-st-upload p {
+  margin: 0;
+}
+.mm-st-upload-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.mm-st-upload .mm-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  text-decoration: none;
+}
+.mm-st-upload-error {
+  color: #e9907a;
+}
+.mm-st-quota {
+  display: grid;
+  gap: 4px;
+  color: var(--mm-muted);
+  font-size: 10.5px;
+}
+.mm-st-quota div {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--mm-border);
+  overflow: hidden;
+}
+.mm-st-quota i {
+  display: block;
+  height: 100%;
+  background: var(--mm-accent);
+}
+.mm-st-quota div.full i {
+  background: #e9907a;
+}
+.mm-st-manage {
+  justify-self: start;
+  color: var(--mm-accent);
+  font-size: 11px;
+}
+
+/* ---- Multi-selection bar: icon buttons in small groups ------------------------ */
+.mm-icon-group {
+  display: flex;
+  gap: 2px;
+  padding-inline-start: 10px;
+  border-inline-start: 1px solid var(--mm-border);
+}
+.mm-icon-btn {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--mm-muted);
+}
+.mm-icon-btn:hover:not(:disabled) {
+  background: var(--mm-panel-2);
+  color: var(--mm-text);
+}
+.mm-icon-btn:disabled {
+  opacity: 0.35;
+}
+.mm-object-row.hidden-object .mm-object-main {
+  opacity: 0.45;
+}
+.mm-object-row button.on {
+  color: var(--mm-accent);
 }
