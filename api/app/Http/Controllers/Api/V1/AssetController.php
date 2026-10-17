@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Enums\AssetKind;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\AssetResource;
 use App\Models\Asset;
@@ -22,6 +23,9 @@ class AssetController extends Controller
 {
     /** The Stamp Tool's catalog categories (official stamps are filed under one). */
     public const CATEGORIES = ['terrain', 'vegetation', 'settlements', 'water', 'symbols'];
+
+    /** Line art: which piece of a line a picture is (repeated, start, end, corner). */
+    public const LINE_ROLES = ['seg', 'start', 'end', 'corner'];
 
     /**
      * Assets by id, for drawing maps that use them: the user's own and the
@@ -102,15 +106,24 @@ class AssetController extends Controller
         return response()->noContent();
     }
 
-    /** Name, set, tags — and the category, for official packs only. */
+    /**
+     * Name, set, tags — and the category: for line art (any pack) the piece's
+     * role; for stamps, the catalog category (official packs only).
+     */
     private function detailRules(AssetPack $pack): array
     {
+        $category = match (true) {
+            $pack->kind === AssetKind::Lines => ['category' => ['sometimes', 'nullable', Rule::in(self::LINE_ROLES)]],
+            $pack->isOfficial() => ['category' => ['sometimes', 'nullable', Rule::in(self::CATEGORIES)]],
+            default => [],
+        };
+
         return [
             'name' => ['sometimes', 'string', 'max:80'],
             'set_key' => ['sometimes', 'nullable', 'string', 'max:40', 'regex:/^[\w-]+$/'],
             'tags' => ['sometimes', 'array', 'max:20'],
             'tags.*' => ['string', 'max:32'],
-            ...($pack->isOfficial() ? ['category' => ['sometimes', 'nullable', Rule::in(self::CATEGORIES)]] : []),
+            ...$category,
         ];
     }
 

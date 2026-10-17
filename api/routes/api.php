@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\V1\AssetPackController;
 use App\Http\Controllers\Api\V1\Auth\EmailVerificationController;
 use App\Http\Controllers\Api\V1\Auth\PasswordController;
 use App\Http\Controllers\Api\V1\Auth\SessionController;
+use App\Http\Controllers\Api\V1\LineStyleController;
 use App\Http\Controllers\Api\V1\MapController;
 use App\Http\Controllers\Api\V1\MapExportController;
 use App\Http\Controllers\Api\V1\MapThumbnailController;
@@ -57,4 +58,9 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
     Route::get('assets', [AssetController::class, 'index']);
     Route::patch('assets/{asset}', [AssetController::class, 'update']);
     Route::delete('assets/{asset}', [AssetController::class, 'destroy']);
+
+    Route::get('line-styles', [LineStyleController::class, 'index']);
+    Route::post('line-styles', [LineStyleController::class, 'store']);
+    Route::patch('line-styles/{lineStyle}', [LineStyleController::class, 'update']);
+    Route::delete('line-styles/{lineStyle}', [LineStyleController::class, 'destroy']);
 });

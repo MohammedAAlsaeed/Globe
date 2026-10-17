@@ -85,6 +85,40 @@ const PATHS: Record<string, React.ReactNode> = {
   ),
   check: <path d="M5 12.5l4.5 4.5L19 7" />,
   path: <path d="M3 17c3-7 6 7 9 0s6-7 9 0" />,
+  line: (
+    <>
+      <path d="M4 18c3-9 7 2 10-6s4-6 6-6" />
+      <rect x="2.5" y="16.5" width="3" height="3" rx="0.5" />
+      <rect x="18.5" y="4.5" width="3" height="3" rx="0.5" />
+    </>
+  ),
+  pen: (
+    <>
+      <path d="M12 3l6 9-6 9-6-9Z" />
+      <circle cx="12" cy="12" r="1.6" />
+      <path d="M12 3v7.4" />
+    </>
+  ),
+  editNodes: (
+    <>
+      <path d="M5 18C8 6 16 18 19 6" />
+      <rect x="3" y="16" width="4" height="4" />
+      <rect x="17" y="4" width="4" height="4" />
+      <circle cx="12" cy="12" r="2" />
+      <path d="M8 9.5l8 5" strokeDasharray="1.5 2" />
+    </>
+  ),
+  reverse: (
+    <>
+      <path d="M4 8h13l-3-3M20 16H7l3 3" />
+    </>
+  ),
+  closePath: (
+    <>
+      <path d="M6 18C3 13 6 5 12 5s9 6 6 12" />
+      <path d="M6 18c3 2 9 2 12-1" strokeDasharray="2 2" />
+    </>
+  ),
   region: <path d="M12 3.5 20 8l-2.5 12h-11L4 8Z" />,
   label: <path d="M4 5h16M12 5v14" />,
   eye: (

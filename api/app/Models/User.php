@@ -66,4 +66,9 @@ class User extends Authenticatable implements MustVerifyEmail
     {
         return $this->hasMany(AssetPack::class, 'owner_id');
     }
+
+    public function lineStyles(): HasMany
+    {
+        return $this->hasMany(LineStyle::class, 'owner_id');
+    }
 }

@@ -50,12 +50,17 @@ import { DEFAULT_SOURCE, loadFavorites, saveFavorites, type FavoriteBrush } from
 import { loadBrushState, saveBrushState, type BrushState } from "./brush/state";
 import { textureDef } from "./brush/textures";
 import { biomeSwatchDataUrl, biomeTexture } from "./textures";
+import { LineShapeNode } from "./lines/LineShape";
+import { LINE_DRAW_MODES, LinePanel } from "./lines/LinePanel";
+import { LineNodeEditor } from "./lines/LineNodeEditor";
+import { baseLook as lineBaseLook, builtinLineStyles, loadLineTool, saveLineTool, withSet, type LineStyle, type LineToolState } from "./lines/state";
+import { fitTrail, reverseNodes, shiftNodes, snapAngle, transformNodes, type LineNode, type Vec } from "./lines/geometry";
+import { lineAssetKeys, lineSet, lineSetLabel } from "./lines/catalog";
+import { useLineLibrary } from "./lines/remote";
 import {
   ARABIC_RANGE,
   BIOME_LABEL_KEY,
   BIOME_LIST,
-  PATH_KIND_LABEL_KEY,
-  PATH_KIND_LIST,
   createLayer,
   pushRecent,
   resolutionBadge,
@@ -81,15 +86,15 @@ import type {
   MMLabel,
   MMLand,
   MMLayer,
+  MMLine,
+  LineLook,
   MMObject,
   MMPaint,
   MMPatch,
-  MMPath,
   MMProject,
   PaintMode,
   PaintPoint,
   PaintSource,
-  PathKind,
   Point,
   MMStamp,
 } from "./types";
@@ -108,13 +113,13 @@ import { StampPanel, setLabel } from "./stamps/StampPanel";
 import { resolveShadow, stampCompositeOp, stampPicture } from "./stamps/render";
 import { Scatter, loadStampState, lookOf, makeStamp, saveStampState, selectSet, type StampLook, type StampToolState } from "./stamps/state";
 
-type Tool = "select" | "brush" | "land" | "stamp" | "path" | "region" | "label";
+type Tool = "select" | "brush" | "land" | "stamp" | "line" | "region" | "label";
 const TOOLS: { key: Tool; labelKey: string }[] = [
   { key: "select", labelKey: "mmToolSelect" },
   { key: "brush", labelKey: "mmToolBrush" },
   { key: "land", labelKey: "mmToolLand" },
   { key: "stamp", labelKey: "mmToolStamp" },
-  { key: "path", labelKey: "mmToolPath" },
+  { key: "line", labelKey: "mmToolLine" },
   { key: "region", labelKey: "mmToolRegion" },
   { key: "label", labelKey: "mmToolLabel" },
 ];
@@ -123,7 +128,7 @@ const HINT_KEY: Record<Tool, string> = {
   brush: "mmShortcutHintBrush",
   land: "mmShortcutHintLand",
   stamp: "mmShortcutHintStamp",
-  path: "mmShortcutHintPath",
+  line: "lnHintPen",
   region: "mmShortcutHintRegion",
   label: "mmShortcutHintLabel",
 };
@@ -140,11 +145,7 @@ const HINT_KEY: Record<Tool, string> = {
 // -----------------------------------------------------------------------------
 const MAX_LAYERS = 20,
   MAX_OBJECTS_PER_LAYER = 3000,
-  MAX_STROKE_POINTS = 6000,
   MAX_REGION_POINTS = 300,
-  /** Freehand samples closer than this (screen px) to the previous one are
-   * dropped — keeps strokes light without visibly changing their shape. */
-  MIN_STROKE_GAP_PX = 1,
   /** Clicking within this distance of a region's first vertex closes it. */
   REGION_CLOSE_PX = 10,
   /** A click this close to the last vertex is ignored (double-click, jitter). */
@@ -153,13 +154,10 @@ const MAX_LAYERS = 20,
    * are scaled by `W / EFFECT_REF_WIDTH`, so they stay proportional to the
    * map at every zoom level and in the full-resolution print export. */
   EFFECT_REF_WIDTH = 900,
-  LABEL_FONT = 'Georgia, "Times New Roman", serif',
-  /** Stable empty array for the live stroke preview: its points are pushed
-   * imperatively, and a constant prop means React never resets them. */
-  NO_POINTS: number[] = [];
+  LABEL_FONT = 'Georgia, "Times New Roman", serif';
 
-type StrokeDraft = Omit<MMBrush, "points"> | Omit<MMPath, "points">;
-type ObjUpdater = (o: MMObject) => MMPatch | Partial<MMStamp>;
+type StrokeDraft = Omit<MMBrush, "points">;
+type ObjUpdater = (o: MMObject) => MMPatch | Partial<MMStamp> | Partial<MMLine>;
 type StagePoint = { x: number; y: number };
 /** Drawing on a land layer: its base texture and its current land coverage
  * (null while it has no land) — texture previews are clipped to the land. */
@@ -174,6 +172,20 @@ const PAINT_GAP_PX = 1.5,
   MAX_GRID_CELLS = 4000;
 /** Rounds a normalized coordinate for compact, stable storage. */
 const q5 = (v: number) => Math.round(v * 1e5) / 1e5;
+/** A line node rounded for storage (handles too). */
+function roundNode(n: LineNode): LineNode {
+  const out: LineNode = { x: q5(n.x), y: q5(n.y) };
+  if (n.t) out.t = n.t;
+  if (n.hi) out.hi = { x: q5(n.hi.x), y: q5(n.hi.y) };
+  if (n.ho) out.ho = { x: q5(n.ho.x), y: q5(n.ho.y) };
+  return out;
+}
+/** A line's look (the fields a style holds). */
+function lineLookOf(o: MMLine): LineLook {
+  return { mode: o.mode, stroke: o.stroke, stamp: o.stamp, opacity: o.opacity, ...(o.blend ? { blend: o.blend } : {}) };
+}
+/** Clicking this close (screen px) to a line's end continues it with the Pen. */
+const LINE_END_PX = 8;
 
 /** Konva's `#id` selector compares the raw string, so ids must never be
  * CSS-escaped: `CSS.escape` turns a UUID's leading digit into `\3X `, which
@@ -250,11 +262,9 @@ function applyObjectPatches(p: MMProject, updaters: Map<string, ObjUpdater>): MM
   return changed ? { ...p, layers, updatedAt: Date.now() } : p;
 }
 
-/** Shared look for brush strokes and paths — used by both the committed
- * object and the live preview, so what you see while drawing is exactly what
- * lands on the map (no jump in smoothing/softness on release). */
+/** Look of legacy brush strokes (maps from before Brush Tool 2.0). */
 function strokeAppearance(o: StrokeDraft, W: number) {
-  const width = Math.max(0.5, (o.kind === "brush" ? o.size : o.width) * W),
+  const width = Math.max(0.5, o.size * W),
     soft = o.softness > 0;
   return {
     stroke: o.color,
@@ -265,7 +275,7 @@ function strokeAppearance(o: StrokeDraft, W: number) {
     lineJoin: "round" as const,
     shadowEnabled: soft,
     shadowColor: o.color,
-    shadowBlur: o.softness * (o.kind === "brush" ? 30 : 24) * (W / EFFECT_REF_WIDTH),
+    shadowBlur: o.softness * 30 * (W / EFFECT_REF_WIDTH),
     shadowOpacity: soft ? 0.9 : 0,
     hitStrokeWidth: Math.max(12, width),
     perfectDrawEnabled: false,
@@ -375,10 +385,6 @@ export function MapCreatorEditor({
     [ctrlWheel, setCtrlWheel] = useState<CtrlWheel>(loadCtrlWheel),
     /** Bumped after each placement, so the next stamp (and its preview) is a new draw. */
     [stampDraw, setStampDraw] = useState(1),
-    [pathKind, setPathKind] = useState<PathKind>("river"),
-    [pathWidth, setPathWidth] = useState(0.006),
-    [pathOpacity, setPathOpacity] = useState(1),
-    [pathSoftness, setPathSoftness] = useState(0),
     [biome, setBiome] = useState<Biome>("forest"),
     [textureScale, setTextureScale] = useState(1),
     [textureRotation, setTextureRotation] = useState(0),
@@ -388,11 +394,7 @@ export function MapCreatorEditor({
     [labelRtl, setLabelRtl] = useState(false),
     [labelText, setLabelText] = useState(""),
     [labelDraft, setLabelDraft] = useState<Point | null>(null);
-  /** In-flight brush/path stroke. Only its *style* lives in React state (set
-   * once at pointer-down); the points stream straight into the Konva preview
-   * node, so drawing never re-renders the whole editor per pointer move. */
-  const [stroke, setStroke] = useState<StrokeDraft | null>(null),
-    [regionDraft, setRegionDraft] = useState<Point[] | null>(null);
+  const [regionDraft, setRegionDraft] = useState<Point[] | null>(null);
   // ---- Brush Tool 2.0 state ----
   /** Everything the Brush panel edits; remembered per browser. */
   const [brushState, setBrushState] = useState<BrushState>(loadBrushState),
@@ -404,6 +406,15 @@ export function MapCreatorEditor({
     [showLayerMenu, setShowLayerMenu] = useState(false);
   /** Everything the Land panel edits; remembered per browser. */
   const [landTool, setLandTool] = useState<LandToolState>(loadLandTool);
+  // ---- Line Tool state ----
+  /** The Line tool's mode, settings and the look new lines get; per browser. */
+  const [lineTool, setLineTool] = useState<LineToolState>(loadLineTool),
+    /** Pen: nodes placed so far (null when no line is being drawn). */
+    [penDraft, setPenDraft] = useState<LineNode[] | null>(null),
+    /** Free Draw / Pen preview mounted. */
+    [lineDrafting, setLineDrafting] = useState(false),
+    /** Edit Nodes: the line being reshaped and its selected nodes. */
+    [nodeEditState, setNodeEdit] = useState<{ id: string; sel: number[] } | null>(null);
 
   const containerRef = useRef<HTMLDivElement>(null),
     stageRef = useRef<Konva.Stage>(null),
@@ -411,8 +422,12 @@ export function MapCreatorEditor({
     gridGroupRef = useRef<Konva.Group>(null),
     overlayLayerRef = useRef<Konva.Layer>(null),
     uiLayerRef = useRef<Konva.Layer>(null),
-    strokeLineRef = useRef<Konva.Line>(null),
-    strokePointsRef = useRef<Point[]>([]),
+    /** Live line preview (Free Draw trail, Pen rubber band), updated imperatively. */
+    lineDraftRef = useRef<Konva.Shape>(null),
+    /** The last pointer-down on a line (double-click → Edit Nodes). */
+    lineClickRef = useRef<{ id: string; t: number } | null>(null),
+    /** Pen: where the pointer is (stage px), for the rubber band to the next node. */
+    penCursorRef = useRef<Vec | null>(null),
     marqueeRectRef = useRef<Konva.Rect>(null),
     /** Aborts the active window-level pointer gesture (stroke/marquee). */
     pointerSessionRef = useRef<(() => void) | null>(null),
@@ -453,6 +468,15 @@ export function MapCreatorEditor({
     ? selectedLayer.objects.filter((o) => selectedIdSet.has(o.id))
     : [];
   const selectedObj = selectedObjs.length === 1 ? selectedObjs[0] : undefined;
+  /** Selected lines, and the one being reshaped with Edit Nodes. */
+  const selectedLines = selectedObjs.filter((o): o is MMLine => o.kind === "line");
+  const editedLayer = nodeEditState ? project.layers.find((l) => l.objects.some((o) => o.id === nodeEditState.id)) : undefined;
+  const editedLine = (editedLayer?.objects.find((o) => o.id === nodeEditState?.id) as MMLine | undefined) ?? null;
+  const nodeEditing = !!editedLine && !!editedLayer && editedLayer.visible && !editedLayer.locked && !editedLine.locked && !editedLine.hidden;
+  /** Edit Nodes, while its line still exists, is selected and can be changed. */
+  const nodeEdit = nodeEditState && nodeEditing && selectedIds.includes(nodeEditState.id) ? nodeEditState : null;
+  /** Pen: an existing line being continued (hidden while its draft is shown). */
+  const [penTarget, setPenTarget] = useState<{ id: string; atStart: boolean } | null>(null);
   /** Land layers: their land shapes, texture paint, base texture and coast. */
   const landByLayer = useMemo(() => {
     const m = new Map<string, { lands: MMLand[]; paints: MMPaint[]; base: PaintSource; fx: CoastEffect }>();
@@ -556,7 +580,9 @@ export function MapCreatorEditor({
   // Uploaded stamps this map uses, even ones the library no longer lists.
   useEffect(() => {
     if (!user) return;
-    const keys = project.layers.flatMap((l) => l.objects.flatMap((o) => (o.kind === "stamp" ? [o.asset] : [])));
+    const keys = project.layers.flatMap((l) =>
+      l.objects.flatMap((o) => (o.kind === "stamp" ? [o.asset] : o.kind === "line" && o.mode === "stamp" ? lineAssetKeys(o.stamp.parts) : [])),
+    );
     void resolvePlaced(keys);
   }, [user, project.layers]);
   /** Uploads pictures to My stamps. Returns the error message (also shown
@@ -584,6 +610,17 @@ export function MapCreatorEditor({
     }
   }
 
+  // ---- Line styles and line art from the server (see ./lines/remote) ----
+  const describeLineError = useCallback(
+    (e: unknown) =>
+      e instanceof ApiError && e.code === "plan_limit_reached"
+        ? t(e.body.limit === "line_styles" ? "lnStyleLimit" : "stUploadLimit", { max: e.body.max, quota: `${Math.round((user?.plan.upload_quota_bytes ?? 0) / 1024 / 1024)} MB` })
+        : errorMessage(t, e),
+    [t, user],
+  );
+  const lineLib = useLineLibrary(user, describeLineError);
+  const libraryStyles: LineStyle[] = useMemo(() => [...lineLib.own, ...lineLib.official], [lineLib.own, lineLib.official]);
+
   // ---- Cloud saving (see ./cloud/useCloudSync) ----
   const sync = useCloudSync({
     project,
@@ -607,14 +644,6 @@ export function MapCreatorEditor({
   useLayoutEffect(() => {
     viewRef.current = { w: W, h: H };
   }, [W, H]);
-  // Seed the live stroke preview when it mounts, and re-project it if the
-  // view is zoomed mid-stroke (its points are otherwise pushed imperatively).
-  useLayoutEffect(() => {
-    const line = strokeLineRef.current;
-    if (!stroke || !line) return;
-    line.points(flattenPoints(strokePointsRef.current, W, H));
-    line.getLayer()?.batchDraw();
-  }, [stroke, W, H]);
   // Never leave window-level pointer listeners behind on unmount.
   useEffect(() => {
     const session = pointerSessionRef;
@@ -630,13 +659,13 @@ export function MapCreatorEditor({
     if (!tr || !stage) return;
     const handleIds = selectedObjs.filter((o) => o.kind !== "paint" && o.kind !== "land" && !o.locked && !o.hidden).map((o) => o.id);
     const nodes =
-      tool === "select" && selectionEditable
+      tool === "select" && selectionEditable && !nodeEdit
         ? handleIds.map((id) => findNode(stage, id)).filter((n): n is Konva.Node => !!n)
         : [];
     tr.nodes(nodes);
     tr.getLayer()?.batchDraw();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tool, selectedIds, project, selectionEditable]);
+  }, [tool, selectedIds, project, selectionEditable, nodeEdit]);
 
   // The Stamp tool's settings persist per browser too.
   useEffect(() => {
@@ -653,6 +682,15 @@ export function MapCreatorEditor({
     const timer = setTimeout(() => saveLandTool(landTool), 400);
     return () => clearTimeout(timer);
   }, [landTool]);
+  useEffect(() => {
+    const timer = setTimeout(() => saveLineTool(lineTool), 400);
+    return () => clearTimeout(timer);
+  }, [lineTool]);
+  // Pen: redraw the in-progress line whenever a node is added.
+  useEffect(() => {
+    if (penDraft) requestAnimationFrame(() => showPenPreview(penDraft, penCursorRef.current));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [penDraft, W, H, lineTool.look]);
   useEffect(() => {
     if (!showLayerMenu) return;
     const onDown = (e: PointerEvent) => {
@@ -761,6 +799,23 @@ export function MapCreatorEditor({
         reorderObjects(selectedIds, "back");
         return;
       }
+      // ---- Line Tool: Pen and Edit Nodes keys come before object deletion ----
+      if (!mod && penDraft && (e.key === "Backspace" || e.key === "Delete")) {
+        e.preventDefault();
+        if (penDraft.length <= 1) cancelDrafts();
+        else setPenDraft(penDraft.slice(0, -1));
+        return;
+      }
+      if (!mod && penDraft && e.key === "Enter") {
+        e.preventDefault();
+        finishPen(false);
+        return;
+      }
+      if (!mod && nodeEdit && nodeEdit.sel.length && (e.key === "Backspace" || e.key === "Delete")) {
+        e.preventDefault();
+        removeEditedNodes();
+        return;
+      }
       if (
         tool === "select" &&
         selectedIds.length &&
@@ -777,6 +832,7 @@ export function MapCreatorEditor({
       }
       if (e.key === "Escape") {
         cancelDrafts();
+        setNodeEdit(null);
         setContextMenu(null);
         return;
       }
@@ -805,10 +861,28 @@ export function MapCreatorEditor({
           return;
         }
       }
-      // ---- Brush Tool shortcuts ----
-      if (!mod && !e.altKey && (key === "b" || key === "l")) {
+      // ---- Tool letters: B brush, G land (ground), L line ----
+      if (!mod && !e.altKey && (key === "b" || key === "g" || key === "l")) {
         e.preventDefault();
-        selectTool(key === "b" ? "brush" : "land");
+        selectTool(key === "b" ? "brush" : key === "g" ? "land" : "line");
+        return;
+      }
+      // ---- Line Tool shortcuts ----
+      if (!mod && !e.altKey && key === "n" && selectedLines.length === 1 && (tool === "select" || tool === "line")) {
+        e.preventDefault();
+        toggleNodeEdit(selectedLines[0].id);
+        return;
+      }
+      if (tool === "line" && !mod && !e.altKey && (key === "f" || key === "p" || key === "n")) {
+        e.preventDefault();
+        changeLineTool({ ...lineTool, draw: key === "f" ? "free" : key === "p" ? "pen" : "edit" });
+        return;
+      }
+      if (!mod && (tool === "line" || selectedLines.length > 0) && ["Equal", "Minus", "NumpadAdd", "NumpadSubtract", "BracketRight", "BracketLeft"].includes(e.code)) {
+        e.preventDefault();
+        const grow = e.code === "Equal" || e.code === "NumpadAdd" || e.code === "BracketRight",
+          k = e.altKey ? 1.02 : e.shiftKey ? 1.5 : 1.15;
+        scaleLineWidth(grow ? k : 1 / k);
         return;
       }
       if ((tool !== "brush" && tool !== "land") || mod) return;
@@ -842,7 +916,7 @@ export function MapCreatorEditor({
       window.removeEventListener("keyup", onKeyUp);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tool, selectedIds, selectedObjs, undo, redo, spaceHeld, polyDraft, project.width, stampTool]);
+  }, [tool, selectedIds, selectedObjs, undo, redo, spaceHeld, polyDraft, project.width, stampTool, lineTool, penDraft, nodeEdit]);
 
   // ---- Shared small helpers (used by keyboard shortcuts, the Edit menu and
   // the toolbars, so all three stay in sync with one implementation) ----
@@ -852,9 +926,12 @@ export function MapCreatorEditor({
     setRegionDraft(null);
     setLabelDraft(null);
     setPolyDraft(null);
+    setPenDraft(null);
+    setPenTarget(null);
   }
   function selectTool(next: Tool) {
     cancelDrafts();
+    if (next !== "line" && next !== "select") setNodeEdit(null);
     setTool(next);
     // The Land tool edits land layers: pick one if another layer is active.
     if (next === "land" && active?.role !== "land" && topLand) setActiveLayerId(topLand.id);
@@ -990,6 +1067,7 @@ export function MapCreatorEditor({
     const nid = crypto.randomUUID();
     if (o.kind === "stamp" || o.kind === "label")
       return { ...o, id: nid, x: Math.min(1, o.x + 0.02), y: Math.min(1, o.y + 0.02) };
+    if (o.kind === "line") return { ...o, id: nid, nodes: shiftNodes(o.nodes, 0.02, 0.02) };
     return {
       ...o,
       id: nid,
@@ -1113,7 +1191,9 @@ export function MapCreatorEditor({
     queuePatch(o.id, (cur) =>
       cur.kind === "stamp" || cur.kind === "label"
         ? {}
-        : { points: cur.points.map((p) => ({ x: p.x + dx, y: p.y + dy })) },
+        : cur.kind === "line"
+          ? { nodes: shiftNodes(cur.nodes, dx, dy) }
+          : { points: cur.points.map((p) => ({ x: p.x + dx, y: p.y + dy })) },
     );
   }
   function onObjectTransformEnd(o: MMObject, node: Konva.Node) {
@@ -1149,12 +1229,17 @@ export function MapCreatorEditor({
     node.skew({ x: 0, y: 0 });
     queuePatch(o.id, (cur) => {
       if (cur.kind === "stamp" || cur.kind === "label") return {};
+      if (cur.kind === "line")
+        return {
+          nodes: transformNodes(cur.nodes, w, h, (p) => m.point(p)).map(roundNode),
+          stroke: { ...cur.stroke, width: clamp(cur.stroke.width * uniform, 0.0002, 0.2) },
+          stamp: { ...cur.stamp, size: clamp(cur.stamp.size * uniform, 0.0005, 0.2) },
+        };
       const points = cur.points.map((p) => {
         const a = m.point({ x: p.x * w, y: p.y * h });
         return { x: a.x / w, y: a.y / h };
       });
       if (cur.kind === "brush") return { points, size: clamp(cur.size * uniform, 0.001, 0.08) };
-      if (cur.kind === "path") return { points, width: clamp(cur.width * uniform, 0.0008, 0.06) };
       return { points };
     });
   }
@@ -1166,12 +1251,32 @@ export function MapCreatorEditor({
       listening: !o.locked,
       draggable: tool === "select" && !layer.locked && !o.locked,
       onClick: (e: Konva.KonvaEventObject<MouseEvent>) => {
+        // Line tool, Edit Nodes: clicking a line picks it for reshaping.
+        if (tool === "line" && lineTool.draw === "edit" && o.kind === "line") {
+          selectOnly(o.id);
+          setNodeEdit({ id: o.id, sel: [] });
+          return;
+        }
         if (tool !== "select") return;
         if (e.evt.shiftKey) toggleSelect(o.id);
         else selectOnly(o.id);
       },
       onTap: () => {
         if (tool === "select") selectOnly(o.id);
+      },
+      // Double-clicking a line with the Select tool edits its nodes. Timed
+      // from pointer-downs: once the first click selects the line, Konva no
+      // longer reports the second click (the Transformer takes over).
+      onPointerDown: (e: Konva.KonvaEventObject<PointerEvent>) => {
+        if (tool !== "select" || o.kind !== "line" || layer.locked || e.evt.button !== 0) return;
+        const now = performance.now(),
+          last = lineClickRef.current;
+        lineClickRef.current = { id: o.id, t: now };
+        if (last && last.id === o.id && now - last.t < 450) {
+          lineClickRef.current = null;
+          selectOnly(o.id);
+          setNodeEdit({ id: o.id, sel: [] });
+        }
       },
       // Dragging an unselected object selects it first, so the drag never
       // moves a different, stale selection along with it.
@@ -1224,6 +1329,11 @@ export function MapCreatorEditor({
   }
   function handleContextMenu(e: Konva.KonvaEventObject<PointerEvent>) {
     e.evt.preventDefault();
+    // Pen: right-click finishes the line (as in Inkarnate).
+    if (tool === "line" && penDraft) {
+      finishPen(false);
+      return;
+    }
     if (tool !== "select") return;
     const stage = e.target.getStage();
     if (!stage) return;
@@ -1299,13 +1409,22 @@ export function MapCreatorEditor({
       if (e.target === stage) startMarquee(pos, e.evt.pointerId, e.evt.shiftKey);
       return;
     }
+    if (tool === "line" && lineTool.draw === "edit") {
+      // Clicking empty canvas ends Edit Nodes (lines are picked by their own click).
+      if (e.target === stage) {
+        setNodeEdit(null);
+        clearSelection();
+      }
+      return;
+    }
     if (!active || active.locked) return;
     const p = toNorm(pos);
     if (tool === "brush" || tool === "land") {
       if (tool === "land" && active.role !== "land") return;
       startDraw(pos, e.evt);
-    } else if (tool === "path") {
-      startStroke(p, e.evt.pointerId);
+    } else if (tool === "line") {
+      if (lineTool.draw === "free") startLineFree(pos, e.evt.pointerId);
+      else penDown(pos, e.evt);
     } else if (tool === "stamp") {
       startStamping(pos, e.evt.pointerId);
     } else if (tool === "region") {
@@ -1319,37 +1438,225 @@ export function MapCreatorEditor({
     }
   }
 
-  /** Freehand path: the points live in a ref and are streamed into the
-   * preview Line directly (no React render per pointer move); React only
-   * hears about the stroke when it starts and when it's committed. */
-  function startStroke(start: Point, pointerId: number) {
-    const id = crypto.randomUUID();
-    const style: StrokeDraft = { id, kind: "path", pathKind, color, width: pathWidth, opacity: pathOpacity, softness: pathSoftness };
-    const points: Point[] = [start];
-    strokePointsRef.current = points;
-    setStroke(style);
+  // ---- Line Tool ----------------------------------------------------------------
+  // Free Draw streams the pointer trail into a live preview and fits it with a
+  // few smooth nodes on release; the Pen places nodes click by click (drag to
+  // pull Bézier handles); Edit Nodes reshapes a line (./lines/LineNodeEditor).
+  // Previews are drawn imperatively into one LineShape inside the active
+  // layer, so drawing never re-renders the editor per pointer move.
+
+  /** The look a new line gets (a fresh seed, so walls don't repeat). */
+  function newLine(nodes: LineNode[], closed: boolean): MMLine {
+    const look = lineTool.look;
+    return {
+      id: crypto.randomUUID(),
+      kind: "line",
+      closed,
+      nodes: nodes.map(roundNode),
+      ...look,
+      stamp: { ...look.stamp, seed: newSeed() },
+      styleId: lineTool.styleId,
+    };
+  }
+  /** Adds a drawn line; the panel stays on the tool's settings for the next one. */
+  function addLine(o: MMLine) {
+    addObject(o);
+    setSelectedIds([]);
+  }
+  function changeLineTool(next: LineToolState) {
+    if (next.draw !== lineTool.draw) cancelDrafts();
+    if (next.draw !== "edit") setNodeEdit(null);
+    setLineTool(next);
+  }
+  /** Patches lines (any fields of MMLine) as one undo step. */
+  function patchLines(ids: string[], patch: (o: MMLine) => Partial<MMLine>) {
+    setProject((p) => applyObjectPatches(p, new Map(ids.map((id) => [id, (cur: MMObject) => (cur.kind === "line" ? patch(cur) : {})]))));
+  }
+  /** Snaps a point (stage px): to the end of another line, else to the grid. */
+  function snapLinePoint(p: Vec, exclude?: string): Vec {
+    let best: Vec | null = null,
+      bestD = LINE_END_PX + 1;
+    if (lineTool.snapEnds && active)
+      for (const o of active.objects) {
+        if (o.kind !== "line" || o.id === exclude || o.hidden || o.closed) continue;
+        for (const n of [o.nodes[0], o.nodes[o.nodes.length - 1]]) {
+          const d = Math.hypot(n.x * W - p.x, n.y * H - p.y);
+          if (d < bestD) {
+            bestD = d;
+            best = { x: n.x * W, y: n.y * H };
+          }
+        }
+      }
+    if (best) return best;
+    if (project.snapToGrid) {
+      const g = snap({ x: p.x / W, y: p.y / H });
+      return { x: g.x * W, y: g.y * H };
+    }
+    return p;
+  }
+  /** An open line in the active layer with an end under the pointer. */
+  function lineEndAt(p: Vec): { line: MMLine; atStart: boolean } | null {
+    if (!active || active.locked) return null;
+    for (const o of [...active.objects].reverse()) {
+      if (o.kind !== "line" || o.closed || o.hidden || o.locked) continue;
+      const a = o.nodes[0],
+        b = o.nodes[o.nodes.length - 1];
+      if (Math.hypot(b.x * W - p.x, b.y * H - p.y) <= LINE_END_PX) return { line: o, atStart: false };
+      if (Math.hypot(a.x * W - p.x, a.y * H - p.y) <= LINE_END_PX) return { line: o, atStart: true };
+    }
+    return null;
+  }
+  /** Shows a line being drawn in the live preview node. */
+  function showLineDraft(nodes: LineNode[], closed = false) {
+    const node = lineDraftRef.current;
+    if (!node) return;
+    node.setAttrs({ line: { ...lineTool.look, nodes, closed }, W: viewRef.current.w, H: viewRef.current.h });
+    node.getLayer()?.batchDraw();
+  }
+  /** Pen preview: the nodes placed so far plus a rubber band to the pointer. */
+  function showPenPreview(nodes: LineNode[], cursor: Vec | null) {
+    const { w, h } = viewRef.current;
+    showLineDraft(cursor && nodes.length ? [...nodes, { x: cursor.x / w, y: cursor.y / h }] : nodes);
+  }
+  /** Where the Pen puts the next node: Shift turns it to the angle steps
+   * from the previous node; otherwise it snaps to line ends / the grid. */
+  function penPoint(pos: StagePoint, shift: boolean, prev: LineNode | null): Vec {
+    if (shift && prev) return snapAngle({ x: prev.x * W, y: prev.y * H }, pos, lineTool.angleStep);
+    return snapLinePoint(pos);
+  }
+
+  /** Free Draw: drag to draw; the trail becomes a few smooth nodes. */
+  function startLineFree(start: StagePoint, pointerId: number) {
+    const first = snapLinePoint(start),
+      trail: Vec[] = [first];
+    let frame = 0;
+    flushSync(() => setLineDrafting(true));
+    const draw = () => {
+      frame = 0;
+      const { w, h } = viewRef.current,
+        // Long trails are thinned for the preview only.
+        step = Math.max(1, Math.floor(trail.length / 1500));
+      showLineDraft(trail.filter((_, i) => i % step === 0 || i === trail.length - 1).map((p) => ({ x: p.x / w, y: p.y / h })));
+    };
     trackPointer(
       pointerId,
-      (pos) => {
-        if (points.length >= MAX_STROKE_POINTS) return;
-        const { w, h } = viewRef.current,
-          last = points[points.length - 1],
-          next = { x: clamp(pos.x / w, 0, 1), y: clamp(pos.y / h, 0, 1) };
-        if (Math.hypot((next.x - last.x) * w, (next.y - last.y) * h) < MIN_STROKE_GAP_PX) return;
-        points.push(next);
-        const line = strokeLineRef.current;
-        if (line) {
-          line.points(flattenPoints(points, w, h));
-          line.getLayer()?.batchDraw();
-        }
+      (pos, ev) => {
+        const last = trail[trail.length - 1];
+        let p: Vec = pos;
+        if (ev.shiftKey) p = snapAngle(first, pos, lineTool.angleStep);
+        if (Math.hypot(p.x - last.x, p.y - last.y) < 1.5 || trail.length >= MAX_PAINT_POINTS) return;
+        if (ev.shiftKey) trail.length = 1;
+        trail.push(p);
+        frame ||= requestAnimationFrame(draw);
       },
       (commit) => {
-        strokePointsRef.current = [];
-        setStroke(null);
-        if (!commit) return;
-        if (points.length >= 2) addObject({ ...style, points });
+        cancelAnimationFrame(frame);
+        setLineDrafting(false);
+        if (!commit || trail.length < 2) return;
+        const { w, h } = viewRef.current;
+        trail[trail.length - 1] = snapLinePoint(trail[trail.length - 1]);
+        let length = 0;
+        for (let i = 1; i < trail.length; i++) length += Math.hypot(trail[i].x - trail[i - 1].x, trail[i].y - trail[i - 1].y);
+        if (length < 4) return;
+        // Ending where it began closes the loop.
+        const closed = length > 60 && Math.hypot(trail[0].x - trail[trail.length - 1].x, trail[0].y - trail[trail.length - 1].y) < REGION_CLOSE_PX;
+        const nodes = fitTrail(trail, w, h, lineTool.smoothing, closed);
+        if (nodes.length >= (closed ? 3 : 2)) addLine(newLine(nodes, closed));
       },
     );
+  }
+
+  /** Pen: click to place a node, drag to pull its handles (Alt: one handle).
+   * Click the first node to close the line, the last node (or double-click,
+   * right-click, Enter) to finish it. Starting on an end of an open line
+   * continues that line. */
+  function penDown(pos: StagePoint, ev: PointerEvent) {
+    const draft = penDraft;
+    if (!draft) {
+      const end = lineEndAt(pos);
+      if (end) {
+        setPenTarget({ id: end.line.id, atStart: end.atStart });
+        setPenDraft(end.atStart ? reverseNodes(end.line.nodes) : end.line.nodes);
+        return;
+      }
+    }
+    const prev = draft?.[draft.length - 1] ?? null,
+      p = penPoint(pos, ev.shiftKey, prev);
+    if (draft && draft.length >= 3 && !penTarget && Math.hypot(draft[0].x * W - p.x, draft[0].y * H - p.y) < REGION_CLOSE_PX) {
+      finishPen(true);
+      return;
+    }
+    if (prev && Math.hypot(prev.x * W - p.x, prev.y * H - p.y) < REGION_DUPLICATE_PX * 1.5) {
+      if (draft!.length >= 2) finishPen(false);
+      return;
+    }
+    if (draft && draft.length >= 2000) return;
+    const base = draft ?? [],
+      node: LineNode = { x: p.x / W, y: p.y / H };
+    let cur = node;
+    setPenDraft([...base, node]);
+    trackPointer(
+      ev.pointerId,
+      (pos2, e2) => {
+        const { w, h } = viewRef.current,
+          dx = pos2.x - p.x,
+          dy = pos2.y - p.y;
+        if (Math.hypot(dx, dy) < 3) return;
+        const ho = { x: dx / w, y: dy / h };
+        cur = e2.altKey ? { ...node, ho } : { ...node, t: "smooth", ho, hi: { x: -ho.x, y: -ho.y } };
+        showPenPreview([...base, cur], null);
+      },
+      (commit) => {
+        if (commit && cur !== node) setPenDraft([...base, cur]);
+      },
+    );
+  }
+  function finishPen(closeIt: boolean) {
+    const draft = penDraft,
+      target = penTarget;
+    setPenDraft(null);
+    setPenTarget(null);
+    penCursorRef.current = null;
+    if (!draft || draft.length < 2) return;
+    if (target) {
+      const nodes = (target.atStart ? reverseNodes(draft) : draft).map(roundNode);
+      patchLines([target.id], () => ({ nodes }));
+      return;
+    }
+    addLine(newLine(draft, closeIt && draft.length >= 3));
+  }
+
+  // ---- Edit Nodes ----
+  function toggleNodeEdit(id: string) {
+    if (nodeEdit?.id === id) setNodeEdit(null);
+    else {
+      selectOnly(id);
+      setNodeEdit({ id, sel: [] });
+    }
+  }
+  /** Removes the selected nodes; a line left too short opens or goes away. */
+  function removeEditedNodes() {
+    if (!editedLine || !nodeEdit) return;
+    const drop = new Set(nodeEdit.sel);
+    const nodes = editedLine.nodes.filter((_, i) => !drop.has(i));
+    let closed = editedLine.closed;
+    if (closed && nodes.length < 3) closed = false;
+    if (nodes.length < 2) {
+      removeObjects([editedLine.id]);
+      setNodeEdit(null);
+      return;
+    }
+    patchLines([editedLine.id], () => ({ nodes, closed }));
+    setNodeEdit({ ...nodeEdit, sel: [] });
+  }
+  /** Width keys: the selected lines, else the next line. */
+  function scaleLineWidth(k: number) {
+    const scale = (l: LineLook): LineLook =>
+      l.mode === "stamp"
+        ? { ...l, stamp: { ...l.stamp, size: clamp(l.stamp.size * k, 0.0005, 0.2) } }
+        : { ...l, stroke: { ...l.stroke, width: clamp(l.stroke.width * k, 0.0002, 0.2) } };
+    if (selectedLines.length) patchLines(selectedLines.map((o) => o.id), (o) => scale(lineLookOf(o)));
+    else setLineTool((st) => ({ ...st, look: scale(st.look), styleId: st.styleId }));
   }
 
   // ---- Arranging: groups, lock/hide, align & distribute (see ./arrange) -------
@@ -1867,10 +2174,17 @@ export function MapCreatorEditor({
   /** Brush size cursor: follows the pointer over the canvas (imperatively). */
   function handleStageHover(e: Konva.KonvaEventObject<PointerEvent>) {
     moveStampGhost(e.target.getStage()?.getPointerPosition() ?? null);
+    const pos = e.target.getStage()?.getPointerPosition();
+    // Pen: rubber band from the last node to where the next one would go.
+    if (tool === "line" && penDraft && pos && !pointerSessionRef.current) {
+      const prev = penDraft[penDraft.length - 1];
+      penCursorRef.current = penPoint(pos, e.evt.shiftKey, prev);
+      showPenPreview(penDraft, penCursorRef.current);
+    }
     const c = brushCursorRef.current;
     if (!c) return;
-    const pos = e.target.getStage()?.getPointerPosition();
-    const show = (tool === "brush" || tool === "land") && drawMode === "free" && !!pos && !spaceHeld;
+    const show =
+      (((tool === "brush" || tool === "land") && drawMode === "free") || (tool === "line" && lineTool.draw !== "edit")) && !!pos && !spaceHeld;
     if (show) c.setAttrs({ x: pos!.x, y: pos!.y, visible: true });
     else if (!c.visible()) return;
     else c.visible(false);
@@ -1993,6 +2307,9 @@ export function MapCreatorEditor({
       };
     if (tool === "region" && regionDraft && regionDraft.length >= 3 && onLast(regionDraft)) commitRegion(regionDraft);
     if ((tool === "brush" || tool === "land") && polyDraft && polyDraft.length >= 3 && onLast(polyDraft)) commitPolygon();
+    // (The Pen finishes a real double-click itself: its second click lands on
+    // the last node. Konva's dblclick also fires for two quick clicks far
+    // apart, so it must not end a line.)
   }
   function confirmLabel() {
     if (!labelDraft || !labelText.trim()) return;
@@ -2185,8 +2502,13 @@ export function MapCreatorEditor({
       }
       case "region":
         return t(BIOME_LABEL_KEY[o.biome]);
-      case "path":
-        return t(PATH_KIND_LABEL_KEY[o.pathKind]);
+      case "line": {
+        if (o.name) return o.name;
+        const style = o.styleId ? (builtinLineStyles().find((x) => x.id === o.styleId) ?? libraryStyles.find((x) => x.id === o.styleId)) : undefined;
+        if (style) return style.name ?? t(style.labelKey ?? "mmToolLine");
+        const set = o.mode === "stamp" ? lineSet(o.stamp.set) : undefined;
+        return set ? lineSetLabel(t, set) : t("mmToolLine");
+      }
       case "paint": {
         const mode = t(PAINT_MODES.find((m) => m.key === o.mode)?.labelKey ?? "mmToolBrush");
         if (o.erase) return `${t("mmEraser")} · ${mode}`;
@@ -2204,7 +2526,7 @@ export function MapCreatorEditor({
         layer.objects.map((o) => ({ layer, o })),
       ).filter(({ o }) => !searchLower || objectLabel(o).toLowerCase().includes(searchLower)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [project.layers, searchLower, i18n.language],
+    [project.layers, searchLower, i18n.language, libraryStyles],
   );
 
   /** How the live preview composites into its layer (see previewRaster). */
@@ -2216,6 +2538,45 @@ export function MapCreatorEditor({
           // On land, the texture eraser paints the base texture back.
           op: brushState.erase && active?.role === "land" ? "source-over" : paintCompositeOp(brushState),
         };
+
+  // ---- Line panel: the tool's settings, or the selected lines ----
+  const lineEditing =
+    selectedLines.length > 0 && selectedLines.length === selectedObjs.length && (tool === "select" || (tool === "line" && lineTool.draw === "edit"))
+      ? { count: selectedLines.length, look: lineLookOf(selectedLines[0]), styleId: selectedLines[0].styleId ?? null }
+      : null;
+  const lineBase = lineBaseLook(lineEditing ? lineEditing.styleId : lineTool.styleId, libraryStyles);
+  const singleLine = selectedLines.length === 1 && selectedObjs.length === 1 ? selectedLines[0] : null;
+  const lineActions = singleLine
+    ? {
+        name: singleLine.name ?? "",
+        closed: singleLine.closed,
+        canClose: singleLine.closed || singleLine.nodes.length >= 3,
+        editingNodes: nodeEdit?.id === singleLine.id,
+        onRename: (name: string) => patchLines([singleLine.id], () => ({ name: name || undefined })),
+        onToggleClosed: () => patchLines([singleLine.id], (o) => ({ closed: !o.closed && o.nodes.length >= 3 })),
+        onReverse: () => patchLines([singleLine.id], (o) => ({ nodes: reverseNodes(o.nodes) })),
+        onEditNodes: () => toggleNodeEdit(singleLine.id),
+      }
+    : null;
+  /** A new look for the selected lines (and the style it came from, when one was applied). */
+  function editSelectedLines(look: LineLook, styleId?: string | null) {
+    patchLines(
+      selectedLines.map((o) => o.id),
+      () => ({ ...look, blend: look.blend, ...(styleId !== undefined ? { styleId } : {}) }),
+    );
+  }
+  /** Uses a line-art set: for the selected lines, or the next line. */
+  function applyLineSet(id: string | null) {
+    const set = id ? lineSet(id) : undefined;
+    if (!set) return;
+    if (lineEditing) editSelectedLines(withSet(lineEditing.look, set));
+    else setLineTool((st) => ({ ...st, look: withSet(st.look, set), styleId: null }));
+  }
+  /** The live preview node's base look (stable, so React never resets the
+   * nodes it is given imperatively). */
+  const lineDraftBase = useMemo(() => ({ ...lineTool.look, nodes: [] as LineNode[], closed: false }), [lineTool.look]);
+  const floatingPanel = (stampEditing && tool !== "stamp") || (lineEditing && tool !== "line");
+  const blendOp = (b?: string): GlobalCompositeOperation => (b && b !== "normal" ? (b as GlobalCompositeOperation) : "source-over");
 
   // ---- Render ----
   return (
@@ -2286,6 +2647,9 @@ export function MapCreatorEditor({
               <MenuRow label={t("stWheelZoom")} icon={ctrlWheel === "zoom" ? "check" : undefined} onClick={() => changeCtrlWheel("zoom")} />
               <MenuRow label={t("stWheelRotate")} icon={ctrlWheel === "rotate" ? "check" : undefined} onClick={() => changeCtrlWheel("rotate")} />
               <MenuHint label={t("stStampKeys")} hint={t("stStampKeysHint")} />
+              <div className="mm-menu-heading">{t("lnMenuHeading")}</div>
+              <MenuHint label={t("lnKeysDraw")} hint={t("lnKeysDrawHint")} />
+              <MenuHint label={t("lnKeysEdit")} hint={t("lnKeysEditHint")} />
             </div>
           )}
         </div>
@@ -2421,8 +2785,56 @@ export function MapCreatorEditor({
             }
           />
         )}
+        {(tool === "line" || lineEditing) && (
+          <LinePanel
+            state={lineTool}
+            onChange={changeLineTool}
+            editing={lineEditing}
+            onEditLook={editSelectedLines}
+            onDoneEditing={() => {
+              clearSelection();
+              setNodeEdit(null);
+            }}
+            baseLook={lineBase}
+            line={lineActions}
+            library={{
+              signedIn: !!user,
+              own: lineLib.own,
+              official: lineLib.official,
+              max: lineLib.max,
+              busy: lineLib.busy,
+              error: lineLib.error,
+              onSave: (name) => void lineLib.save(name, lineEditing ? lineEditing.look : lineTool.look),
+              onDelete: (id) => void lineLib.remove(id),
+            }}
+            uploads={{
+              signedIn: !!user,
+              busy: lineLib.uploadBusy,
+              error: lineLib.uploadError,
+              onUpload: (files) => void lineLib.upload(files).then(applyLineSet),
+              onAddPiece: (setId, role, file) => void lineLib.addPiece(setId, role, file),
+            }}
+            t={t}
+            mapWidthPx={project.width}
+            recentColors={recentColors}
+            onCommitColor={(c) => setRecentColors((r) => pushRecent(r, c))}
+            floating={tool !== "line"}
+            target={
+              active &&
+              tool === "line" && (
+                <EditTarget
+                  role={active.role ?? "custom"}
+                  layerName={active.name}
+                  what={t("lnTarget")}
+                  note={active.locked ? t("mmTargetLocked") : undefined}
+                  warning={active.locked}
+                />
+              )
+            }
+          />
+        )}
         <div className="mm-canvas-column">
-          <div className={`mm-top-toolbar ${stampEditing && tool !== "stamp" ? "beside-floating" : ""}`}>
+          <div className={`mm-top-toolbar ${floatingPanel ? "beside-floating" : ""}`}>
             {tool === "select" && selectedObjs.length === 0 && (
               <span className="mm-toolbar-note">{t("mmNoSelection")}</span>
             )}
@@ -2559,19 +2971,55 @@ export function MapCreatorEditor({
                 />
               </>
             )}
-            {tool === "path" && (
+            {tool === "line" && (
               <>
-                <div className="mm-swatch-row">
-                  {PATH_KIND_LIST.map((k) => (
-                    <button key={k} className={`mm-pill ${pathKind === k ? "selected" : ""}`} onClick={() => setPathKind(k)}>
-                      {t(PATH_KIND_LABEL_KEY[k])}
+                <div className="mm-tb-modes" role="radiogroup" aria-label={t("lnDrawMode")}>
+                  {LINE_DRAW_MODES.map((m) => (
+                    <button
+                      key={m.key}
+                      className={lineTool.draw === m.key ? "active" : ""}
+                      title={`${t(m.labelKey)} (${m.shortcut})`}
+                      role="radio"
+                      aria-checked={lineTool.draw === m.key}
+                      onClick={() => changeLineTool({ ...lineTool, draw: m.key })}
+                    >
+                      <Glyph name={m.glyph} size={16} />
                     </button>
                   ))}
                 </div>
-                <ColorControl color={color} recents={recentColors} onChange={commitColor} label={t("mmColor")} recentLabel={t("mmRecents")} />
-                <Slider label={t("mmPathWidth")} value={pathWidth} min={0.002} max={0.03} step={0.001} onChange={setPathWidth} />
-                <Slider label={t("mmPathOpacity")} value={pathOpacity} min={0.1} max={1} step={0.05} onChange={setPathOpacity} format={(v) => `${Math.round(v * 100)}%`} />
-                <Slider label={t("mmPathSoftness")} value={pathSoftness} min={0} max={1} step={0.05} onChange={setPathSoftness} format={(v) => `${Math.round(v * 100)}%`} />
+                {lineTool.draw !== "edit" &&
+                  (lineTool.look.mode === "color" ? (
+                    <Slider
+                      label={t("lnWidth")}
+                      value={Math.round(lineTool.look.stroke.width * project.width * 10) / 10}
+                      min={0.5}
+                      max={Math.round(project.width * 0.04)}
+                      step={0.5}
+                      onChange={(v) => setLineTool((st) => ({ ...st, look: { ...st.look, stroke: { ...st.look.stroke, width: v / project.width } } }))}
+                      format={(v) => `${v} px`}
+                    />
+                  ) : (
+                    <Slider
+                      label={t("lnStampSize")}
+                      value={Math.round(lineTool.look.stamp.size * project.width * 10) / 10}
+                      min={1}
+                      max={Math.round(project.width * 0.1)}
+                      step={0.5}
+                      onChange={(v) => setLineTool((st) => ({ ...st, look: { ...st.look, stamp: { ...st.look.stamp, size: v / project.width } } }))}
+                      format={(v) => `${v} px`}
+                    />
+                  ))}
+                {penDraft && penDraft.length >= 2 && (
+                  <button className="secondary-button" onClick={() => finishPen(false)}>
+                    {t("lnFinish")}
+                  </button>
+                )}
+                {penDraft && penDraft.length >= 3 && !penTarget && (
+                  <button className="secondary-button" onClick={() => finishPen(true)}>
+                    {t("lnFinishClosed")}
+                  </button>
+                )}
+                {lineTool.draw === "edit" && !nodeEdit && <span className="mm-toolbar-note">{t("lnPickLine")}</span>}
               </>
             )}
             {tool === "region" && (
@@ -2642,11 +3090,12 @@ export function MapCreatorEditor({
                 onDuplicate={() => duplicateObject(selectedObj.id)}
                 onDelete={() => removeObject(selectedObj.id)}
                 onReorder={(dir) => reorderObject(selectedObj.id, dir)}
+                lineActions={lineActions ?? undefined}
               />
             )}
           </div>
           {notice && (
-            <div className={`mm-editor-notice ${noticeOk ? "ok" : ""} ${stampEditing && tool !== "stamp" ? "beside-floating" : ""}`} role={noticeOk ? "status" : "alert"}>
+            <div className={`mm-editor-notice ${noticeOk ? "ok" : ""} ${floatingPanel ? "beside-floating" : ""}`} role={noticeOk ? "status" : "alert"}>
               <span>{notice}</span>
               <button onClick={() => setNotice(null)} aria-label={t("close")}>
                 ×
@@ -2657,7 +3106,13 @@ export function MapCreatorEditor({
             className="mm-canvas-wrap"
             ref={containerRef}
             style={{
-              cursor: panningActive ? "grabbing" : spaceHeld ? "grab" : tool === "select" ? undefined : "crosshair",
+              cursor: panningActive
+                ? "grabbing"
+                : spaceHeld
+                  ? "grab"
+                  : tool === "select" || (tool === "line" && lineTool.draw === "edit")
+                    ? undefined
+                    : "crosshair",
             }}
             onPointerDown={startPan}
             onPointerMove={movePan}
@@ -2735,7 +3190,12 @@ export function MapCreatorEditor({
                             opacity={o.opacity}
                           />
                         );
-                      if (o.kind === "brush" || o.kind === "path")
+                      if (o.kind === "line")
+                        // A line being continued with the Pen is shown by its draft.
+                        return penTarget?.id === o.id ? null : (
+                          <LineShapeNode key={o.id} {...handlers} line={o} W={W} H={H} opacity={o.opacity} globalCompositeOperation={blendOp(o.blend)} />
+                        );
+                      if (o.kind === "brush")
                         return (
                           <Line
                             key={o.id}
@@ -2774,6 +3234,18 @@ export function MapCreatorEditor({
                       scatterDraft.map((o) => (
                         <StampNode key={o.id} o={o} W={W} H={H} shadow={resolveShadow(o, layer)} op={stampCompositeOp(o, layer)} />
                       ))}
+                    {/* Line being drawn (Free Draw trail / Pen), set imperatively. */}
+                    {(lineDrafting || !!penDraft) && layer.id === active?.id && (
+                      <LineShapeNode
+                        ref={lineDraftRef}
+                        line={lineDraftBase}
+                        W={W}
+                        H={H}
+                        listening={false}
+                        opacity={lineTool.look.opacity}
+                        globalCompositeOperation={blendOp(lineTool.look.blend)}
+                      />
+                    )}
                     {/* Live Brush / Land preview — inside the active layer, so
                         erasers and blend modes preview exactly as they commit.
                         Its image/position are set imperatively per frame. */}
@@ -2793,7 +3265,18 @@ export function MapCreatorEditor({
               {/* Editor-only overlays: live drafts and the marquee. Hidden
                   when rendering the map for print. */}
               <Layer ref={overlayLayerRef} listening={false}>
-                {stroke && <Line ref={strokeLineRef} points={NO_POINTS} {...strokeAppearance(stroke, W)} />}
+                {penDraft &&
+                  penDraft.map((n, i) => (
+                    <Circle
+                      key={i}
+                      x={n.x * W}
+                      y={n.y * H}
+                      radius={i === 0 ? 5 : 3.5}
+                      fill={i === 0 ? "#f2a65a" : "#ffffff"}
+                      stroke="#1b1f24"
+                      strokeWidth={1}
+                    />
+                  ))}
                 {polyDraft && (
                   <>
                     <Line points={flattenPoints(polyDraft, W, H)} stroke="#f2a65a" strokeWidth={1.5} dash={[4, 3]} closed={polyDraft.length >= 3} />
@@ -2802,17 +3285,28 @@ export function MapCreatorEditor({
                     ))}
                   </>
                 )}
-                {(tool === "brush" || tool === "land") && (
+                {(tool === "brush" || tool === "land" || tool === "line") && (
                   <Circle
                     ref={brushCursorRef}
-                    radius={Math.max(1, ((tool === "land" ? landTool.size : brushState.brush.size) * W) / 2)}
+                    radius={Math.max(
+                      1,
+                      ((tool === "land"
+                        ? landTool.size
+                        : tool === "line"
+                          ? lineTool.look.mode === "stamp"
+                            ? lineTool.look.stamp.size
+                            : lineTool.look.stroke.width + 2 * lineTool.look.stroke.casing
+                          : brushState.brush.size) *
+                        W) /
+                        2,
+                    )}
                     stroke="rgba(255,255,255,0.9)"
                     strokeWidth={1}
                     shadowColor="#000"
                     shadowBlur={2}
                     shadowOpacity={0.8}
                     visible={false}
-                    dash={(tool === "land" ? landTool.erase : brushState.erase) ? [3, 3] : undefined}
+                    dash={tool !== "line" && (tool === "land" ? landTool.erase : brushState.erase) ? [3, 3] : undefined}
                   />
                 )}
                 {regionDraft && (
@@ -2868,6 +3362,23 @@ export function MapCreatorEditor({
                 )}
               </Layer>
               <Layer ref={uiLayerRef}>
+                {nodeEditing && editedLine && nodeEdit && (
+                  <LineNodeEditor
+                    line={editedLine}
+                    W={W}
+                    H={H}
+                    selected={nodeEdit.sel}
+                    onSelect={(sel) => setNodeEdit({ id: editedLine.id, sel })}
+                    onPreview={(nodes) => {
+                      const n = stageRef.current && findNode(stageRef.current, editedLine.id);
+                      if (!n) return;
+                      n.setAttr("line", { ...editedLine, nodes });
+                      n.getLayer()?.batchDraw();
+                    }}
+                    onCommit={(nodes) => patchLines([editedLine.id], () => ({ nodes: nodes.map(roundNode) }))}
+                    snap={(p) => snapLinePoint(p, editedLine.id)}
+                  />
+                )}
                 {tool === "select" && selectedIds.length > 0 && (
                   <Transformer
                     ref={transformerRef}
@@ -2915,7 +3426,9 @@ export function MapCreatorEditor({
                   ? t(PAINT_MODES.find((m) => m.key === brushState.mode)!.hintKey)
                   : tool === "land"
                     ? t(LAND_MODES.find((m) => m.key === landTool.mode)!.hintKey)
-                    : t(HINT_KEY[tool])}
+                    : tool === "line"
+                      ? t(LINE_DRAW_MODES.find((m) => m.key === lineTool.draw)!.hintKey)
+                      : t(HINT_KEY[tool])}
               </span>
               <span className="mm-shortcut-legend">1–7 {t("mmToolSelect")}/{t("mmToolBrush")}/… · {t("mmMultiSelectHint")} · ⌘Z {t("undo")} · ⌘⇧Z {t("redo")} · ⌘D {t("mmDuplicateObject")} · ⌘C/⌘V copy/paste · ⌘] / ⌘[ {t("mmBringToFront")}/{t("mmSendToBack")} · ⌘ scroll {t("mmZoom")}</span>
             </div>
@@ -2958,8 +3471,8 @@ export function MapCreatorEditor({
                               ? "label"
                               : o.kind === "region"
                                 ? "region"
-                                : o.kind === "path"
-                                  ? "path"
+                                : o.kind === "line"
+                                  ? "line"
                                   : o.kind === "land"
                                     ? o.erase
                                       ? "water"
@@ -3113,6 +3626,14 @@ export function MapCreatorEditor({
           className="mm-edit-menu mm-context-menu"
           style={{ left: contextMenu.x, top: contextMenu.y }}
         >
+          {lineActions && (
+            <>
+              <MenuRow label={t("lnEditNodes")} shortcut="N" icon="editNodes" onClick={() => { lineActions.onEditNodes(); setContextMenu(null); }} />
+              <MenuRow label={t("lnReverse")} icon="reverse" onClick={() => { lineActions.onReverse(); setContextMenu(null); }} />
+              <MenuRow label={t(lineActions.closed ? "lnOpenPath" : "lnClosePath")} icon="closePath" disabled={!lineActions.canClose} onClick={() => { lineActions.onToggleClosed(); setContextMenu(null); }} />
+              <div className="mm-menu-divider" />
+            </>
+          )}
           <MenuRow label={t("mmDuplicateObject")} shortcut="⌘D" disabled={!selectedObjs.length} onClick={() => { duplicateObjects(selectedIds); setContextMenu(null); }} />
           <MenuRow label={t("mmCopyObject")} shortcut="⌘C" disabled={!selectedObjs.length} onClick={() => { copySelection(); setContextMenu(null); }} />
           <MenuRow label={t("mmPasteObject")} shortcut="⌘V" disabled={!hasClipboard} onClick={() => { pasteClipboard(); setContextMenu(null); }} />

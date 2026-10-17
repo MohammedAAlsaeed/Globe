@@ -13,9 +13,10 @@ use Illuminate\Database\Eloquent\Model;
  * @property int|null $max_maps
  * @property int $max_export_px
  * @property int $upload_quota_bytes
+ * @property int|null $max_line_styles
  * @property bool $commercial_use
  */
-#[Fillable(['code', 'name', 'tier', 'max_maps', 'max_export_px', 'upload_quota_bytes', 'commercial_use', 'is_default', 'sort'])]
+#[Fillable(['code', 'name', 'tier', 'max_maps', 'max_export_px', 'upload_quota_bytes', 'max_line_styles', 'commercial_use', 'is_default', 'sort'])]
 class Plan extends Model
 {
     protected function casts(): array
@@ -25,6 +26,7 @@ class Plan extends Model
             'max_maps' => 'integer',
             'max_export_px' => 'integer',
             'upload_quota_bytes' => 'integer',
+            'max_line_styles' => 'integer',
             'commercial_use' => 'boolean',
             'is_default' => 'boolean',
         ];

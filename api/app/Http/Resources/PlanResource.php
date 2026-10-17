@@ -18,6 +18,7 @@ class PlanResource extends JsonResource
             'max_maps' => $this->max_maps,
             'max_export_px' => $this->max_export_px,
             'upload_quota_bytes' => $this->upload_quota_bytes,
+            'max_line_styles' => $this->max_line_styles,
             'commercial_use' => $this->commercial_use,
         ];
     }

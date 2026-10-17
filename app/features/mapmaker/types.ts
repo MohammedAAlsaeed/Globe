@@ -7,8 +7,9 @@
  * editors stay visually consistent.
  */
 import type { IconId } from "../studio/domain/icons";
+import type { LineNode } from "./lines/geometry";
 
-export type { IconId };
+export type { IconId, LineNode };
 export type Point = { x: number; y: number };
 export type Biome =
   | "forest"
@@ -51,6 +52,8 @@ export interface MMIcon {
   scale: number;
   color: string;
 }
+/** Legacy freehand path (before the Line Tool). Older saved maps may still
+ * contain these; they open as lines with the same look (stamps/migrate). */
 export interface MMPath extends MMObjectBase {
   kind: "path";
   pathKind: PathKind;
@@ -341,7 +344,108 @@ export interface MMStamp extends MMObjectBase {
   stretch?: number;
 }
 
-export type MMObject = MMBrush | MMStamp | MMPath | MMRegion | MMLabel | MMPaint | MMLand;
+// -----------------------------------------------------------------------------
+// Line Tool — editable vector paths (roads, rivers, borders, walls, fences…)
+// -----------------------------------------------------------------------------
+// A line keeps its *geometry* (Bézier nodes, see ./lines/geometry) apart from
+// its *look*: the same nodes can be drawn as a coloured stroke or as a row of
+// stamp pieces, and switching between the two never touches the path. Both
+// looks are kept on the object, so a dirt road turned into a stone wall and
+// back gets its old colour and width again.
+
+/** Color: a painted stroke. Stamp: pieces of art repeated along the path. */
+export type LineMode = "color" | "stamp";
+export type LinePattern = "solid" | "dashed" | "dotted" | "dashdot" | "custom";
+export type LineCap = "round" | "butt" | "square";
+export type LineJoin = "round" | "miter" | "bevel";
+
+/** A painted stroke. Lengths are fractions of the map width, so a road keeps
+ * its size relative to the map at every zoom and in print. */
+export interface LineColorStroke {
+  color: string;
+  width: number;
+  pattern: LinePattern;
+  /** Dash length and gap, in stroke widths (dashed / dash-dot / custom). */
+  dash: number;
+  gap: number;
+  cap: LineCap;
+  join: LineJoin;
+  /** 0..1 soft, blurred edges. */
+  blur: number;
+  /** Outline drawn under the stroke on both sides (roads), fraction of map width (0 = none). */
+  casing: number;
+  casingColor: string;
+}
+
+/** The art pieces a Stamp Stroke repeats: catalog asset keys (built-in
+ * vector art "b:…", uploaded images "u:…"). */
+export interface LineParts {
+  /** The repeated piece; several = variants picked at random. */
+  seg: string[];
+  start?: string | null;
+  end?: string | null;
+  /** Placed on sharp corners when corners are "split". */
+  corner?: string | null;
+}
+
+export interface LineStampStroke {
+  /** The line-art set the pieces came from (for the panel; may be unknown). */
+  set: string;
+  parts: LineParts;
+  /** Vector art colors (uploaded images keep their own). */
+  ink: string;
+  fill: string | null;
+  /** Thickness of the pieces, fraction of the map width. */
+  size: number;
+  /** Gap between pieces, fraction of a piece's length (negative overlaps). */
+  spacing: number;
+  /** Extra rotation of every piece, degrees. */
+  rotation: number;
+  /** Pieces turn with the path (walls) or stay upright (trees). */
+  followPath: boolean;
+  /** Sideways shift, in thicknesses (+ = right of the drawing direction). */
+  offset: number;
+  /** Mirrors the pieces across the path (which side a wall's towers face). */
+  flip: boolean;
+  /** Stretch each run a little so a whole number of pieces fits. */
+  fit: boolean;
+  /** One run along the whole path, or a new run (and corner piece) at each sharp corner. */
+  corners: "continuous" | "split";
+  /** Use the start/end pieces on open lines. */
+  caps: boolean;
+  /** 0..1 random size / rotation per piece (hedges, tree lines). */
+  scaleJitter: number;
+  rotationJitter: number;
+  /** Side-view art stands on the line ("base"); top-down art straddles it. */
+  anchor: "center" | "base";
+  seed: number;
+}
+
+/** Everything about how a line looks (a "style"): what the tool draws new
+ * lines with, what a line keeps, and what the styles library saves. */
+export interface LineLook {
+  mode: LineMode;
+  stroke: LineColorStroke;
+  stamp: LineStampStroke;
+  opacity: number;
+  /** How the line mixes with what's beneath it in its layer (unset = normal). */
+  blend?: BlendMode;
+}
+
+export interface MMLine extends MMObjectBase, LineLook {
+  kind: "line";
+  /** Optional name (e.g. "Northern Road"), shown in the Objects list. */
+  name?: string;
+  /** The library style this line was drawn with (reset returns to it). */
+  styleId?: string | null;
+  /** A closed loop (city walls, a lake shore) rather than an open path. */
+  closed: boolean;
+  nodes: LineNode[];
+}
+
+/** Every object kind a layer can hold. Legacy kinds (MMIcon, MMPath) are
+ * converted when a map opens (see ./stamps/migrate). */
+export type MMObject = MMBrush | MMStamp | MMLine | MMRegion | MMLabel | MMPaint | MMLand;
 
 /** Brush-layer role (Inkarnate-style). Optional — older layers read as "custom". */
 export type LayerRole = "land" | "water" | "custom";
@@ -473,4 +577,5 @@ export interface MMPatch {
   rtl?: boolean;
   anchored?: boolean;
   softness?: number;
+  nodes?: LineNode[];
 }

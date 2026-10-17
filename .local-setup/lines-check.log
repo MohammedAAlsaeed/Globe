@@ -1,0 +1,111 @@
+==== Sat 10/17/2026 23:29:55.36 
+--- api tests 
+PHPUnit 12.5.38 by Sebastian Bergmann and contributors.
+
+Runtime:       PHP 8.4.26
+Configuration: C:\Users\mmoo1\PhpstormProjects\Globe\api\phpunit.xml
+
+....................................                              36 / 36 (100%)
+
+Time: 00:02.994, Memory: 70.00 MB
+
+OK (36 tests, 337 assertions)
+phpunit exit 0 
+--- migrate + plans 
+
+   INFO  Running migrations.  
+
+  2026_10_17_000001_create_line_styles_table ............................................................. 9.31ms DONE
+
+
+   INFO  Seeding database.  
+
+  Database\Seeders\PlanSeeder ................................................................................ RUNNING  
+  Database\Seeders\PlanSeeder ............................................................................. 41 ms DONE  
+
+--- typecheck 
+tsc exit 0 
+--- lint 
+eslint exit 0 
+--- unit tests 
+
+> app@0.1.0 test
+> node --import tsx --test tests/*.test.mjs
+
+✔ align to the selection's own edges and centers (1.468ms)
+✔ distribute spaces centers evenly between the outer two (0.2508ms)
+✔ a group is picked as a whole (0.1942ms)
+✔ moving by an offset (0.1994ms)
+✔ seeded PRNG is deterministic (1.0244ms)
+✔ periodic noise wraps exactly at its period (seamless tiles) (0.8776ms)
+✔ every catalog texture tiles seamlessly across its edges (3.9375ms)
+✔ color filters: neutral is identity, hue rotation preserves lightness (0.6567ms)
+✔ coastline is deterministic, follows the drawn outline and keeps its size (7.2456ms)
+✔ coastline already drawn stays put while the lasso keeps growing (7.5176ms)
+✔ fixed-step resampling keeps spacing (0.2337ms)
+✔ hex grid: a cell's centre maps back to the same cell (0.6389ms)
+✔ dab walker: even spacing, deterministic jitter, pressure scales size (1.5711ms)
+✔ project validation accepts paint and land objects and rejects malformed ones (1.0955ms)
+✔ distance transform is exact (vs brute force), with nearest-feature index (4.3203ms)
+✔ coast effect: no land → nothing; deterministic otherwise (23.1735ms)
+✔ overlapping strokes merge into one landmass (no inner coastline) (10.1849ms)
+✔ erasing land opens water with glow and waves around the hole (7.9595ms)
+✔ land takes the texture under it — including texture painted outside the old coast (7.2202ms)
+✔ decoration changes reuse the coastline shape exactly (7.0616ms)
+✔ coast decoration off keeps the coastline shape (0.1928ms)
+✔ default layout packs twelve unscaled gores onto three A4 sheets (3.4712ms)
+✔ oversize gores are covered by overlapping tiles without scaling (1.0029ms)
+✔ calibration is applied before placement and paper margins remain respected (1.2162ms)
+✔ rotated packing uses custom paper without resizing the gore (0.3215ms)
+✔ invalid printable areas and excessive page counts fail safely (2.2198ms)
+✔ project validation rejects unsafe settings and executable color content (0.7977ms)
+✔ a straight line's length is exact; a curve's is its arc length (1.3809ms)
+✔ closed lines add the closing piece; node indices are tracked (0.6837ms)
+✔ inserting a node keeps the curve exactly (0.2753ms)
+✔ picking finds the nearest point on the curve (0.1509ms)
+✔ Free Draw turns a shaky trail into a few smooth nodes that follow it (3.9082ms)
+✔ a sharp turn in Free Draw stays a corner (0.265ms)
+✔ handles: smooth nodes stay in line, Alt breaks them (0.2659ms)
+✔ reverse and transform keep the shape (0.4117ms)
+✔ Shift snaps the angle (0.1188ms)
+✔ Stamp Stroke: fitted pieces fill the path end to end (0.5958ms)
+✔ Stamp Stroke: corners split runs and get corner pieces; caps on open ends (0.3893ms)
+✔ Stamp Stroke: offset, upright pieces and base anchoring (0.2481ms)
+✔ built-in line art draws, and every built-in style is valid (12.994ms)
+✔ reset returns a property to the line's style, or the set's own default (0.2835ms)
+✔ legacy paths open as lines with the same curve and look (2.181ms)
+✔ validation rejects broken lines (0.2873ms)
+✔ print PDFs retain paper sizes, page counts and rotated placements (1429.1746ms)
+✔ calibration sheet is A4 and can be opened independently (5.5515ms)
+✔ PDF generation can be cancelled before any page is built (0.9964ms)
+✔ direct print document shares physical page sizes and forces page breaks (15.4523ms)
+✔ print-page clipping IDs stay unique across tiled sheets (19.5488ms)
+✔ sphere dimensions match analytic circumference and meridian length (1.4715ms)
+✔ ellipsoid integration preserves symmetry and equatorial width (1.1582ms)
+✔ glue tabs taper to zero at poles and reach requested width at equator (0.9803ms)
+✔ Mercator coverage is explicit and missing poles remain missing (0.2079ms)
+✔ recommendation returns even counts bounded by supported settings (0.1044ms)
+✔ all sampling filters preserve constant colors across the longitude seam (0.8595ms)
+✔ alpha-aware interpolation does not bleed transparent black into color (0.085ms)
+✔ PNG embeds a valid 300 DPI physical-resolution chunk (0.704ms)
+✔ Mercator source PPI accounts for its nonuniform vertical density (0.8793ms)
+✔ rounded bleed covers both the tip and the equatorial cut edge (0.8703ms)
+✔ every built-in variant draws a tight, non-empty picture (6.752ms)
+✔ variants of a set are different drawings, and stable (0.5348ms)
+✔ search finds sets by name first, then by tag (0.2832ms)
+✔ a placed stamp takes the tool's look and stays in range (1.2703ms)
+✔ a chosen variant is used when variants aren't random (0.1138ms)
+✔ scattering drops one stamp per spacing along the stroke (0.2304ms)
+✔ older maps' icons open as Classic stamps (0.1683ms)
+✔ each set remembers its own look; placement settings are shared (0.4476ms)
+✔ changing the anchor point doesn't move the stamp (4.0866ms)
+ℹ tests 67
+ℹ suites 0
+ℹ pass 67
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 2107.0878
+test exit 0 
+DONE 

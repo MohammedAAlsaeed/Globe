@@ -11,6 +11,7 @@ import { ICON_IDS } from "../studio/domain/icons";
 import { TEXTURE_IDS } from "./brush/textures";
 import { TIP_LIST } from "./brush/tips";
 import type { MMLayer, MMObject, MMProject } from "./types";
+import { validLine } from "./lines/validate";
 
 const finite = (v: unknown, min: number, max: number) =>
   typeof v === "number" && Number.isFinite(v) && v >= min && v <= max;
@@ -263,6 +264,8 @@ function validObject(o: unknown): o is MMObject {
       (obj.pivot === undefined || obj.pivot === "base" || obj.pivot === "center") &&
       (obj.stretch === undefined || finite(obj.stretch, 0.2, 5))
     );
+  if (obj.kind === "line") return validLine(obj);
+  // Legacy freehand paths (converted to lines when the map is opened).
   if (obj.kind === "path")
     return (
       PATH_KINDS.includes(obj.pathKind as string) &&

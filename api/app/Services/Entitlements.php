@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Exceptions\ApiException;
 use App\Models\Asset;
 use App\Models\AssetPack;
+use App\Models\LineStyle;
 use App\Models\Plan;
 use App\Models\User;
 
@@ -27,7 +28,7 @@ class Entitlements
             ->first()?->plan ?? Plan::default();
     }
 
-    /** @return array{maps: int, upload_bytes: int} */
+    /** @return array{maps: int, upload_bytes: int, line_styles: int} */
     public function usage(User $user): array
     {
         return [
@@ -35,6 +36,7 @@ class Entitlements
             'upload_bytes' => (int) Asset::query()
                 ->whereIn('pack_id', $user->assetPacks()->select('id'))
                 ->sum('bytes'),
+            'line_styles' => $user->lineStyles()->count(),
         ];
     }
 
@@ -60,6 +62,21 @@ class Entitlements
         if ($this->usage($user)['upload_bytes'] + $bytes > $quota) {
             throw ApiException::planLimit('upload_bytes', $quota);
         }
+    }
+
+    /** Own line styles are capped per plan; existing ones stay after a downgrade. */
+    public function ensureCanSaveLineStyle(User $user): void
+    {
+        $max = $this->plan($user)->max_line_styles;
+        if ($max !== null && $user->lineStyles()->count() >= $max) {
+            throw ApiException::planLimit('line_styles', $max);
+        }
+    }
+
+    /** Whether the user may use a style's look (own styles always; admins all). */
+    public function canUseLineStyle(User $user, LineStyle $style): bool
+    {
+        return $style->owner_id === $user->id || $user->isAdmin() || $style->tier <= $this->plan($user)->tier;
     }
 
     /** Whether the user may use a pack's assets (own packs always; admins

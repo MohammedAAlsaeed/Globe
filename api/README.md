@@ -52,6 +52,7 @@ php artisan maps:purge-trashed                                    # runs daily f
 | Maps | `MapController`, `app/Services/MapDocuments.php` |
 | Plans and limits | `plans` table (seeded by `PlanSeeder`), `app/Services/Entitlements.php` |
 | Asset library | `AssetPackController`, `AssetController`, `AssetPackPolicy` |
+| Line Tool styles | `LineStyleController`, `LineStylePolicy`, `app/Support/LineRules.php` |
 | Data regions | `config/regions.php`, `app/Services/Regions.php` |
 | App settings | `config/idrisi.php` |
 
@@ -62,13 +63,14 @@ php artisan maps:purge-trashed                                    # runs daily f
 - **Limits are enforced on the server.** `Entitlements` checks every one of them. A downgrade never deletes anything: over the map limit, existing maps stay editable and only new ones are blocked.
 - **Map documents live in object storage.** Each revision is written to `maps/{user}/{map}/r{n}.json.gz` (gzip JSON). Postgres keeps only the metadata. The 20 most recent earlier revisions are kept for restore.
 - **No silent overwrites.** A save (`PUT /maps/{id}`) must send the `revision` it was based on. A stale revision gets `409 revision_conflict` with the current revision.
-- **The document is stored exactly as sent.** It is re-encoded from the raw JSON body, so `{}` stays `{}` and Arabic text stays as-is. The server only checks the outline; the editor validates the full document when it loads it.
+- **The document is stored exactly as sent.** It is re-encoded from the raw JSON body, so `{}` stays `{}` and Arabic text stays as-is. The server checks the outline and every Line Tool line; the editor validates the full document when it loads it.
 - **Exports are recorded with their license.** Each export stores the plan in force at that time. A map exported under a commercial plan stays licensed after a downgrade.
 - **Regions.** Every user has a `region`. Their files go to that region's disk. To add a region (for example, for data-residency rules), add an S3 disk in `config/filesystems.php` and an entry in `config/regions.php`.
 - **Stamp sets.** Assets of a pack sharing a `set_key` are variants of one stamp; the Stamp Tool places them at random. Official assets also carry a `category` (terrain, vegetation, settlements, water, symbols) for the catalog.
 - **Uploads on every plan.** Explorer can upload 20 MB of its own stamps, Cartographer 500 MB, Atlas 5 GB (`upload_quota_bytes`). After changing limits, re-run the plan seeder.
 - **Placed stamps always draw.** A map keeps drawing stamps from a pack the plan no longer includes (`GET assets?ids[]=`); only placing new ones is refused.
-- **Errors carry a `code`.** Domain errors are JSON shaped as `{ message, code, ... }`, with codes `plan_limit_reached` (plus `limit` and `max`) and `revision_conflict`, so the web app can show translated messages.
+- **Line Tool.** People save their own line styles (a named look: colour stroke or stamp stroke) to their account, up to the plan's `max_line_styles` (Explorer 10, Cartographer 200, Atlas unlimited). Admins publish official styles with `official: true` and a `tier`; styles above a person's plan are listed as `locked`, without their look. Line art is an asset pack of kind `lines`: each picture's `category` is its role (`seg` the repeated piece, `start`, `end`, `corner`) and pictures sharing a `set_key` form one set. Lines in saved maps are checked by `LineRules` (node count and ranges, every option), the same rules the editor uses (`app/features/mapmaker/lines/validate.ts`).
+- **Errors carry a `code`.** Domain errors are JSON shaped as `{ message, code, ... }`, with codes `plan_limit_reached` (plus `limit` — `maps`, `export_px`, `upload_bytes`, `line_styles`, `tier` — and `max`) and `revision_conflict`, so the web app can show translated messages.
 
 ## API overview (`/api/v1`)
 
@@ -90,6 +92,8 @@ The web app first calls `GET /sanctum/csrf-cookie`, then sends the `XSRF-TOKEN` 
 | GET / POST | `asset-packs/{id}/assets` | List (short-lived URLs) / upload (png / webp / jpeg, within quota; optional `set_key`, and `category` for official packs) |
 | GET | `assets?ids[]=…` | Assets by id, to draw maps that use them (even from a pack now above the plan) |
 | PATCH / DELETE | `assets/{id}` | Rename, move to another set, re-file (official) / remove |
+| GET / POST | `line-styles` | Own and official line styles (with `limits`), save one (admins: `official: true`, `tier`, `published`) |
+| PATCH / DELETE | `line-styles/{id}` | Rename or change a style / remove |
 
 ## Production checklist
 

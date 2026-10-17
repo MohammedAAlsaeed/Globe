@@ -147,6 +147,7 @@ export function ObjectQuickBar({
   onDuplicate,
   onDelete,
   onReorder,
+  lineActions,
 }: {
   obj: MMObject;
   layerId: string;
@@ -155,6 +156,8 @@ export function ObjectQuickBar({
   onDuplicate: () => void;
   onDelete: () => void;
   onReorder: (dir: "front" | "back" | "forward" | "backward") => void;
+  /** Lines: node editing and path actions (their look is edited in the Line panel). */
+  lineActions?: { editingNodes: boolean; canClose: boolean; onEditNodes: () => void; onReverse: () => void; onToggleClosed: () => void };
 }) {
   return (
     <div className="mm-quickbar">
@@ -180,11 +183,18 @@ export function ObjectQuickBar({
           </SelectField>
         </>
       )}
-      {obj.kind === "path" && (
-        <>
-          <ColorControl color={obj.color} recents={[]} onChange={(v) => onPatch({ color: v })} label={t("mmColor")} recentLabel="" />
-          <Slider label={t("mmPathWidth")} value={obj.width} min={0.002} max={0.03} step={0.001} onChange={(v) => onPatch({ width: v })} />
-        </>
+      {obj.kind === "line" && lineActions && (
+        <div className="button-row">
+          <button className={`secondary-button ${lineActions.editingNodes ? "active" : ""}`} aria-pressed={lineActions.editingNodes} onClick={lineActions.onEditNodes} title={t("lnEditNodesHint")}>
+            <Glyph name="editNodes" size={13} /> {t("lnEditNodes")}
+          </button>
+          <button className="secondary-button" onClick={lineActions.onReverse} title={t("lnReverseHint")}>
+            <Glyph name="reverse" size={13} />
+          </button>
+          <button className={`secondary-button ${obj.closed ? "active" : ""}`} aria-pressed={obj.closed} disabled={!lineActions.canClose} onClick={lineActions.onToggleClosed} title={t("lnClosed")}>
+            <Glyph name="closePath" size={13} />
+          </button>
+        </div>
       )}
       {obj.kind === "region" && (
         <Slider label={t("mmFillOpacity")} value={obj.opacity} min={0.1} max={1} step={0.05} onChange={(v) => onPatch({ opacity: v })} format={(v) => `${Math.round(v * 100)}%`} />
