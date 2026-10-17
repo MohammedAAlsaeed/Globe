@@ -433,7 +433,7 @@ function whirlpool(seed: number): VectorArt {
 // ---- registry ---------------------------------------------------------------------------
 export interface BuiltinSet {
   id: string;
-  pack: "atelier" | "classic";
+  pack: "atelier" | "classic" | "lines";
   category: StampCategory;
   labelKey: string;
   tags: string[];

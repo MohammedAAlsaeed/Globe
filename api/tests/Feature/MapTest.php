@@ -183,4 +183,33 @@ class MapTest extends TestCase
         $this->assertDatabaseMissing('maps', ['id' => $map['id']]);
         $this->assertSame([], Storage::disk('s3')->allFiles("maps/{$user->id}"));
     }
+
+    public function test_line_tool_lines_are_validated_on_save(): void
+    {
+        $user = User::factory()->create();
+        $line = LineStyleTest::look() + [
+            'id' => 'line-1', 'kind' => 'line', 'closed' => false, 'name' => 'Northern Road', 'styleId' => 'p:dirtRoad',
+            'nodes' => [['x' => 0.1, 'y' => 0.2], ['x' => 0.4, 'y' => 0.3, 't' => 'smooth', 'hi' => ['x' => -0.05, 'y' => 0], 'ho' => ['x' => 0.05, 'y' => 0]], ['x' => 0.7, 'y' => 0.2]],
+        ];
+        $doc = fn (array $l) => ['id' => 'x', 'name' => 'Lines', 'layers' => [['id' => 'l1', 'name' => 'Roads', 'visible' => true, 'locked' => false, 'opacity' => 1, 'objects' => [$l, ['id' => 's', 'kind' => 'stamp']]]]];
+
+        $map = $this->createMap($user, ['document' => $doc($line)]);
+        $this->getJson("/api/v1/maps/{$map['id']}")->assertOk()
+            ->assertJsonPath('document.layers.0.objects.0.nodes.1.t', 'smooth')
+            ->assertJsonPath('document.layers.0.objects.0.name', 'Northern Road');
+
+        $broken = [
+            'one node' => ['nodes' => [['x' => 0.1, 'y' => 0.1]]],
+            'out of range' => ['nodes' => [['x' => 0.1, 'y' => 0.1], ['x' => 99, 'y' => 0.1]]],
+            'closed with two nodes' => ['closed' => true, 'nodes' => [['x' => 0.1, 'y' => 0.1], ['x' => 0.2, 'y' => 0.1]]],
+            'bad pattern' => ['stroke' => ['pattern' => 'zigzag'] + $line['stroke']],
+            'too many nodes' => ['nodes' => array_fill(0, 2001, ['x' => 0.5, 'y' => 0.5])],
+        ];
+        foreach ($broken as $why => $patch) {
+            $this->putJson("/api/v1/maps/{$map['id']}", ['revision' => 1, 'document' => $doc(array_replace($line, $patch))])
+                ->assertUnprocessable()->assertJsonValidationErrors('document');
+        }
+        // Still at revision 1: nothing broken was stored.
+        $this->getJson("/api/v1/maps/{$map['id']}")->assertJsonPath('data.revision', 1);
+    }
 }

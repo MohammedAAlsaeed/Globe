@@ -9,11 +9,14 @@ export interface Plan {
   max_export_px: number;
   upload_quota_bytes: number;
   commercial_use: boolean;
+  /** Line styles the person can save (null = unlimited). */
+  max_line_styles: number | null;
 }
 
 export interface Usage {
   maps: number;
   upload_bytes: number;
+  line_styles: number;
 }
 
 export interface User {
@@ -49,7 +52,7 @@ export interface CloudMap {
 export interface AssetPack {
   id: string;
   name: string;
-  kind: "stamps" | "textures";
+  kind: "stamps" | "textures" | "lines";
   tier: number;
   official: boolean;
   published: boolean;
@@ -77,3 +80,17 @@ export interface Asset {
 
 /** The plan limits a signed-out visitor works under (the free plan). */
 export const GUEST_LIMITS = { max_export_px: 2048 } as const;
+
+/** A saved Line Tool style: the person's own, or official (by admins). */
+export interface LineStyleRecord {
+  id: string;
+  name: string;
+  /** The look (see LineLook); null when the style is locked for the plan. */
+  look: import("../mapmaker/types").LineLook | null;
+  official: boolean;
+  tier: number;
+  published: boolean;
+  /** Official style above the person's plan: listed, not usable. */
+  locked: boolean;
+  sort: number;
+}

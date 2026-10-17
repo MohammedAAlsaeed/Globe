@@ -168,4 +168,24 @@ class AssetTest extends TestCase
         $this->assertDatabaseCount('assets', 0);
         $this->assertSame([], Storage::disk('s3')->allFiles('assets'));
     }
+
+    public function test_line_art_pieces_carry_their_role(): void
+    {
+        $user = User::factory()->create();
+        $pack = $this->actingAs($user)->postJson('/api/v1/asset-packs', ['name' => 'My line art', 'kind' => 'lines'])
+            ->assertCreated()->assertJsonPath('data.kind', 'lines')->json('data');
+        foreach (['seg', 'corner'] as $role) {
+            $this->post("/api/v1/asset-packs/{$pack['id']}/assets", [
+                'file' => UploadedFile::fake()->image("{$role}.png", 120, 30),
+                'set_key' => 'wall',
+                'category' => $role,
+            ])->assertCreated()->assertJsonPath('data.category', $role);
+        }
+        $this->post("/api/v1/asset-packs/{$pack['id']}/assets", [
+            'file' => UploadedFile::fake()->image('x.png', 120, 30),
+            'category' => 'vegetation', // a stamp category isn't a piece role
+        ])->assertUnprocessable();
+        $this->getJson('/api/v1/asset-packs?kind=lines')->assertJsonCount(1, 'data');
+        $this->getJson('/api/v1/asset-packs?kind=stamps')->assertJsonCount(0, 'data');
+    }
 }

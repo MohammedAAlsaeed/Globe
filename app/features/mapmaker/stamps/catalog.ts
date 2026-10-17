@@ -65,7 +65,7 @@ const assets = new Map<string, StampAsset>();
 const listeners = new Set<() => void>();
 let version = 0;
 
-function addBuiltin(b: BuiltinSet) {
+function addBuiltin(b: BuiltinSet, hidden = false) {
   const keys: string[] = [];
   for (let v = 0; v < b.variants; v++) {
     const key = builtinKey(b.id, v);
@@ -88,11 +88,21 @@ function addBuiltin(b: BuiltinSet) {
     rotationJitter: b.rotationJitter,
     randomFlip: b.randomFlip,
     pivot: b.pivot,
+    ...(hidden ? { hidden: true } : {}),
   });
 }
 for (const b of [...BUILTIN_SETS, ...CLASSIC_SETS]) addBuiltin(b);
 
-const BUILTIN_PACKS = new Set(["atelier", "classic"]);
+/**
+ * Built-in art used by other tools (the Line Tool's wall and fence pieces):
+ * drawable by key like any stamp — same rasters, colors and print path —
+ * but hidden from the Stamp Tool's catalog.
+ */
+export function registerHiddenArt(list: BuiltinSet[]) {
+  for (const b of list) if (!sets.has(b.id)) addBuiltin(b, true);
+}
+
+const BUILTIN_PACKS = new Set(["atelier", "classic", "lines"]);
 /**
  * Adds sets loaded from the server. `replace` first drops the server sets
  * listed before (a fresh copy of the library, or signing out); stamps loaded

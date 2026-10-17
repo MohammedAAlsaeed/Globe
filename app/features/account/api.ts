@@ -2,8 +2,8 @@
  * Typed calls to the API: accounts, maps and the asset library. Components use these, never
  * `api` directly, so every endpoint has one place that knows its shape.
  */
-import type { MMProject } from "../mapmaker/types";
-import type { Asset, AssetPack, CloudMap, User } from "./types";
+import type { LineLook, MMProject } from "../mapmaker/types";
+import type { Asset, AssetPack, CloudMap, LineStyleRecord, User } from "./types";
 import {api, API_URL} from "@/lib/api/client";
 
 type One<T> = { data: T };
@@ -101,7 +101,9 @@ export const library = {
   resolve: (ids: string[]) =>
     api.get<Many<Asset>>(`assets?${ids.map((id) => `ids[]=${encodeURIComponent(id)}`).join("&")}`).then((r) => r.data),
 
-  createPack: (input: { name: string; official?: boolean; tier?: number; published?: boolean }) =>
+  /** Line art packs (pieces repeated along lines; `category` = the piece's role). */
+  linePacks: () => api.get<Many<AssetPack>>("asset-packs?kind=lines").then((r) => r.data),
+  createPack: (input: { name: string; kind?: "stamps" | "lines"; official?: boolean; tier?: number; published?: boolean }) =>
     api.post<One<AssetPack>>("asset-packs", { kind: "stamps", ...input }).then((r) => r.data),
   updatePack: (id: string, patch: { name?: string; tier?: number; published?: boolean; sort?: number }) =>
     api.patch<One<AssetPack>>(`asset-packs/${id}`, patch).then((r) => r.data),
@@ -118,4 +120,15 @@ export const library = {
   },
   updateAsset: (id: string, patch: AssetDetails) => api.patch<One<Asset>>(`assets/${id}`, patch).then((r) => r.data),
   removeAsset: (id: string) => api.delete<void>(`assets/${id}`),
+};
+
+// ---- Line Tool styles ----------------------------------------------------------------
+export const lineStyles = {
+  /** The person's own styles and the official ones, with their plan limit. */
+  list: () => api.get<{ data: LineStyleRecord[]; limits: { count: number; max: number | null } }>("line-styles"),
+  create: (input: { name: string; look: LineLook; official?: boolean; tier?: number; published?: boolean }) =>
+    api.post<One<LineStyleRecord>>("line-styles", input).then((r) => r.data),
+  update: (id: string, patch: { name?: string; look?: LineLook; tier?: number; published?: boolean; sort?: number }) =>
+    api.patch<One<LineStyleRecord>>(`line-styles/${id}`, patch).then((r) => r.data),
+  remove: (id: string) => api.delete<void>(`line-styles/${id}`),
 };

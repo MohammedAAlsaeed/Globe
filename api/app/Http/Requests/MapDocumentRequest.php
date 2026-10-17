@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Support\LineRules;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Validator;
 
@@ -10,8 +11,10 @@ use Illuminate\Validation\Validator;
  * body and re-encoded from objects (not PHP arrays), so it is stored exactly
  * as the editor sent it — an empty `{}` stays an object.
  *
- * Only its outline is checked here: the document is the user's own data and
- * the editor validates it fully when it loads it.
+ * Its outline is checked here, plus every Line Tool line (see LineRules —
+ * lines are drawn by measuring them, so broken ones are refused up front);
+ * the rest is the user's own data, which the editor validates fully when it
+ * loads it.
  */
 abstract class MapDocumentRequest extends FormRequest
 {
@@ -43,6 +46,11 @@ abstract class MapDocumentRequest extends FormRequest
             }
             if (strlen($json) > config('idrisi.maps.max_document_bytes')) {
                 $validator->errors()->add('document', 'The map document is too large.');
+
+                return;
+            }
+            if (($error = LineRules::documentError($this->input('document'))) !== null) {
+                $validator->errors()->add('document', $error);
 
                 return;
             }
