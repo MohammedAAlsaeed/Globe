@@ -83,7 +83,15 @@ export function CreateMapModal({ onClose }: { onClose: () => void }) {
       className="mm-modal"
       onCancel={close}
       onClick={(e) => {
-        if (e.target === e.currentTarget) close();
+        const rect = (e.currentTarget as HTMLDialogElement).getBoundingClientRect();
+        if (
+          e.clientX < rect.left ||
+          e.clientX > rect.right ||
+          e.clientY < rect.top ||
+          e.clientY > rect.bottom
+        ) {
+          close();
+        }
       }}
     >
       <div className="dialog-header">
