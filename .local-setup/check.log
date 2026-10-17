@@ -1,0 +1,55 @@
+==== Sat 10/17/2026 20:36:33.34 
+--- where 
+C:\Program Files\nodejs\node.exe
+C:\Program Files (x86)\Nodist\bin\node.exe
+C:\Program Files\nodejs\npm
+C:\Program Files\nodejs\npm.cmd
+C:\Program Files (x86)\Nodist\bin\npm.cmd
+C:\Program Files (x86)\Nodist\bin\npm.exe
+C:\Program Files\Git\cmd\git.exe
+INFO: Could not find "php".
+INFO: Could not find "composer".
+INFO: Could not find "psql".
+INFO: Could not find "pg_ctl".
+--- php -v 
+'php' is not recognized as an internal or external command,
+operable program or batch file.
+--- php --ini 
+'php' is not recognized as an internal or external command,
+operable program or batch file.
+--- php -m 
+'php' is not recognized as an internal or external command,
+operable program or batch file.
+--- composer 
+'composer' is not recognized as an internal or external command,
+operable program or batch file.
+--- node 
+v24.19.0
+11.17.0
+--- services 
+SERVICE_NAME: postgresql-x64-18
+DISPLAY_NAME: postgresql-x64-18 - PostgreSQL Server 18
+--- program files 
+18
+File Not Found
+File Not Found
+The system cannot find the path specified.
+The system cannot find the path specified.
+--- ports 
+  TCP    0.0.0.0:5432           0.0.0.0:0              LISTENING       6956
+  TCP    127.0.0.1:30000        0.0.0.0:0              LISTENING       7828
+  TCP    127.0.0.1:30000        127.0.0.1:49367        ESTABLISHED     7828
+  TCP    127.0.0.1:30000        127.0.0.1:49368        ESTABLISHED     7828
+  TCP    127.0.0.1:30001        0.0.0.0:0              LISTENING       25812
+  TCP    127.0.0.1:30001        127.0.0.1:49370        ESTABLISHED     25812
+  TCP    127.0.0.1:30001        127.0.0.1:49371        ESTABLISHED     25812
+  TCP    127.0.0.1:30001        127.0.0.1:49372        ESTABLISHED     25812
+  TCP    127.0.0.1:49367        127.0.0.1:30000        ESTABLISHED     25812
+  TCP    127.0.0.1:49368        127.0.0.1:30000        ESTABLISHED     25812
+  TCP    127.0.0.1:49370        127.0.0.1:30001        ESTABLISHED     7828
+  TCP    127.0.0.1:49371        127.0.0.1:30001        ESTABLISHED     7828
+  TCP    127.0.0.1:49372        127.0.0.1:30001        ESTABLISHED     7828
+  TCP    [::]:5432              [::]:0                 LISTENING       6956
+--- PATH 
+C:\WINDOWS\system32;C:\WINDOWS;C:\WINDOWS\System32\Wbem;C:\WINDOWS\System32\WindowsPowerShell\v1.0\;C:\WINDOWS\System32\OpenSSH\;C:\Program Files\NVIDIA Corporation\NVIDIA App\NvDLISR;C:\Program Files (x86)\NVIDIA Corporation\PhysX\Common;C:\Program Files\Git\cmd;C:\Program Files\nodejs\;C:\Program Files (x86)\Nodist\bin;C:\Users\mmoo1\AppData\Local\Microsoft\WindowsApps;C:\Users\mmoo1\AppData\Local\Programs\Microsoft VS Code\bin;C:\Users\mmoo1\AppData\Roaming\npm 
+DONE 

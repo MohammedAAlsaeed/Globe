@@ -5,8 +5,8 @@
       <sourceFolder url="file://$MODULE_DIR$/api/app" isTestSource="false" packagePrefix="App\" />
       <sourceFolder url="file://$MODULE_DIR$/api/database/factories" isTestSource="false" packagePrefix="Database\Factories\" />
       <sourceFolder url="file://$MODULE_DIR$/api/database/seeders" isTestSource="false" packagePrefix="Database\Seeders\" />
-      <sourceFolder url="file://$MODULE_DIR$/api/tests" isTestSource="true" />
       <sourceFolder url="file://$MODULE_DIR$/api/tests" isTestSource="true" packagePrefix="Tests\" />
+      <sourceFolder url="file://$MODULE_DIR$/api/tests/Feature" isTestSource="true" />
       <excludeFolder url="file://$MODULE_DIR$/api/vendor/aws/aws-crt-php" />
       <excludeFolder url="file://$MODULE_DIR$/api/vendor/aws/aws-sdk-php" />
       <excludeFolder url="file://$MODULE_DIR$/api/vendor/brick/math" />
@@ -125,6 +125,9 @@
       <excludeFolder url="file://$MODULE_DIR$/api/vendor/tijsverkoyen/css-to-inline-styles" />
       <excludeFolder url="file://$MODULE_DIR$/api/vendor/vlucas/phpdotenv" />
       <excludeFolder url="file://$MODULE_DIR$/api/vendor/voku/portable-ascii" />
+      <excludeFolder url="file://$MODULE_DIR$/api/storage/app" />
+      <excludeFolder url="file://$MODULE_DIR$/api/storage/framework" />
+      <excludeFolder url="file://$MODULE_DIR$/api/vendor/_laravel_idea" />
     </content>
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />
