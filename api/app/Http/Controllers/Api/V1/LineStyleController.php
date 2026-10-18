@@ -6,12 +6,14 @@ use App\Exceptions\ApiException;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\LineStyleResource;
 use App\Models\LineStyle;
+use App\Models\User;
 use App\Services\Entitlements;
 use App\Support\LineRules;
 use Closure;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 
 /**
@@ -63,19 +65,28 @@ class LineStyleController extends Controller
         if ($official && ! $user->isAdmin()) {
             abort(403);
         }
-        if (! $official) {
-            $this->entitlements->ensureCanSaveLineStyle($user);
-        }
 
-        $style = new LineStyle([
-            'name' => $data['name'],
-            'look' => $data['look'],
-            'tier' => $official ? ($data['tier'] ?? 0) : 0,
-            'published' => $official ? ($data['published'] ?? false) : true,
-            'sort' => $data['sort'] ?? 0,
-        ]);
-        $style->owner()->associate($official ? null : $user);
-        $style->save();
+        $style = DB::transaction(function () use ($user, $data, $official) {
+            if (! $official) {
+                // Locking the person's row makes saves from several tabs (or
+                // scripted requests) wait for each other, so the count can't
+                // be passed by sending them at the same moment.
+                User::query()->whereKey($user->getKey())->lockForUpdate()->first();
+                $this->entitlements->ensureCanSaveLineStyle($user);
+            }
+
+            $style = new LineStyle([
+                'name' => $data['name'],
+                'look' => $data['look'],
+                'tier' => $official ? ($data['tier'] ?? 0) : 0,
+                'published' => $official ? ($data['published'] ?? false) : true,
+                'sort' => $data['sort'] ?? 0,
+            ]);
+            $style->owner()->associate($official ? null : $user);
+            $style->save();
+
+            return $style;
+        });
 
         return (new LineStyleResource($style))->response()->setStatusCode(201);
     }

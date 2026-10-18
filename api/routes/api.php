@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\V1\LineStyleController;
 use App\Http\Controllers\Api\V1\MapController;
 use App\Http\Controllers\Api\V1\MapExportController;
 use App\Http\Controllers\Api\V1\MapThumbnailController;
+use App\Http\Controllers\Api\V1\PlanController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -37,6 +38,9 @@ Route::prefix('auth')->group(function () {
             ->middleware('throttle:6,1');
     });
 });
+
+// ---- plans (public: compared wherever a limit is reached) -------------------
+Route::get('plans', [PlanController::class, 'index'])->middleware('throttle:api');
 
 // ---- maps & assets ------------------------------------------------------------
 Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {

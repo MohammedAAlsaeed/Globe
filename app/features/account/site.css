@@ -975,3 +975,278 @@ dialog.mm-modal .dialog-header button {
   align-items: end;
   gap: 10px;
 }
+
+/* ---- upgrade prompt (UpgradeDialog) ------------------------------------------
+   Used inside the editor and on site pages alike, so it carries its own
+   palette (lapis and gold leaf) instead of relying on `.site`. */
+dialog.upg-dialog {
+  --upg-night: #0d1636;
+  --upg-lapis: #17265e;
+  --upg-lapis-2: #1e3274;
+  --upg-gold: #d9a93b;
+  --upg-gold-pale: #f1d58a;
+  --upg-vellum: #f3e8cc;
+  --upg-muted: #a9b0cf;
+  --upg-rule: rgba(217, 169, 59, 0.28);
+
+  width: min(620px, calc(100% - 32px));
+  max-width: none;
+  padding: 0;
+  border: 1px solid var(--upg-rule);
+  border-radius: 14px;
+  background:
+    radial-gradient(120% 70% at 50% -10%, rgba(217, 169, 59, 0.16), transparent 60%),
+    linear-gradient(180deg, var(--upg-lapis) 0%, var(--upg-night) 100%);
+  color: var(--upg-vellum);
+  font-family: "IBM Plex Sans Arabic", "Segoe UI", Tahoma, sans-serif;
+  box-shadow:
+    0 30px 90px rgba(0, 0, 0, 0.55),
+    inset 0 1px 0 rgba(241, 213, 138, 0.12);
+}
+dialog.upg-dialog[open] {
+  animation: upg-in 0.22s ease-out;
+}
+dialog.upg-dialog::backdrop {
+  background: rgba(8, 12, 30, 0.72);
+  backdrop-filter: blur(5px);
+}
+@keyframes upg-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  dialog.upg-dialog[open] {
+    animation: none;
+  }
+}
+.upg-body {
+  position: relative;
+  padding: 30px 30px 22px;
+}
+dialog.upg-dialog .upg-close {
+  position: absolute;
+  top: 14px;
+  inset-inline-end: 14px;
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--upg-muted) !important;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+}
+dialog.upg-dialog .upg-close:hover,
+dialog.upg-dialog .upg-close:focus-visible {
+  background: rgba(241, 213, 138, 0.1);
+  color: var(--upg-gold-pale) !important;
+}
+.upg-eyebrow {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--upg-gold);
+}
+[dir="rtl"] .upg-eyebrow {
+  letter-spacing: 0;
+}
+dialog.upg-dialog h2 {
+  margin: 8px 0 10px;
+  font-family: "Amiri", Georgia, "Times New Roman", serif;
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1.25;
+  color: var(--upg-vellum);
+}
+dialog.upg-dialog p.upg-message {
+  margin: 0 0 18px;
+  font-size: 14px;
+  line-height: 1.75;
+  color: var(--upg-muted);
+  white-space: normal;
+}
+.upg-meter {
+  display: grid;
+  gap: 7px;
+  margin-bottom: 20px;
+}
+.upg-meter-bar {
+  height: 6px;
+  border-radius: 99px;
+  background: rgba(169, 176, 207, 0.18);
+  overflow: hidden;
+}
+.upg-meter-bar span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--upg-gold), #e0866c);
+}
+.upg-meter small {
+  font-size: 12px;
+  color: var(--upg-muted);
+}
+.upg-meter b {
+  color: var(--upg-vellum);
+  font-weight: 600;
+}
+.upg-plans {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+.upg-plan {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 120px;
+  padding: 18px 16px 16px;
+  border: 1px solid rgba(169, 176, 207, 0.2);
+  border-radius: 10px;
+  background: rgba(13, 22, 54, 0.55);
+}
+.upg-plan.recommended {
+  border-color: var(--upg-gold);
+  background: linear-gradient(180deg, rgba(217, 169, 59, 0.12), rgba(13, 22, 54, 0.6));
+}
+.upg-loading .upg-plan {
+  animation: upg-pulse 1.2s ease-in-out infinite alternate;
+}
+@keyframes upg-pulse {
+  to {
+    opacity: 0.45;
+  }
+}
+.upg-badge {
+  position: absolute;
+  top: -10px;
+  inset-inline-start: 14px;
+  padding: 2px 9px;
+  border-radius: 99px;
+  background: var(--upg-gold);
+  color: #1d1606;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+.upg-plan h3 {
+  margin: 0;
+  font-family: "Amiri", Georgia, "Times New Roman", serif;
+  font-size: 21px;
+  color: var(--upg-gold-pale);
+}
+.upg-plan ul {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 13px;
+  color: var(--upg-muted);
+}
+.upg-plan li {
+  position: relative;
+  padding-inline-start: 18px;
+}
+.upg-plan li::before {
+  content: "";
+  position: absolute;
+  inset-inline-start: 2px;
+  top: 0.55em;
+  width: 7px;
+  height: 7px;
+  border-radius: 1px;
+  transform: rotate(45deg);
+  background: rgba(217, 169, 59, 0.55);
+}
+.upg-plan li.key {
+  color: var(--upg-vellum);
+  font-weight: 600;
+}
+.upg-plan li.key::before {
+  background: var(--upg-gold);
+}
+.upg-cta {
+  margin-top: auto;
+  display: block;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--upg-gold);
+  color: #1d1606 !important;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: center;
+  text-decoration: none;
+  transition: background 0.15s;
+}
+.upg-cta:hover,
+.upg-cta:focus-visible {
+  background: var(--upg-gold-pale);
+}
+.upg-plan:not(.recommended) .upg-cta {
+  background: transparent;
+  border: 1px solid var(--upg-rule);
+  color: var(--upg-gold-pale) !important;
+}
+.upg-plan:not(.recommended) .upg-cta:hover {
+  background: rgba(217, 169, 59, 0.12);
+}
+.upg-cta.disabled,
+.upg-plan:not(.recommended) .upg-cta.disabled {
+  background: transparent;
+  border: 1px dashed var(--upg-rule);
+  color: var(--upg-muted) !important;
+  font-weight: 500;
+  cursor: default;
+}
+.upg-note {
+  font-size: 13px;
+  color: var(--upg-muted);
+}
+.upg-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(169, 176, 207, 0.14);
+}
+.upg-footer small {
+  font-size: 12px;
+  color: var(--upg-muted);
+}
+dialog.upg-dialog .upg-secondary {
+  flex: none;
+  padding: 8px 16px;
+  border: 1px solid rgba(169, 176, 207, 0.3);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--upg-vellum) !important;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+dialog.upg-dialog .upg-secondary:hover,
+dialog.upg-dialog .upg-secondary:focus-visible {
+  border-color: var(--upg-gold);
+}
+@media (max-width: 520px) {
+  .upg-body {
+    padding: 26px 18px 18px;
+  }
+  dialog.upg-dialog h2 {
+    font-size: 24px;
+  }
+  .upg-footer {
+    flex-direction: column-reverse;
+    align-items: stretch;
+    text-align: center;
+  }
+}

@@ -15,6 +15,7 @@
  */
 import { useCallback, useEffect, useState } from "react";
 import { library, lineStyles } from "../../account/api";
+import { ApiError } from "@/lib/api/client";
 import type { Asset, AssetPack, LineStyleRecord, User } from "../../account/types";
 import { prepareStampImage } from "../stamps/upload";
 import { registerRemoteSets, type StampAsset, type StampSet } from "../stamps/catalog";
@@ -142,7 +143,10 @@ export function useLineLibrary(user: User | null | undefined, describeError: (e:
     [busy, setBusy] = useState(false),
     [error, setError] = useState<string | null>(null),
     [uploadBusy, setUploadBusy] = useState(false),
-    [uploadError, setUploadError] = useState<string | null>(null);
+    [uploadError, setUploadError] = useState<string | null>(null),
+    // The upgrade prompt: opened when saving at the plan's limit (checked
+    // here first, and again by the server, which has the final say).
+    [limitPrompt, setLimitPrompt] = useState<{ max: number | null; plan: string | null } | null>(null);
 
   /** Applies a fresh list of styles from the server. */
   const apply = useCallback((r: Awaited<ReturnType<typeof lineStyles.list>>) => {
@@ -186,13 +190,21 @@ export function useLineLibrary(user: User | null | undefined, describeError: (e:
         await lineStyles.create({ name, look });
         await refresh();
       } catch (e) {
-        setError(describeError(e));
+        if (e instanceof ApiError && e.code === "plan_limit_reached" && e.body.limit === "line_styles") {
+          // Saved from another tab or device meanwhile: show the prompt, and
+          // the up-to-date count behind it.
+          setLimitPrompt({ max: typeof e.body.max === "number" ? e.body.max : null, plan: typeof e.body.plan === "string" ? e.body.plan : null });
+          void refresh();
+        } else setError(describeError(e));
       } finally {
         setBusy(false);
       }
     },
     [refresh, describeError],
   );
+  /** Opens the upgrade prompt (the save button at the limit). */
+  const promptLimit = useCallback(() => setLimitPrompt({ max, plan: null }), [max]);
+  const closeLimitPrompt = useCallback(() => setLimitPrompt(null), []);
   const remove = useCallback(
     async (styleId: string) => {
       const id = styleId.replace(/^s:/, "");
@@ -254,5 +266,20 @@ export function useLineLibrary(user: User | null | undefined, describeError: (e:
   );
 
   // Signed out: nothing from the account (stale lists aren't shown).
-  return { own: user ? own : [], official: user ? official : [], max: user ? max : null, busy, error, save, remove, uploadBusy, uploadError, upload, addPiece };
+  return {
+    own: user ? own : [],
+    official: user ? official : [],
+    max: user ? max : null,
+    busy,
+    error,
+    save,
+    remove,
+    uploadBusy,
+    uploadError,
+    upload,
+    addPiece,
+    limitPrompt: user ? limitPrompt : null,
+    promptLimit,
+    closeLimitPrompt,
+  };
 }

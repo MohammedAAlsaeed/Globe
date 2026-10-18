@@ -10,6 +10,7 @@
  */
 import { useMemo, useState, type ReactNode } from "react";
 import { Glyph } from "../glyphs";
+import { shortcutLabel } from "../shortcuts";
 import { Section, Slider, Toggle } from "../components/EditorControls";
 import { ICONS, ICON_IDS, type IconId } from "../../studio/domain/icons";
 import { brushPreview } from "./engine";
@@ -632,7 +633,16 @@ export function BrushPanel({
         </Section>
       )}
 
-      <p className="mm-bp-shortcuts">{t("mmBrushShortcuts")}</p>
+      <p className="mm-bp-shortcuts">
+        {t("mmBrushShortcuts", {
+          brush: shortcutLabel("tool.brush"),
+          land: shortcutLabel("tool.land"),
+          line: shortcutLabel("tool.line"),
+          erase: shortcutLabel("paint.erase"),
+          size: `${shortcutLabel("paint.smaller")} ${shortcutLabel("paint.bigger")}`,
+          cancel: shortcutLabel("edit.cancel"),
+        })}
+      </p>
     </aside>
   );
 }

@@ -71,6 +71,8 @@ import { EditTarget } from "./components/EditTarget";
 import { deleteProject, exportProjectToFile, saveProject } from "./storage";
 import { useCloudSync } from "./cloud/useCloudSync";
 import { CloudStatusBar, ConflictDialog } from "./cloud/CloudControls";
+import { UpgradeDialog } from "../account/UpgradeDialog";
+import { pressed, shortcutLabel, shortcutLabels, useShortcuts, type ShortcutId } from "./shortcuts";
 import { maps } from "../account/api";
 import { useAuth } from "../account/AuthProvider";
 import { saveHandoff } from "../studio/storage/projects";
@@ -408,6 +410,8 @@ export function MapCreatorEditor({
   const [landTool, setLandTool] = useState<LandToolState>(loadLandTool);
   // ---- Line Tool state ----
   /** The Line tool's mode, settings and the look new lines get; per browser. */
+  // The keyboard shortcuts in force (defaults, or the person's own).
+  const keys = useShortcuts();
   const [lineTool, setLineTool] = useState<LineToolState>(loadLineTool),
     /** Pen: nodes placed so far (null when no line is being drawn). */
     [penDraft, setPenDraft] = useState<LineNode[] | null>(null),
@@ -751,148 +755,139 @@ export function MapCreatorEditor({
     const onKey = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement)?.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA") return;
-      const mod = e.metaKey || e.ctrlKey;
-      if (e.code === "Space" && !spaceHeld) {
+      // Every key below comes from the shortcut table (./shortcuts), so the
+      // texts that name keys, and custom shortcuts later on, always agree.
+      const is = (id: ShortcutId) => pressed(e, id, keys);
+      if (is("view.pan") && !spaceHeld) {
         e.preventDefault();
         setSpaceHeld(true);
         return;
       }
-      if (mod && e.key.toLowerCase() === "z") {
+      if (is("edit.undo")) {
         e.preventDefault();
-        if (e.shiftKey) redo();
-        else undo();
+        undo();
         return;
       }
-      if (mod && e.key.toLowerCase() === "s") {
-        e.preventDefault();
-        sync.saveNow();
-        return;
-      }
-      if (mod && e.key.toLowerCase() === "y") {
+      if (is("edit.redo")) {
         e.preventDefault();
         redo();
         return;
       }
-      if (mod && e.key.toLowerCase() === "c" && selectedObjs.length) {
+      if (is("file.save")) {
+        e.preventDefault();
+        sync.saveNow();
+        return;
+      }
+      if (is("edit.copy") && selectedObjs.length) {
         e.preventDefault();
         copySelection();
         return;
       }
-      if (mod && e.key.toLowerCase() === "g" && selectedIds.length) {
+      if (is("edit.group") && selectedIds.length) {
         e.preventDefault();
-        if (e.shiftKey) ungroupSelection();
-        else groupSelection();
+        groupSelection();
         return;
       }
-      if (mod && e.key.toLowerCase() === "v" && (clipboardRef.current || storedClipboard())) {
+      if (is("edit.ungroup") && selectedIds.length) {
+        e.preventDefault();
+        ungroupSelection();
+        return;
+      }
+      if (is("edit.paste") && (clipboardRef.current || storedClipboard())) {
         e.preventDefault();
         pasteClipboard();
         return;
       }
-      if (mod && e.key === "]" && selectedIds.length) {
+      if (is("arrange.front") && selectedIds.length) {
         e.preventDefault();
         reorderObjects(selectedIds, "front");
         return;
       }
-      if (mod && e.key === "[" && selectedIds.length) {
+      if (is("arrange.back") && selectedIds.length) {
         e.preventDefault();
         reorderObjects(selectedIds, "back");
         return;
       }
       // ---- Line Tool: Pen and Edit Nodes keys come before object deletion ----
-      if (!mod && penDraft && (e.key === "Backspace" || e.key === "Delete")) {
+      if (penDraft && is("line.removeLast")) {
         e.preventDefault();
         if (penDraft.length <= 1) cancelDrafts();
         else setPenDraft(penDraft.slice(0, -1));
         return;
       }
-      if (!mod && penDraft && e.key === "Enter") {
+      if (penDraft && is("line.finish")) {
         e.preventDefault();
         finishPen(false);
         return;
       }
-      if (!mod && nodeEdit && nodeEdit.sel.length && (e.key === "Backspace" || e.key === "Delete")) {
+      if (nodeEdit && nodeEdit.sel.length && is("line.removeLast")) {
         e.preventDefault();
         removeEditedNodes();
         return;
       }
-      if (
-        tool === "select" &&
-        selectedIds.length &&
-        (e.key === "Delete" || e.key === "Backspace")
-      ) {
+      if (tool === "select" && selectedIds.length && is("edit.delete")) {
         e.preventDefault();
         removeObjects(selectedIds);
         return;
       }
-      if (mod && e.key.toLowerCase() === "d" && selectedIds.length) {
+      if (is("edit.duplicate") && selectedIds.length) {
         e.preventDefault();
         duplicateObjects(selectedIds);
         return;
       }
-      if (e.key === "Escape") {
+      if (is("edit.cancel")) {
         cancelDrafts();
         setNodeEdit(null);
         setContextMenu(null);
         return;
       }
-      const hotkeyIndex = TOOLS.findIndex((tl, i) => String(i + 1) === e.key);
-      if (!mod && hotkeyIndex >= 0) {
-        e.preventDefault();
-        selectTool(TOOLS[hotkeyIndex].key);
-        return;
-      }
-      const key = e.key.toLowerCase();
-      // ---- Stamp size & direction: W/S or ] / [ resize, < / > turn
-      // (Alt: fine steps) ----
-      if (!mod && stampStepsActive()) {
-        // By physical key, so Alt (fine steps) works on every layout.
-        const fine = e.altKey,
-          c = e.code;
-        if (c === "KeyW" || c === "BracketRight" || c === "KeyS" || c === "BracketLeft") {
+      // ---- Stamp size & direction (Alt: fine steps) ----
+      if (stampStepsActive()) {
+        const fine = e.altKey;
+        if (is("stamp.bigger") || is("stamp.smaller")) {
           e.preventDefault();
-          const grow = c === "KeyW" || c === "BracketRight";
-          scaleStamps(grow ? (fine ? 1.01 : 1.1) : 1 / (fine ? 1.01 : 1.1));
+          scaleStamps(is("stamp.bigger") ? (fine ? 1.01 : 1.1) : 1 / (fine ? 1.01 : 1.1));
           return;
         }
-        if (c === "Comma" || c === "Period") {
+        if (is("stamp.turnLeft") || is("stamp.turnRight")) {
           e.preventDefault();
-          turnStamps((c === "Period" ? 1 : -1) * (fine ? 1 : 15));
+          turnStamps((is("stamp.turnRight") ? 1 : -1) * (fine ? 1 : 15));
           return;
         }
       }
-      // ---- Tool letters: B brush, G land (ground), L line ----
-      if (!mod && !e.altKey && (key === "b" || key === "g" || key === "l")) {
+      // ---- Tools ----
+      const toolHit = TOOLS.find((tl) => is(`tool.${tl.key}` as ShortcutId));
+      if (toolHit) {
         e.preventDefault();
-        selectTool(key === "b" ? "brush" : key === "g" ? "land" : "line");
+        selectTool(toolHit.key);
         return;
       }
-      // ---- Line Tool shortcuts ----
-      if (!mod && !e.altKey && key === "n" && selectedLines.length === 1 && (tool === "select" || tool === "line")) {
+      // ---- Line Tool ----
+      if (is("line.editNodes") && selectedLines.length === 1 && (tool === "select" || tool === "line")) {
         e.preventDefault();
         toggleNodeEdit(selectedLines[0].id);
         return;
       }
-      if (tool === "line" && !mod && !e.altKey && (key === "f" || key === "p" || key === "n")) {
+      if (tool === "line" && (is("line.free") || is("line.pen") || is("line.editNodes"))) {
         e.preventDefault();
-        changeLineTool({ ...lineTool, draw: key === "f" ? "free" : key === "p" ? "pen" : "edit" });
+        changeLineTool({ ...lineTool, draw: is("line.free") ? "free" : is("line.pen") ? "pen" : "edit" });
         return;
       }
-      if (!mod && (tool === "line" || selectedLines.length > 0) && ["Equal", "Minus", "NumpadAdd", "NumpadSubtract", "BracketRight", "BracketLeft"].includes(e.code)) {
+      if ((tool === "line" || selectedLines.length > 0) && (is("line.wider") || is("line.thinner"))) {
         e.preventDefault();
-        const grow = e.code === "Equal" || e.code === "NumpadAdd" || e.code === "BracketRight",
-          k = e.altKey ? 1.02 : e.shiftKey ? 1.5 : 1.15;
-        scaleLineWidth(grow ? k : 1 / k);
+        const k = e.altKey ? 1.02 : e.shiftKey ? 1.5 : 1.15;
+        scaleLineWidth(is("line.wider") ? k : 1 / k);
         return;
       }
-      if ((tool !== "brush" && tool !== "land") || mod) return;
-      if (key === "e") {
+      // ---- Brush and Land ----
+      if (tool !== "brush" && tool !== "land") return;
+      if (is("paint.erase")) {
         e.preventDefault();
         if (tool === "land") setLandTool((st) => ({ ...st, erase: !st.erase }));
         else setBrushState((st) => ({ ...st, erase: !st.erase }));
-      } else if (e.key === "[" || e.key === "]") {
+      } else if (is("paint.bigger") || is("paint.smaller")) {
         e.preventDefault();
-        const k = e.key === "]" ? 1.12 : 1 / 1.12;
+        const k = is("paint.bigger") ? 1.12 : 1 / 1.12;
         if (tool === "land")
           setLandTool((st) => ({ ...st, size: clamp(st.size * k, 2 / project.width, 0.3) }));
         else
@@ -901,7 +896,7 @@ export function MapCreatorEditor({
             presetId: null,
             brush: { ...st.brush, size: clamp(st.brush.size * k, 1 / project.width, 0.25) },
           }));
-      } else if (e.key === "Enter" && polyDraft) {
+      } else if (is("paint.finishShape") && polyDraft) {
         e.preventDefault();
         commitPolygon();
       }
@@ -916,7 +911,7 @@ export function MapCreatorEditor({
       window.removeEventListener("keyup", onKeyUp);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tool, selectedIds, selectedObjs, undo, redo, spaceHeld, polyDraft, project.width, stampTool, lineTool, penDraft, nodeEdit]);
+  }, [tool, selectedIds, selectedObjs, undo, redo, spaceHeld, polyDraft, project.width, stampTool, lineTool, penDraft, nodeEdit, keys]);
 
   // ---- Shared small helpers (used by keyboard shortcuts, the Edit menu and
   // the toolbars, so all three stay in sync with one implementation) ----
@@ -2611,11 +2606,11 @@ export function MapCreatorEditor({
           {showEditMenu && (
             <div className="mm-edit-menu">
               <div className="mm-menu-heading">{t("mmMenuTools")}</div>
-              {TOOLS.map((tl, i) => (
+              {TOOLS.map((tl) => (
                 <MenuRow
                   key={tl.key}
                   label={t(tl.labelKey)}
-                  shortcut={String(i + 1)}
+                  shortcut={shortcutLabels(`tool.${tl.key}` as ShortcutId, keys)}
                   onClick={() => {
                     selectTool(tl.key);
                     setShowEditMenu(false);
@@ -2624,18 +2619,18 @@ export function MapCreatorEditor({
               ))}
               <div className="mm-menu-divider" />
               <div className="mm-menu-heading">{t("mmMenuEdit")}</div>
-              <MenuRow label={t("undo")} shortcut="⌘Z" disabled={!canUndo} onClick={() => { undo(); setShowEditMenu(false); }} />
-              <MenuRow label={t("redo")} shortcut="⌘⇧Z" disabled={!canRedo} onClick={() => { redo(); setShowEditMenu(false); }} />
-              <MenuRow label={t("mmDuplicateObject")} shortcut="⌘D" disabled={!selectedObjs.length} onClick={() => { duplicateObjects(selectedIds); setShowEditMenu(false); }} />
-              <MenuRow label={t("mmGroup")} shortcut="⌘G" disabled={selectedObjs.length < 2} onClick={() => { groupSelection(); setShowEditMenu(false); }} />
-              <MenuRow label={t("mmUngroup")} shortcut="⇧⌘G" disabled={!selectedObjs.some((o) => o.group)} onClick={() => { ungroupSelection(); setShowEditMenu(false); }} />
-              <MenuRow label={t("mmCopyObject")} shortcut="⌘C" disabled={!selectedObjs.length} onClick={() => { copySelection(); setShowEditMenu(false); }} />
-              <MenuRow label={t("mmPasteObject")} shortcut="⌘V" disabled={!hasClipboard} onClick={() => { pasteClipboard(); setShowEditMenu(false); }} />
-              <MenuRow label={t("mmDeleteObject")} shortcut="⌫" disabled={!selectedObjs.length} onClick={() => { removeObjects(selectedIds); setShowEditMenu(false); }} />
-              <MenuRow label={t("mmBringToFront")} shortcut="⌘]" disabled={!selectedObjs.length} onClick={() => { reorderObjects(selectedIds, "front"); setShowEditMenu(false); }} />
+              <MenuRow label={t("undo")} shortcut={shortcutLabel("edit.undo", keys)} disabled={!canUndo} onClick={() => { undo(); setShowEditMenu(false); }} />
+              <MenuRow label={t("redo")} shortcut={shortcutLabel("edit.redo", keys)} disabled={!canRedo} onClick={() => { redo(); setShowEditMenu(false); }} />
+              <MenuRow label={t("mmDuplicateObject")} shortcut={shortcutLabel("edit.duplicate", keys)} disabled={!selectedObjs.length} onClick={() => { duplicateObjects(selectedIds); setShowEditMenu(false); }} />
+              <MenuRow label={t("mmGroup")} shortcut={shortcutLabel("edit.group", keys)} disabled={selectedObjs.length < 2} onClick={() => { groupSelection(); setShowEditMenu(false); }} />
+              <MenuRow label={t("mmUngroup")} shortcut={shortcutLabel("edit.ungroup", keys)} disabled={!selectedObjs.some((o) => o.group)} onClick={() => { ungroupSelection(); setShowEditMenu(false); }} />
+              <MenuRow label={t("mmCopyObject")} shortcut={shortcutLabel("edit.copy", keys)} disabled={!selectedObjs.length} onClick={() => { copySelection(); setShowEditMenu(false); }} />
+              <MenuRow label={t("mmPasteObject")} shortcut={shortcutLabel("edit.paste", keys)} disabled={!hasClipboard} onClick={() => { pasteClipboard(); setShowEditMenu(false); }} />
+              <MenuRow label={t("mmDeleteObject")} shortcut={shortcutLabel("edit.delete", keys)} disabled={!selectedObjs.length} onClick={() => { removeObjects(selectedIds); setShowEditMenu(false); }} />
+              <MenuRow label={t("mmBringToFront")} shortcut={shortcutLabel("arrange.front", keys)} disabled={!selectedObjs.length} onClick={() => { reorderObjects(selectedIds, "front"); setShowEditMenu(false); }} />
               <MenuRow label={t("mmBringForward")} disabled={selectedObjs.length !== 1} onClick={() => { if (selectedObj) reorderObject(selectedObj.id, "forward"); setShowEditMenu(false); }} />
               <MenuRow label={t("mmSendBackward")} disabled={selectedObjs.length !== 1} onClick={() => { if (selectedObj) reorderObject(selectedObj.id, "backward"); setShowEditMenu(false); }} />
-              <MenuRow label={t("mmSendToBack")} shortcut="⌘[" disabled={!selectedObjs.length} onClick={() => { reorderObjects(selectedIds, "back"); setShowEditMenu(false); }} />
+              <MenuRow label={t("mmSendToBack")} shortcut={shortcutLabel("arrange.back", keys)} disabled={!selectedObjs.length} onClick={() => { reorderObjects(selectedIds, "back"); setShowEditMenu(false); }} />
               <div className="mm-menu-divider" />
               <div className="mm-menu-heading">{t("mmMenuView")}</div>
               <MenuRow label={t("mmFitScreen")} onClick={() => { setZoom(1); setShowEditMenu(false); }} icon="fit" />
@@ -2646,9 +2641,20 @@ export function MapCreatorEditor({
               <div className="mm-menu-heading">{t("stWheelHeading")}</div>
               <MenuRow label={t("stWheelZoom")} icon={ctrlWheel === "zoom" ? "check" : undefined} onClick={() => changeCtrlWheel("zoom")} />
               <MenuRow label={t("stWheelRotate")} icon={ctrlWheel === "rotate" ? "check" : undefined} onClick={() => changeCtrlWheel("rotate")} />
-              <MenuHint label={t("stStampKeys")} hint={t("stStampKeysHint")} />
+              <MenuHint
+                label={t("stStampKeys")}
+                hint={t("stStampKeysHint", {
+                  bigger: shortcutLabels("stamp.bigger", keys),
+                  smaller: shortcutLabels("stamp.smaller", keys),
+                  left: shortcutLabel("stamp.turnLeft", keys),
+                  right: shortcutLabel("stamp.turnRight", keys),
+                })}
+              />
               <div className="mm-menu-heading">{t("lnMenuHeading")}</div>
-              <MenuHint label={t("lnKeysDraw")} hint={t("lnKeysDrawHint")} />
+              <MenuHint
+                label={t("lnKeysDraw", { line: shortcutLabel("tool.line", keys), free: shortcutLabel("line.free", keys), pen: shortcutLabel("line.pen", keys), nodes: shortcutLabel("line.editNodes", keys) })}
+                hint={t("lnKeysDrawHint", { wider: shortcutLabel("line.wider", keys), thinner: shortcutLabel("line.thinner", keys) })}
+              />
               <MenuHint label={t("lnKeysEdit")} hint={t("lnKeysEditHint")} />
             </div>
           )}
@@ -2665,7 +2671,7 @@ export function MapCreatorEditor({
             <button
               key={tl.key}
               className={`mm-rail-btn ${tool === tl.key ? "active" : ""}`}
-              title={t(tl.labelKey)}
+              title={`${t(tl.labelKey)} (${shortcutLabels(`tool.${tl.key}` as ShortcutId, keys)})`}
               onClick={() => selectTool(tl.key)}
             >
               <Glyph name={tl.key} />
@@ -2702,7 +2708,7 @@ export function MapCreatorEditor({
                   role={active.role ?? "custom"}
                   layerName={active.name}
                   what={t(active.role === "land" ? "mmTargetLandTexture" : active.role === "water" ? "mmTargetWater" : "mmTargetPaint")}
-                  note={active.locked ? t("mmTargetLocked") : active.role === "land" ? t("mmTargetLandTextureNote") : undefined}
+                  note={active.locked ? t("mmTargetLocked") : active.role === "land" ? t("mmTargetLandTextureNote", { land: shortcutLabel("tool.land", keys) }) : undefined}
                   warning={active.locked}
                 />
               )
@@ -2806,6 +2812,7 @@ export function MapCreatorEditor({
               error: lineLib.error,
               onSave: (name) => void lineLib.save(name, lineEditing ? lineEditing.look : lineTool.look),
               onDelete: (id) => void lineLib.remove(id),
+              onLimit: lineLib.promptLimit,
             }}
             uploads={{
               signedIn: !!user,
@@ -3616,6 +3623,17 @@ export function MapCreatorEditor({
           )}
         </aside>
       </div>
+      {lineLib.limitPrompt && user && (
+        <UpgradeDialog
+          limit="line_styles"
+          planCode={lineLib.limitPrompt.plan ?? user.plan.code}
+          max={lineLib.limitPrompt.max ?? lineLib.max}
+          used={lineLib.own.length}
+          title={t("lnLimitTitle")}
+          message={t("lnLimitText", { plan: t(`acPlan_${lineLib.limitPrompt.plan ?? user.plan.code}`), max: lineLib.limitPrompt.max ?? lineLib.max })}
+          onClose={lineLib.closeLimitPrompt}
+        />
+      )}
       {sync.conflict && (
         <ConflictDialog busy={sync.resolving} error={sync.resolveError} onChoose={(c) => void sync.resolveConflict(c)} />
       )}
@@ -3628,29 +3646,29 @@ export function MapCreatorEditor({
         >
           {lineActions && (
             <>
-              <MenuRow label={t("lnEditNodes")} shortcut="N" icon="editNodes" onClick={() => { lineActions.onEditNodes(); setContextMenu(null); }} />
+              <MenuRow label={t("lnEditNodes")} shortcut={shortcutLabel("line.editNodes", keys)} icon="editNodes" onClick={() => { lineActions.onEditNodes(); setContextMenu(null); }} />
               <MenuRow label={t("lnReverse")} icon="reverse" onClick={() => { lineActions.onReverse(); setContextMenu(null); }} />
               <MenuRow label={t(lineActions.closed ? "lnOpenPath" : "lnClosePath")} icon="closePath" disabled={!lineActions.canClose} onClick={() => { lineActions.onToggleClosed(); setContextMenu(null); }} />
               <div className="mm-menu-divider" />
             </>
           )}
-          <MenuRow label={t("mmDuplicateObject")} shortcut="⌘D" disabled={!selectedObjs.length} onClick={() => { duplicateObjects(selectedIds); setContextMenu(null); }} />
-          <MenuRow label={t("mmCopyObject")} shortcut="⌘C" disabled={!selectedObjs.length} onClick={() => { copySelection(); setContextMenu(null); }} />
-          <MenuRow label={t("mmPasteObject")} shortcut="⌘V" disabled={!hasClipboard} onClick={() => { pasteClipboard(); setContextMenu(null); }} />
-          <MenuRow label={t("mmDeleteObject")} shortcut="⌫" disabled={!selectedObjs.length} onClick={() => { removeObjects(selectedIds); setContextMenu(null); }} />
+          <MenuRow label={t("mmDuplicateObject")} shortcut={shortcutLabel("edit.duplicate", keys)} disabled={!selectedObjs.length} onClick={() => { duplicateObjects(selectedIds); setContextMenu(null); }} />
+          <MenuRow label={t("mmCopyObject")} shortcut={shortcutLabel("edit.copy", keys)} disabled={!selectedObjs.length} onClick={() => { copySelection(); setContextMenu(null); }} />
+          <MenuRow label={t("mmPasteObject")} shortcut={shortcutLabel("edit.paste", keys)} disabled={!hasClipboard} onClick={() => { pasteClipboard(); setContextMenu(null); }} />
+          <MenuRow label={t("mmDeleteObject")} shortcut={shortcutLabel("edit.delete", keys)} disabled={!selectedObjs.length} onClick={() => { removeObjects(selectedIds); setContextMenu(null); }} />
           <div className="mm-menu-divider" />
-          <MenuRow label={t("mmGroup")} shortcut="⌘G" disabled={selectedObjs.length < 2} onClick={() => { groupSelection(); setContextMenu(null); }} />
-          <MenuRow label={t("mmUngroup")} shortcut="⇧⌘G" disabled={!selectedObjs.some((o) => o.group)} onClick={() => { ungroupSelection(); setContextMenu(null); }} />
+          <MenuRow label={t("mmGroup")} shortcut={shortcutLabel("edit.group", keys)} disabled={selectedObjs.length < 2} onClick={() => { groupSelection(); setContextMenu(null); }} />
+          <MenuRow label={t("mmUngroup")} shortcut={shortcutLabel("edit.ungroup", keys)} disabled={!selectedObjs.some((o) => o.group)} onClick={() => { ungroupSelection(); setContextMenu(null); }} />
           <MenuRow label={t("mmLockObjects")} disabled={!selectedObjs.length} onClick={() => { setObjectFlags(selectedIds, { locked: true }); setContextMenu(null); }} />
           <MenuRow label={t("mmHideObjects")} disabled={!selectedObjs.length} onClick={() => { setObjectFlags(selectedIds, { hidden: true }); setContextMenu(null); }} />
           {user && (
             <MenuRow label={t("stSaveAsStamp")} disabled={!selectedObjs.length} onClick={() => { void saveSelectionAsStamp(); setContextMenu(null); }} />
           )}
           <div className="mm-menu-divider" />
-          <MenuRow label={t("mmBringToFront")} shortcut="⌘]" disabled={!selectedObjs.length} onClick={() => { reorderObjects(selectedIds, "front"); setContextMenu(null); }} />
+          <MenuRow label={t("mmBringToFront")} shortcut={shortcutLabel("arrange.front", keys)} disabled={!selectedObjs.length} onClick={() => { reorderObjects(selectedIds, "front"); setContextMenu(null); }} />
           <MenuRow label={t("mmBringForward")} disabled={selectedObjs.length !== 1} onClick={() => { if (selectedObj) reorderObject(selectedObj.id, "forward"); setContextMenu(null); }} />
           <MenuRow label={t("mmSendBackward")} disabled={selectedObjs.length !== 1} onClick={() => { if (selectedObj) reorderObject(selectedObj.id, "backward"); setContextMenu(null); }} />
-          <MenuRow label={t("mmSendToBack")} shortcut="⌘[" disabled={!selectedObjs.length} onClick={() => { reorderObjects(selectedIds, "back"); setContextMenu(null); }} />
+          <MenuRow label={t("mmSendToBack")} shortcut={shortcutLabel("arrange.back", keys)} disabled={!selectedObjs.length} onClick={() => { reorderObjects(selectedIds, "back"); setContextMenu(null); }} />
         </div>
       )}
     </div>

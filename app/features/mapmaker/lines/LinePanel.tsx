@@ -38,13 +38,14 @@ import {
 import { builtinLineStyles, resetProp, withSet, type LineDrawMode, type LineStyle, type LineToolState } from "./state";
 import { lookPreview } from "./render";
 import { newSeed } from "../brush/noise";
+import { shortcutLabel, useShortcuts, type ShortcutId } from "../shortcuts";
 
 type T = (k: string, opts?: Record<string, unknown>) => string;
 
-export const LINE_DRAW_MODES: { key: LineDrawMode; labelKey: string; hintKey: string; glyph: string; shortcut: string }[] = [
-  { key: "free", labelKey: "lnDrawFree", hintKey: "lnHintFree", glyph: "freeBrush", shortcut: "F" },
-  { key: "pen", labelKey: "lnDrawPen", hintKey: "lnHintPen", glyph: "pen", shortcut: "P" },
-  { key: "edit", labelKey: "lnDrawEdit", hintKey: "lnHintEdit", glyph: "editNodes", shortcut: "N" },
+export const LINE_DRAW_MODES: { key: LineDrawMode; labelKey: string; hintKey: string; glyph: string; shortcut: ShortcutId }[] = [
+  { key: "free", labelKey: "lnDrawFree", hintKey: "lnHintFree", glyph: "freeBrush", shortcut: "line.free" },
+  { key: "pen", labelKey: "lnDrawPen", hintKey: "lnHintPen", glyph: "pen", shortcut: "line.pen" },
+  { key: "edit", labelKey: "lnDrawEdit", hintKey: "lnHintEdit", glyph: "editNodes", shortcut: "line.editNodes" },
 ];
 const PATTERNS: { key: LinePattern; labelKey: string }[] = [
   { key: "solid", labelKey: "lnPatternSolid" },
@@ -105,6 +106,8 @@ export interface LineLibrary {
   error: string | null;
   onSave: (name: string) => void;
   onDelete: (id: string) => void;
+  /** At the limit: shows the upgrade prompt instead of saving. */
+  onLimit: () => void;
 }
 export interface LineArtUploads {
   signedIn: boolean;
@@ -165,6 +168,7 @@ export function LinePanel({
   // Server styles, sets and uploaded pictures can arrive while the panel is open.
   const lineVersion = useSyncExternalStore(subscribeLineCatalog, lineCatalogVersion, lineCatalogVersion),
     stampVersion = useSyncExternalStore(subscribeCatalog, catalogVersion, catalogVersion);
+  const keys = useShortcuts();
   const [query, setQuery] = useState(""),
     [category, setCategory] = useState<LineCategory | "all">("walls"),
     [styleName, setStyleName] = useState(""),
@@ -235,7 +239,7 @@ export function LinePanel({
                 onClick={() => onChange({ ...state, draw: m.key })}
                 role="radio"
                 aria-checked={state.draw === m.key}
-                title={`${t(m.labelKey)} (${m.shortcut})`}
+                title={`${t(m.labelKey)} (${shortcutLabel(m.shortcut, keys)})`}
               >
                 <Glyph name={m.glyph} size={18} />
                 <span>{t(m.labelKey)}</span>
@@ -264,7 +268,7 @@ export function LinePanel({
             />
           </label>
           <div className="mm-st-flips">
-            <button className={`mm-pill ${line.editingNodes ? "selected" : ""}`} onClick={line.onEditNodes} aria-pressed={line.editingNodes}>
+            <button className={`mm-pill ${line.editingNodes ? "selected" : ""}`} onClick={line.onEditNodes} aria-pressed={line.editingNodes} title={t("lnEditNodesHint", { key: shortcutLabel("line.editNodes", keys) })}>
               <Glyph name="editNodes" size={14} />
               {t("lnEditNodes")}
             </button>
@@ -313,12 +317,33 @@ export function LinePanel({
                 </button>
               </form>
             ) : (
-              <button className="mm-pill" disabled={atLimit || library.busy} onClick={() => setSavingStyle(true)} title={atLimit ? t("lnStyleLimit", { max: library.max }) : undefined}>
-                <Glyph name="plus" size={12} />
+              <button
+                className={`mm-pill ${atLimit ? "mm-ln-save-locked" : ""}`}
+                disabled={library.busy}
+                // At the limit the button stays: it explains the limit and the
+                // plans instead of saving (the server refuses it too).
+                onClick={() => (atLimit ? library.onLimit() : setSavingStyle(true))}
+                aria-haspopup={atLimit ? "dialog" : undefined}
+              >
+                <Glyph name={atLimit ? "lock" : "plus"} size={12} />
                 {t("lnStyleSaveCurrent")}
               </button>
             )}
-            {library.max !== null && <p className="mm-bp-hint">{t("lnStyleCount", { count: ownCount, max: library.max })}</p>}
+            {library.max !== null && (
+              <p className={`mm-bp-hint mm-ln-count ${atLimit ? "full" : ""}`}>
+                {t("lnStyleCount", { count: ownCount, max: library.max })}
+                {atLimit && (
+                  <>
+                    {" · "}
+                    {t("lnStyleLimitReached")}
+                    {" · "}
+                    <button type="button" className="mm-ln-upgrade" onClick={library.onLimit}>
+                      {t("lnStyleUpgrade")}
+                    </button>
+                  </>
+                )}
+              </p>
+            )}
             {library.error && (
               <p className="mm-st-upload-error" role="alert">
                 {library.error}

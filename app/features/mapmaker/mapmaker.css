@@ -1905,6 +1905,28 @@
 .mm-ln-style .mm-ln-style-del:focus-visible {
   opacity: 1;
 }
+/* At the plan's limit: the save button stays, and opens the upgrade prompt. */
+.mm-ln-save-locked {
+  border-style: dashed !important;
+  color: var(--mm-muted) !important;
+}
+.mm-ln-save-locked:hover {
+  color: var(--mm-accent) !important;
+  border-color: var(--mm-accent) !important;
+}
+.mm-ln-count.full {
+  color: #e0a458;
+}
+.mm-ln-upgrade {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--mm-accent) !important;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
 .mm-ln-save {
   display: flex;
   gap: 5px;
