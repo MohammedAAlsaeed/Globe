@@ -171,6 +171,8 @@ export const mapmakerAr: typeof mapmakerEn = {
   mmModePolygonHint:
     "انقر لوضع الزوايا؛ انقر على الأولى أو انقر مرتين أو اضغط Enter للإغلاق.",
   mmPresetCustom: "فرشاة مخصصة",
+  mmPresetModified: "{{name}} (معدّلة)",
+  mmPresetRevert: "العودة إلى {{name}} — تراجع عن كل تعديلات الفرشاة",
   mmSaveFavorite: "حفظ في المفضلة",
   mmFavoriteName: "اسم الفرشاة المفضلة",
   mmSave: "حفظ",
@@ -334,6 +336,8 @@ export const mapmakerAr: typeof mapmakerEn = {
   mmDepthShading: "تظليل العمق",
   mmDepthDistance: "العمق الكامل عند",
   mmResetCoast: "إعادة ضبط النمط",
+  mmResetCoastTo: "إعادة إلى {{style}}",
+  mmStyleModified: "معدّل من هذا النمط — الإرجاع يعود إليه",
   mmEditCoast: "تعديل الساحل",
   mmToolLand: "اليابسة",
   mmShortcutHintLand: "ارسم مكان اليابسة — والساحل يتبعها",

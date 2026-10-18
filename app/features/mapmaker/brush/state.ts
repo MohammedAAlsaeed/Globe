@@ -6,6 +6,7 @@ import {
   DEFAULT_BRUSH,
   DEFAULT_EDGE_SETTINGS,
   DEFAULT_SOURCE,
+  PRESETS,
   type BrushPreset,
   type FavoriteBrush,
 } from "./presets";
@@ -23,6 +24,9 @@ export interface BrushState {
   erase: boolean;
   /** Preset / favorite the settings came from (null once customized). */
   presetId: string | null;
+  /** The preset / favorite a customized brush started from: what its resets
+   * return to (kept through edits; null = the factory brush). */
+  baseId?: string | null;
   brush: BrushSettings;
   opacity: number;
   blend: BlendMode;
@@ -45,7 +49,9 @@ const PAINT_MODE_KEYS: PaintMode[] = [
 export const DEFAULT_BRUSH_STATE: BrushState = {
   mode: "free",
   erase: false,
+  // The "Texture fill" preset (keep in step with it in ./presets).
   presetId: "texture-fill",
+  baseId: "texture-fill",
   brush: {
     ...DEFAULT_BRUSH,
     size: 0.05,
@@ -53,7 +59,7 @@ export const DEFAULT_BRUSH_STATE: BrushState = {
     softness: 0.25,
     spacing: 0.1,
   },
-  opacity: 0.9,
+  opacity: 0.95,
   blend: "normal",
   source: DEFAULT_SOURCE,
   edge: DEFAULT_EDGE_SETTINGS,
@@ -68,6 +74,7 @@ export function applyPreset(
   return {
     ...state,
     presetId: preset.id,
+    baseId: preset.id,
     brush: {
       ...DEFAULT_BRUSH,
       ...preset.brush,
@@ -87,11 +94,31 @@ export function applyFavorite(
   return {
     ...state,
     presetId: fav.id,
+    baseId: fav.id,
     brush: fav.brush,
     opacity: fav.opacity,
     blend: fav.blend,
     source: fav.source,
   };
+}
+
+/**
+ * What the brush's resets return to: the preset or favorite it started from
+ * (as a painter expects — "back to my Soft Round"), else the factory brush.
+ * Mode, edge and grid aren't part of presets, so they keep the factory values;
+ * the paint picked (texture or colour) is kept, only its adjustments reset.
+ * A favorite brings back its own paint, as it does when chosen.
+ */
+export function brushBase(state: Pick<BrushState, "presetId" | "baseId" | "source">, favorites: FavoriteBrush[]): BrushState {
+  const id = state.presetId ?? state.baseId ?? null,
+    // The paint chosen (texture or colour) stays; its adjustments reset.
+    source: PaintSource = { ...DEFAULT_SOURCE, type: state.source.type, color: state.source.color, texture: state.source.texture },
+    start = { ...DEFAULT_BRUSH_STATE, source };
+  if (!id) return start;
+  const fav = favorites.find((f) => f.id === id);
+  if (fav) return applyFavorite(start, fav);
+  const preset = PRESETS.find((p) => p.id === id);
+  return preset ? applyPreset(start, preset) : start;
 }
 
 const STATE_KEY = "mapmaker-brush-state";
@@ -119,6 +146,9 @@ export function loadBrushState(): BrushState {
       edge: { roughness: e.roughness, detail: e.detail, feather: e.feather },
       grid: { ...DEFAULT_BRUSH_STATE.grid, ...s.grid },
       erase: false,
+      presetId: typeof s.presetId === "string" ? s.presetId : null,
+      // Saved before the base was remembered: the preset it shows, if any.
+      baseId: typeof s.baseId === "string" ? s.baseId : typeof s.presetId === "string" ? s.presetId : null,
     };
   } catch {
     return DEFAULT_BRUSH_STATE;
