@@ -4,12 +4,14 @@ A private bilingual globe-making and print-preparation studio. Built with Next.j
 
 ## Development
 
+Node 22.18+ is recommended.
+
 ```sh
 npm install
 npm run dev
 ```
 
-Open **http://localhost:3000** using the development server's hostname. Node 22.18+ is recommended.
+Open **http://localhost:3000** using the development server's hostname.
 
 ```sh
 npm run lint
@@ -20,6 +22,59 @@ npm run format
 ```
 
 `npm run build` also supports the default Turbopack build. `build:webpack` is useful in environments that restrict the local ports used by Turbopack CSS workers. Tests generate ignored PDF QA fixtures under `tmp/pdfs/`.
+
+### The map creator and the API
+
+The print studio works on its own. The map creator's accounts, cloud maps, asset library and plans need the Laravel API in [`../api`](../api/README.md) running on `http://localhost:8000`. Without it, the editor still works signed out and saves on the device.
+
+Optional settings go in `app/.env.local` (restart `npm run dev` after changing them):
+
+| Variable | Default | |
+|---|---|---|
+| `NEXT_PUBLIC_API_URL` | `http://localhost:8000` | Where the API runs. |
+| `NEXT_PUBLIC_UPGRADE_URL` | *(empty)* | Checkout page for plan upgrades; the upgrade prompt links to it with `?plan=<code>&from=<limit>`. Empty: the prompt shows "coming soon". |
+
+Always open the site as `localhost`, not `127.0.0.1`, so the session cookie set by the API is sent back.
+
+## Local setup (Windows)
+
+Run the commands in **PowerShell**. Set up the API first if you need accounts and cloud saving: [`../api/README.md`](../api/README.md#local-setup-windows).
+
+**1. Install Node.js** 22.18 or newer: the **LTS** installer from [nodejs.org](https://nodejs.org/). Open a new PowerShell window and check:
+
+```powershell
+node -v
+npm -v
+```
+
+**2. Install and start the app:**
+
+```powershell
+cd app
+npm install
+npm run dev        # http://localhost:3000 — leave this window open
+```
+
+Next time, `npm run dev` is enough. Run `npm install` again after pulling changes to `package.json`.
+
+**Run the whole project** in two PowerShell windows:
+
+| Window | Commands | Address |
+|---|---|---|
+| 1 — API | `cd api` then `composer dev` | http://localhost:8000 |
+| 2 — Web app | `cd app` then `npm run dev` | http://localhost:3000 |
+
+**Checks** work the same on Windows: `npm run lint`, `npm run typecheck`, `npm test`.
+
+### Common problems on Windows
+
+| Message | Fix |
+|---|---|
+| `npm.ps1 cannot be loaded because running scripts is disabled` | Run `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` once, or use `npm.cmd` instead of `npm`. |
+| `node` / `npm` is not recognized | Open a new PowerShell window after installing Node.js. |
+| `Port 3000 is in use` | Next.js picks another port and prints it. Use that address, or stop the other server. For the API, the site must stay on `http://localhost:3000` unless you also change `FRONTEND_URL` and `SANCTUM_STATEFUL_DOMAINS` in `api\.env`. |
+| Signed in, but the editor acts signed out / `419` or `CSRF token mismatch` | Open `http://localhost:3000`, not `127.0.0.1`, and check that the API is running on `http://localhost:8000`. |
+| `EPERM` / `EBUSY` during `npm install` | Close editors or terminals that hold `node_modules`, then run `npm install` again. |
 
 ## Features
 

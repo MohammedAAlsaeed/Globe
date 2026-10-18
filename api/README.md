@@ -4,7 +4,7 @@ The backend for the map creator: accounts, cloud-saved maps, the asset library a
 
 ## Local setup (macOS)
 
-You need PHP 8.3 or newer, Composer, and PostgreSQL 15 or newer. Files are stored on the local disk (`storage/app/private`) in development, so no S3 service has to run.
+You need PHP 8.4 or newer (the lock file requires it), Composer, and PostgreSQL 15 or newer. Files are stored on the local disk (`storage/app/private`) in development, so no S3 service has to run.
 
 ```sh
 # 1. Database (Homebrew Postgres: your macOS user, no password)
@@ -22,10 +22,92 @@ To use real S3-compatible storage (Cloudflare R2, AWS S3, or a self-hosted Seawe
 
 Run the web app on `http://localhost:3000` (`FRONTEND_URL`). Both run on `localhost`, so session cookies work without extra setup.
 
+## Local setup (Windows)
+
+Run the commands in **PowerShell**, from the repository folder. The web app has its own steps in [`../app/README.md`](../app/README.md#local-setup-windows).
+
+### 1. Install the tools (once)
+
+| Tool | Where | Notes |
+|---|---|---|
+| PostgreSQL 15+ | [postgresql.org/download/windows](https://www.postgresql.org/download/windows/) (EDB installer) | Choose a password for the `postgres` user and keep port `5432`. Postgres runs as a Windows service and starts with Windows. |
+| PHP 8.4 (x64, **Non Thread Safe**) | [windows.php.net/download](https://windows.php.net/download/) (zip) | Unzip it, for example to `C:\php`. It needs the [Visual C++ Redistributable (x64)](https://learn.microsoft.com/cpp/windows/latest-supported-vc-redist). |
+| Composer | [getcomposer.org/download](https://getcomposer.org/download/) (`Composer-Setup.exe`) | Install it **after** the `php.ini` step below (it needs `openssl`). When asked for PHP, pick `C:\php\php.exe`; the installer adds PHP and Composer to `PATH`. |
+
+**Turn on PHP's extensions.** In `C:\php`, copy `php.ini-development` to `php.ini` and open it. Then:
+
+- Remove the leading `;` from `extension_dir = "ext"`.
+- Remove the leading `;` from each of these lines: `extension=curl`, `extension=fileinfo`, `extension=gd`, `extension=intl`, `extension=mbstring`, `extension=openssl`, `extension=pdo_pgsql`, `extension=pgsql`, `extension=pdo_sqlite`, `extension=sqlite3`, `extension=sodium`, `extension=zip` and `extension=exif`.
+- Set `memory_limit = 512M`, `upload_max_filesize = 64M` and `post_max_size = 64M`.
+
+Open a **new** PowerShell window and check:
+
+```powershell
+php -v                      # PHP 8.4.x
+php -m | findstr pgsql      # pdo_pgsql and pgsql
+composer --version
+```
+
+### 2. Create the database
+
+With psql (adjust `18` to your Postgres version):
+
+```powershell
+& "C:\Program Files\PostgreSQL\18\bin\psql.exe" -U postgres -c "CREATE DATABASE idrisi;"
+```
+
+Or in pgAdmin: right-click **Databases → Create → Database…**, and name it `idrisi`.
+
+### 3. Set up and start the API
+
+```powershell
+cd api
+Copy-Item .env.example .env
+```
+
+Open `api\.env` and set your Postgres password:
+
+```dotenv
+DB_USERNAME=postgres
+DB_PASSWORD=your-postgres-password
+```
+
+Then:
+
+```powershell
+composer setup     # install, app key, migrate and seed the plans
+composer dev       # http://localhost:8000 — leave this window open
+```
+
+`http://localhost:8000/up` should answer with a green page. Then start the web app in a second window (see [`../app/README.md`](../app/README.md#local-setup-windows)) and open `http://localhost:3000`, using `localhost`, not `127.0.0.1`, so the session cookie works.
+
+### Next time
+
+```powershell
+cd api
+composer dev
+```
+
+After pulling changes that add migrations or change plans, run `php artisan migrate` and `php artisan db:seed --class=PlanSeeder`.
+
+### Common problems on Windows
+
+| Message | Fix |
+|---|---|
+| `php` / `composer` is not recognized | Open a new PowerShell window after installing. If it still fails, add `C:\php` to `PATH` (Settings → System → About → Advanced system settings → Environment Variables). |
+| `could not find driver` | `extension=pdo_pgsql` (and `pgsql`) are still commented out in `C:\php\php.ini`, or `extension_dir = "ext"` is. `php --ini` shows which `php.ini` is in use. |
+| `password authentication failed for user "postgres"` | `DB_PASSWORD` in `api\.env` doesn't match the password you chose in the Postgres installer. |
+| `Connection refused` on port 5432 | The Postgres service isn't running: open **Services**, start `postgresql-x64-NN`. |
+| `Your lock file does not contain a compatible set of packages` | PHP is older than 8.4. |
+| `Address already in use` on port 8000 | Another server uses it. Stop it, or run `php artisan serve --port=8001` and set `NEXT_PUBLIC_API_URL=http://localhost:8001` in `app\.env.local`. |
+| `The MAC is invalid` / `No application encryption key` | Run `php artisan key:generate`. |
+
+## Tests and useful commands
+
 ### Tests
 
 ```sh
-composer test           # SQLite in memory; no services needed
+composer test           # SQLite in memory; no services needed (same on Windows)
 ```
 
 To run the suite on Postgres instead:
@@ -70,7 +152,8 @@ php artisan maps:purge-trashed                                    # runs daily f
 - **Uploads on every plan.** Explorer can upload 20 MB of its own stamps, Cartographer 500 MB, Atlas 5 GB (`upload_quota_bytes`). After changing limits, re-run the plan seeder.
 - **Placed stamps always draw.** A map keeps drawing stamps from a pack the plan no longer includes (`GET assets?ids[]=`); only placing new ones is refused.
 - **Line Tool.** People save their own line styles (a named look: colour stroke or stamp stroke) to their account, up to the plan's `max_line_styles` (Explorer 10, Cartographer 200, Atlas unlimited). Admins publish official styles with `official: true` and a `tier`; styles above a person's plan are listed as `locked`, without their look. Line art is an asset pack of kind `lines`: each picture's `category` is its role (`seg` the repeated piece, `start`, `end`, `corner`) and pictures sharing a `set_key` form one set. Lines in saved maps are checked by `LineRules` (node count and ranges, every option), the same rules the editor uses (`app/features/mapmaker/lines/validate.ts`).
-- **Errors carry a `code`.** Domain errors are JSON shaped as `{ message, code, ... }`, with codes `plan_limit_reached` (plus `limit` — `maps`, `export_px`, `upload_bytes`, `line_styles`, `tier` — and `max`) and `revision_conflict`, so the web app can show translated messages.
+- **Saved line styles at the limit.** The editor keeps the save button and shows an upgrade prompt comparing the plans (`GET plans`). The server has the final say: saving locks the person's row in a transaction, so parallel requests can't pass the limit.
+- **Errors carry a `code`.** Domain errors are JSON shaped as `{ message, code, ... }`, with codes `plan_limit_reached` (plus `limit` — `maps`, `export_px`, `upload_bytes`, `line_styles`, `tier` — `max`, and `plan`, the person's current plan) and `revision_conflict`, so the web app can show translated messages.
 
 ## API overview (`/api/v1`)
 
@@ -78,6 +161,7 @@ The web app first calls `GET /sanctum/csrf-cookie`, then sends the `XSRF-TOKEN` 
 
 | Method | Path | |
 |---|---|---|
+| GET | `plans` | Every plan and its limits (public, for comparing plans) |
 | POST | `auth/register`, `auth/login`, `auth/logout` | Session sign-in |
 | GET / PATCH | `auth/me` | User, plan and usage; edit name and locale |
 | POST | `auth/forgot-password`, `auth/reset-password` | The reset email links to `FRONTEND_URL/reset-password` |
