@@ -72,12 +72,64 @@ class LineStyleTest extends TestCase
             ->assertForbidden()
             ->assertJsonPath('code', 'plan_limit_reached')
             ->assertJsonPath('limit', 'line_styles')
-            ->assertJsonPath('max', 10);
+            ->assertJsonPath('max', 10)
+            ->assertJsonPath('plan', 'explorer');
+        $this->assertSame(10, $user->lineStyles()->count());
 
         // A bigger plan allows more; Atlas is unlimited.
         $this->onPlan($user, 'atlas');
         $this->postJson('/api/v1/line-styles', ['name' => 'One more', 'look' => self::look()])->assertCreated();
         $this->getJson('/api/v1/line-styles')->assertJsonPath('limits.max', null);
+    }
+
+    public function test_a_downgrade_keeps_every_style_but_blocks_new_ones(): void
+    {
+        $user = $this->onPlan(User::factory()->create(), 'cartographer');
+        for ($i = 0; $i < 12; $i++) {
+            $this->actingAs($user)->postJson('/api/v1/line-styles', ['name' => "S{$i}", 'look' => self::look()])->assertCreated();
+        }
+
+        // Back on the free plan (10): nothing is deleted, all 12 stay usable…
+        $user->subscriptions()->update(['ends_at' => now()->subSecond()]);
+        $this->getJson('/api/v1/line-styles')->assertOk()
+            ->assertJsonCount(12, 'data')
+            ->assertJsonPath('data.11.locked', false)
+            ->assertJsonPath('limits', ['count' => 12, 'max' => 10]);
+        $id = $this->getJson('/api/v1/line-styles')->json('data.0.id');
+        $this->patchJson("/api/v1/line-styles/{$id}", ['name' => 'Renamed'])->assertOk();
+
+        // …but saving another is refused, until enough are deleted.
+        $this->postJson('/api/v1/line-styles', ['name' => 'More', 'look' => self::look()])
+            ->assertForbidden()
+            ->assertJsonPath('limit', 'line_styles')
+            ->assertJsonPath('plan', 'explorer');
+        foreach (array_slice($this->getJson('/api/v1/line-styles')->json('data'), 0, 3) as $style) {
+            $this->deleteJson("/api/v1/line-styles/{$style['id']}")->assertNoContent();
+        }
+        $this->postJson('/api/v1/line-styles', ['name' => 'More', 'look' => self::look()])->assertCreated();
+    }
+
+    public function test_official_styles_never_count_toward_the_limit(): void
+    {
+        $admin = User::factory()->create();
+        $admin->forceFill(['role' => Role::Admin])->save();
+        for ($i = 0; $i < 11; $i++) {
+            $this->actingAs($admin)->postJson('/api/v1/line-styles', ['name' => "O{$i}", 'look' => self::look(), 'official' => true, 'published' => true])
+                ->assertCreated();
+        }
+        $user = User::factory()->create();
+        $this->actingAs($user)->postJson('/api/v1/line-styles', ['name' => 'Mine', 'look' => self::look()])->assertCreated();
+        $this->getJson('/api/v1/line-styles')->assertJsonPath('limits.count', 1);
+    }
+
+    public function test_the_plans_are_public_for_comparison(): void
+    {
+        $this->getJson('/api/v1/plans')->assertOk()
+            ->assertJsonCount(3, 'data')
+            ->assertJsonPath('data.0.code', 'explorer')
+            ->assertJsonPath('data.0.max_line_styles', 10)
+            ->assertJsonPath('data.1.max_line_styles', 200)
+            ->assertJsonPath('data.2.max_line_styles', null);
     }
 
     public function test_looks_are_validated_like_the_editor_does(): void

@@ -303,7 +303,7 @@ export const mapmakerEn = {
   mmGridHex: "Hexagon",
   mmCellSize: "Cell size",
   mmMatchMapTiles: "Match map tiles",
-  mmBrushShortcuts: "B brush · G land · L line · E eraser · [ ] size · Esc cancel",
+  mmBrushShortcuts: "{{brush}} brush · {{land}} land · {{line}} line · {{erase}} eraser · {{size}} size · {{cancel}} cancel",
   mmAddLandLayer: "Land layer",
   mmAddWaterLayer: "Water brush layer",
   mmAddCustomLayer: "Custom layer",
@@ -354,11 +354,11 @@ export const mapmakerEn = {
   mmLandTexture: "Land texture",
   mmLandTextureHint:
     "What new land looks like. Paint over it with the Brush to add forests, sand, mountains…",
-  mmLandShortcuts: "G land · E add/remove · [ ] size · Esc cancel",
+  mmLandShortcuts: "{{land}} land · {{erase}} add/remove · {{size}} size · {{cancel}} cancel",
   mmTargetLandShape: "Land shape",
   mmTargetLandTexture: "Land texture",
   mmTargetLandTextureNote:
-    "Paint shows on land only. Paint outside the land is kept and appears when the land grows. Use the Land tool (G) to change the coast.",
+    "Paint shows on land only. Paint outside the land is kept and appears when the land grows. Use the Land tool ({{land}}) to change the coast.",
   mmTargetWater: "Water",
   mmTargetPaint: "Paint",
   mmTargetLocked: "This layer is locked — unlock it to draw.",

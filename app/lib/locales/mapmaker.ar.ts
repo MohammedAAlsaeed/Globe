@@ -300,7 +300,7 @@ export const mapmakerAr: typeof mapmakerEn = {
   mmGridHex: "سداسيات",
   mmCellSize: "حجم الخلية",
   mmMatchMapTiles: "مطابقة مربعات الخريطة",
-  mmBrushShortcuts: "B الفرشاة · G اليابسة · L الخط · E الممحاة · [ ] الحجم · Esc إلغاء",
+  mmBrushShortcuts: "{{brush}} الفرشاة · {{land}} اليابسة · {{line}} الخط · {{erase}} الممحاة · {{size}} الحجم · {{cancel}} إلغاء",
   mmAddLandLayer: "طبقة يابسة",
   mmAddWaterLayer: "طبقة فرشاة للمياه",
   mmAddCustomLayer: "طبقة مخصصة",
@@ -351,11 +351,11 @@ export const mapmakerAr: typeof mapmakerEn = {
   mmLandTexture: "ملمس اليابسة",
   mmLandTextureHint:
     "شكل اليابسة الجديدة. ارسم فوقها بالفرشاة لتضيف الغابات والرمال والجبال…",
-  mmLandShortcuts: "G اليابسة · E إضافة/إزالة · [ ] الحجم · Esc إلغاء",
+  mmLandShortcuts: "{{land}} اليابسة · {{erase}} إضافة/إزالة · {{size}} الحجم · {{cancel}} إلغاء",
   mmTargetLandShape: "شكل اليابسة",
   mmTargetLandTexture: "ملمس اليابسة",
   mmTargetLandTextureNote:
-    "الطلاء يظهر على اليابسة فقط. ما يُرسم خارجها يُحفظ ويظهر عندما تتوسع اليابسة. استخدم أداة اليابسة (G) لتغيير الساحل.",
+    "الطلاء يظهر على اليابسة فقط. ما يُرسم خارجها يُحفظ ويظهر عندما تتوسع اليابسة. استخدم أداة اليابسة ({{land}}) لتغيير الساحل.",
   mmTargetWater: "المياه",
   mmTargetPaint: "طلاء",
   mmTargetLocked: "هذه الطبقة مقفلة — افتح قفلها لترسم.",

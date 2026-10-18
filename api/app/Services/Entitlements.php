@@ -42,34 +42,42 @@ class Entitlements
 
     public function ensureCanCreateMap(User $user): void
     {
-        $max = $this->plan($user)->max_maps;
+        $plan = $this->plan($user);
+        $max = $plan->max_maps;
         if ($max !== null && $user->maps()->count() >= $max) {
-            throw ApiException::planLimit('maps', $max);
+            throw ApiException::planLimit('maps', $max, $plan->code);
         }
     }
 
     public function ensureCanExport(User $user, int $width, int $height): void
     {
-        $max = $this->plan($user)->max_export_px;
+        $plan = $this->plan($user);
+        $max = $plan->max_export_px;
         if (max($width, $height) > $max) {
-            throw ApiException::planLimit('export_px', $max);
+            throw ApiException::planLimit('export_px', $max, $plan->code);
         }
     }
 
     public function ensureCanUpload(User $user, int $bytes): void
     {
-        $quota = $this->plan($user)->upload_quota_bytes;
+        $plan = $this->plan($user);
+        $quota = $plan->upload_quota_bytes;
         if ($this->usage($user)['upload_bytes'] + $bytes > $quota) {
-            throw ApiException::planLimit('upload_bytes', $quota);
+            throw ApiException::planLimit('upload_bytes', $quota, $plan->code);
         }
     }
 
-    /** Own line styles are capped per plan; existing ones stay after a downgrade. */
+    /**
+     * Own line styles are capped per plan. Only the person's own styles
+     * count (official ones never do), and a downgrade deletes nothing: over
+     * the new limit, existing styles stay usable; only saving more is blocked.
+     */
     public function ensureCanSaveLineStyle(User $user): void
     {
-        $max = $this->plan($user)->max_line_styles;
+        $plan = $this->plan($user);
+        $max = $plan->max_line_styles;
         if ($max !== null && $user->lineStyles()->count() >= $max) {
-            throw ApiException::planLimit('line_styles', $max);
+            throw ApiException::planLimit('line_styles', $max, $plan->code);
         }
     }
 

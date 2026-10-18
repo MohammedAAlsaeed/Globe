@@ -8,6 +8,7 @@
  */
 import type { ReactNode } from "react";
 import { Glyph } from "../glyphs";
+import { shortcutLabel } from "../shortcuts";
 import { Slider } from "../components/EditorControls";
 import { SourcePicker } from "./SourcePicker";
 import { LAND_MODES, type LandToolState } from "./land";
@@ -166,7 +167,14 @@ export function LandPanel({
           {t("mmEditCoast")}
         </button>
       )}
-      <p className="mm-bp-shortcuts">{t("mmLandShortcuts")}</p>
+      <p className="mm-bp-shortcuts">
+        {t("mmLandShortcuts", {
+          land: shortcutLabel("tool.land"),
+          erase: shortcutLabel("paint.erase"),
+          size: `${shortcutLabel("paint.smaller")} ${shortcutLabel("paint.bigger")}`,
+          cancel: shortcutLabel("edit.cancel"),
+        })}
+      </p>
     </aside>
   );
 }

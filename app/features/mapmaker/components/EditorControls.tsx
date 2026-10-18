@@ -6,6 +6,7 @@
  * studio keeps its own editor UI self-contained (features/studio/components). */
 import type { ReactNode } from "react";
 import { Glyph } from "../glyphs";
+import { shortcutLabel } from "../shortcuts";
 import { ARABIC_RANGE } from "../domain";
 import type { LabelAlign, MMObject, MMPatch } from "../types";
 import {SelectField} from "@/components/ui/fields";
@@ -185,7 +186,7 @@ export function ObjectQuickBar({
       )}
       {obj.kind === "line" && lineActions && (
         <div className="button-row">
-          <button className={`secondary-button ${lineActions.editingNodes ? "active" : ""}`} aria-pressed={lineActions.editingNodes} onClick={lineActions.onEditNodes} title={t("lnEditNodesHint")}>
+          <button className={`secondary-button ${lineActions.editingNodes ? "active" : ""}`} aria-pressed={lineActions.editingNodes} onClick={lineActions.onEditNodes} title={t("lnEditNodesHint", { key: shortcutLabel("line.editNodes") })}>
             <Glyph name="editNodes" size={13} /> {t("lnEditNodes")}
           </button>
           <button className="secondary-button" onClick={lineActions.onReverse} title={t("lnReverseHint")}>

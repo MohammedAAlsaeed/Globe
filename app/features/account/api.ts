@@ -3,7 +3,7 @@
  * `api` directly, so every endpoint has one place that knows its shape.
  */
 import type { LineLook, MMProject } from "../mapmaker/types";
-import type { Asset, AssetPack, CloudMap, LineStyleRecord, User } from "./types";
+import type { Asset, AssetPack, CloudMap, LineStyleRecord, Plan, User } from "./types";
 import {api, API_URL} from "@/lib/api/client";
 
 type One<T> = { data: T };
@@ -31,6 +31,12 @@ export const auth = {
   resendVerification: () => api.post<void>("auth/email/verification-notification"),
   /** Full-page redirect target for "Continue with Google". */
   googleUrl: () => `${API_URL}/auth/google/redirect`,
+};
+
+// ---- plans ----------------------------------------------------------------------
+export const plans = {
+  /** Every plan and its limits (public), cheapest first. */
+  list: () => api.get<{ data: Plan[] }>("plans").then((r) => r.data),
 };
 
 // ---- maps -----------------------------------------------------------------------
