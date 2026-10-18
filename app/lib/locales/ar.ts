@@ -91,4 +91,6 @@ export const ar: typeof en = {
   aspect: "الحفاظ على أبعاد متساوية",
   cancel: "إلغاء",
   uploadError: "تعذّر تحميل الخريطة.",
+  valueTypeHint: "انقر لكتابة قيمة محددة",
+  valueResetTo: "إعادة إلى القيمة الافتراضية ({{value}})",
 };

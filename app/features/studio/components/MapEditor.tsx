@@ -29,7 +29,7 @@ import type {
   PathKind,
 } from "../domain/types";
 import type { SourceState } from "../hooks/useSource";
-import { SelectField } from "../../../components/ui/fields";
+import { RangeField, SelectField } from "../../../components/ui/fields";
 type Tool = "select" | "brush" | "icon" | "path" | "region" | "label";
 /** A loose union of every field any object kind can carry; call sites only set fields matching the target's own kind. */
 interface ObjectPatch {
@@ -72,6 +72,9 @@ const PATH_KIND_LABEL_KEY: Record<PathKind, string> = {
   border: "pathBorder",
 };
 const ARABIC_RANGE = /[؀-ۿ]/;
+/** Starting tool settings (what their resets return to). */
+const STUDIO_TOOL_DEFAULTS = { size: 0.004, iconScale: 1, pathWidth: 0.006, fillOpacity: 0.55, labelSize: 0.03 } as const;
+
 export function MapEditor({
   source,
   layers,
@@ -93,14 +96,14 @@ export function MapEditor({
     [tool, setTool] = useState<Tool>("select"),
     [selectedId, setSelectedId] = useState<string | null>(null);
   const [color, setColor] = useState("#765936"),
-    [size, setSize] = useState(0.004),
+    [size, setSize] = useState<number>(STUDIO_TOOL_DEFAULTS.size),
     [iconId, setIconId] = useState<IconId>("mountain"),
-    [iconScale, setIconScale] = useState(1),
+    [iconScale, setIconScale] = useState<number>(STUDIO_TOOL_DEFAULTS.iconScale),
     [pathKind, setPathKind] = useState<PathKind>("river"),
-    [pathWidth, setPathWidth] = useState(0.006),
+    [pathWidth, setPathWidth] = useState<number>(STUDIO_TOOL_DEFAULTS.pathWidth),
     [biome, setBiome] = useState<Biome>("forest"),
-    [fillOpacity, setFillOpacity] = useState(0.55),
-    [labelSize, setLabelSize] = useState(0.03),
+    [fillOpacity, setFillOpacity] = useState<number>(STUDIO_TOOL_DEFAULTS.fillOpacity),
+    [labelSize, setLabelSize] = useState<number>(STUDIO_TOOL_DEFAULTS.labelSize),
     [labelAlign, setLabelAlign] = useState<LabelAlign>("start"),
     [labelRtl, setLabelRtl] = useState(false),
     [labelText, setLabelText] = useState(""),
@@ -395,17 +398,16 @@ export function MapEditor({
                 onChange={(e) => setColor(e.target.value)}
               />
             </label>
-            <label>
-              {t("brushSize")}
-              <input
-                type="range"
-                min={0.001}
-                max={0.03}
-                step={0.001}
-                value={size}
-                onChange={(e) => setSize(+e.target.value)}
-              />
-            </label>
+            <RangeField
+              label={t("brushSize")}
+              value={size}
+              defaultValue={STUDIO_TOOL_DEFAULTS.size}
+              min={0.001}
+              max={0.03}
+              step={0.001}
+              onChange={(v) => setSize(v)}
+              format={(v) => `${(v * 100).toFixed(1)}%`}
+            />
           </>
         )}
         {tool === "icon" && (
@@ -418,17 +420,16 @@ export function MapEditor({
                 onChange={(e) => setColor(e.target.value)}
               />
             </label>
-            <label>
-              {t("iconScale")}
-              <input
-                type="range"
-                min={0.3}
-                max={4}
-                step={0.1}
-                value={iconScale}
-                onChange={(e) => setIconScale(+e.target.value)}
-              />
-            </label>
+            <RangeField
+              label={t("iconScale")}
+              value={iconScale}
+              defaultValue={STUDIO_TOOL_DEFAULTS.iconScale}
+              min={0.3}
+              max={4}
+              step={0.1}
+              onChange={(v) => setIconScale(v)}
+              format={(v) => `×${v.toFixed(1)}`}
+            />
           </>
         )}
         {tool === "path" && (
@@ -452,17 +453,16 @@ export function MapEditor({
                 onChange={(e) => setColor(e.target.value)}
               />
             </label>
-            <label>
-              {t("pathWidth")}
-              <input
-                type="range"
-                min={0.002}
-                max={0.02}
-                step={0.001}
-                value={pathWidth}
-                onChange={(e) => setPathWidth(+e.target.value)}
-              />
-            </label>
+            <RangeField
+              label={t("pathWidth")}
+              value={pathWidth}
+              defaultValue={STUDIO_TOOL_DEFAULTS.pathWidth}
+              min={0.002}
+              max={0.02}
+              step={0.001}
+              onChange={(v) => setPathWidth(v)}
+              format={(v) => `${(v * 100).toFixed(1)}%`}
+            />
           </>
         )}
         {tool === "region" && (
@@ -478,17 +478,16 @@ export function MapEditor({
                 </option>
               ))}
             </SelectField>
-            <label>
-              {t("fillOpacity")}
-              <input
-                type="range"
-                min={0.1}
-                max={1}
-                step={0.05}
-                value={fillOpacity}
-                onChange={(e) => setFillOpacity(+e.target.value)}
-              />
-            </label>
+            <RangeField
+              label={t("fillOpacity")}
+              value={fillOpacity}
+              defaultValue={STUDIO_TOOL_DEFAULTS.fillOpacity}
+              min={0.1}
+              max={1}
+              step={0.05}
+              onChange={(v) => setFillOpacity(v)}
+              format={(v) => `${Math.round(v * 100)}%`}
+            />
             {regionDraft && regionDraft.length >= 3 && (
               <button className="secondary-button" onClick={finishRegion}>
                 {t("finishShape")}
@@ -506,17 +505,16 @@ export function MapEditor({
                 onChange={(e) => setColor(e.target.value)}
               />
             </label>
-            <label>
-              {t("labelSize")}
-              <input
-                type="range"
-                min={0.01}
-                max={0.08}
-                step={0.005}
-                value={labelSize}
-                onChange={(e) => setLabelSize(+e.target.value)}
-              />
-            </label>
+            <RangeField
+              label={t("labelSize")}
+              value={labelSize}
+              defaultValue={STUDIO_TOOL_DEFAULTS.labelSize}
+              min={0.01}
+              max={0.08}
+              step={0.005}
+              onChange={(v) => setLabelSize(v)}
+              format={(v) => `${(v * 100).toFixed(1)}%`}
+            />
           </>
         )}
       </div>
@@ -592,17 +590,16 @@ export function MapEditor({
                 onChange={(e) => setColor(e.target.value)}
               />
             </label>
-            <label>
-              {t("labelSize")}
-              <input
-                type="range"
-                min={0.01}
-                max={0.08}
-                step={0.005}
-                value={labelSize}
-                onChange={(e) => setLabelSize(+e.target.value)}
-              />
-            </label>
+            <RangeField
+              label={t("labelSize")}
+              value={labelSize}
+              defaultValue={STUDIO_TOOL_DEFAULTS.labelSize}
+              min={0.01}
+              max={0.08}
+              step={0.005}
+              onChange={(v) => setLabelSize(v)}
+              format={(v) => `${(v * 100).toFixed(1)}%`}
+            />
             <SelectField
               label={t("labelAlign")}
               value={labelAlign}
@@ -912,32 +909,26 @@ export function MapEditor({
                   }
                 />
               </label>
-              <label>
-                {t("iconScale")}
-                <input
-                  type="range"
-                  min={0.3}
-                  max={4}
-                  step={0.1}
-                  value={selectedObj.scale}
-                  onChange={(e) =>
-                    updateObject(selectedObj.id, { scale: +e.target.value })
-                  }
-                />
-              </label>
-              <label>
-                {t("iconRotation")}
-                <input
-                  type="range"
-                  min={-180}
-                  max={180}
-                  step={1}
-                  value={selectedObj.rotation}
-                  onChange={(e) =>
-                    updateObject(selectedObj.id, { rotation: +e.target.value })
-                  }
-                />
-              </label>
+              <RangeField
+                label={t("iconScale")}
+                value={selectedObj.scale}
+                defaultValue={STUDIO_TOOL_DEFAULTS.iconScale}
+                min={0.3}
+                max={4}
+                step={0.1}
+                onChange={(v) => updateObject(selectedObj.id, { scale: v })}
+                format={(v) => `×${v.toFixed(1)}`}
+              />
+              <RangeField
+                label={t("iconRotation")}
+                value={selectedObj.rotation}
+                defaultValue={0}
+                min={-180}
+                max={180}
+                step={1}
+                onChange={(v) => updateObject(selectedObj.id, { rotation: v })}
+                format={(v) => `${v}°`}
+              />
             </>
           )}
           {selectedObj?.kind === "label" && (
@@ -962,19 +953,16 @@ export function MapEditor({
                   }
                 />
               </label>
-              <label>
-                {t("labelSize")}
-                <input
-                  type="range"
-                  min={0.01}
-                  max={0.08}
-                  step={0.005}
-                  value={selectedObj.size}
-                  onChange={(e) =>
-                    updateObject(selectedObj.id, { size: +e.target.value })
-                  }
-                />
-              </label>
+              <RangeField
+                label={t("labelSize")}
+                value={selectedObj.size}
+                defaultValue={STUDIO_TOOL_DEFAULTS.labelSize}
+                min={0.01}
+                max={0.08}
+                step={0.005}
+                onChange={(v) => updateObject(selectedObj.id, { size: v })}
+                format={(v) => `${(v * 100).toFixed(1)}%`}
+              />
               <label>
                 <input
                   type="checkbox"
@@ -1012,19 +1000,16 @@ export function MapEditor({
                   }
                 />
               </label>
-              <label>
-                {t("pathWidth")}
-                <input
-                  type="range"
-                  min={0.002}
-                  max={0.02}
-                  step={0.001}
-                  value={selectedObj.width}
-                  onChange={(e) =>
-                    updateObject(selectedObj.id, { width: +e.target.value })
-                  }
-                />
-              </label>
+              <RangeField
+                label={t("pathWidth")}
+                value={selectedObj.width}
+                defaultValue={STUDIO_TOOL_DEFAULTS.pathWidth}
+                min={0.002}
+                max={0.02}
+                step={0.001}
+                onChange={(v) => updateObject(selectedObj.id, { width: v })}
+                format={(v) => `${(v * 100).toFixed(1)}%`}
+              />
             </>
           )}
           {selectedObj?.kind === "region" && (
@@ -1042,19 +1027,16 @@ export function MapEditor({
                   </option>
                 ))}
               </SelectField>
-              <label>
-                {t("fillOpacity")}
-                <input
-                  type="range"
-                  min={0.1}
-                  max={1}
-                  step={0.05}
-                  value={selectedObj.opacity}
-                  onChange={(e) =>
-                    updateObject(selectedObj.id, { opacity: +e.target.value })
-                  }
-                />
-              </label>
+              <RangeField
+                label={t("fillOpacity")}
+                value={selectedObj.opacity}
+                defaultValue={STUDIO_TOOL_DEFAULTS.fillOpacity}
+                min={0.1}
+                max={1}
+                step={0.05}
+                onChange={(v) => updateObject(selectedObj.id, { opacity: v })}
+                format={(v) => `${Math.round(v * 100)}%`}
+              />
             </>
           )}
           {selectedObj && (
@@ -1109,17 +1091,16 @@ export function MapEditor({
                 }}
               />
             </label>
-            <label>
-              {t("opacity")}
-              <input
-                type="range"
-                min={0}
-                max={1}
-                step={0.05}
-                value={selected.opacity}
-                onChange={(e) => updateLayer({ opacity: +e.target.value })}
-              />
-            </label>
+            <RangeField
+              label={t("opacity")}
+              value={selected.opacity}
+              defaultValue={1}
+              min={0}
+              max={1}
+              step={0.05}
+              onChange={(v) => updateLayer({ opacity: v })}
+              format={(v) => `${Math.round(v * 100)}%`}
+            />
             <label>
               <input
                 type="checkbox"

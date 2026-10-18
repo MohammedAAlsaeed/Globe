@@ -9,7 +9,7 @@
 import type { ReactNode } from "react";
 import { Glyph } from "../glyphs";
 import { Slider } from "../components/EditorControls";
-import { COAST_STYLES, coastSettings, coastStyle } from "./coastStyles";
+import { COAST_STYLES, coastBase, coastSettings, coastStyle } from "./coastStyles";
 import type { CoastEffect, MMLayer } from "../types";
 
 type T = (k: string, opts?: Record<string, unknown>) => string;
@@ -76,8 +76,10 @@ export function CoastEffectPanel({
 }) {
   const cur = coastSettings(layer),
     on = cur.enabled;
+  // Edits keep the style they started from, so resets return to it.
   const set = (patch: Partial<CoastEffect>) =>
-    onChange({ ...cur, ...patch, style: null });
+    onChange({ ...cur, ...patch, style: null, baseStyle: cur.style ?? cur.baseStyle ?? null });
+  const base = coastBase(cur);
   const px = (v: number) => `${Math.max(0, Math.round(v * mapWidthPx))} px`;
 
   return (
@@ -94,7 +96,8 @@ export function CoastEffectPanel({
         {COAST_STYLES.map((st) => (
           <button
             key={st.id}
-            className={cur.style === st.id ? "active" : ""}
+            className={cur.style === st.id ? "active" : !cur.style && base.style === st.id ? "modified" : ""}
+            title={!cur.style && base.style === st.id ? t("mmStyleModified") : undefined}
             onClick={() => onChange(coastStyle(st.id))}
           >
             {t(st.labelKey)}
@@ -106,6 +109,7 @@ export function CoastEffectPanel({
         <Slider
           label={t("mmRoughness")}
           value={cur.roughness}
+          defaultValue={base.roughness}
           min={0}
           max={1}
           step={0.01}
@@ -115,6 +119,7 @@ export function CoastEffectPanel({
         <Slider
           label={t("mmEdgeDetail")}
           value={cur.detail}
+          defaultValue={base.detail}
           min={0}
           max={1}
           step={0.01}
@@ -124,6 +129,7 @@ export function CoastEffectPanel({
         <Slider
           label={t("mmCoastSmoothing")}
           value={cur.smoothing}
+          defaultValue={base.smoothing}
           min={0}
           max={1}
           step={0.01}
@@ -133,6 +139,7 @@ export function CoastEffectPanel({
         <Slider
           label={t("mmIslets")}
           value={cur.islets}
+          defaultValue={base.islets}
           min={0}
           max={1}
           step={0.01}
@@ -157,6 +164,7 @@ export function CoastEffectPanel({
             <Slider
               label={t("mmWidth")}
               value={cur.outlineWidth}
+          defaultValue={base.outlineWidth}
               min={0}
               max={0.005}
               step={0.0001}
@@ -172,6 +180,7 @@ export function CoastEffectPanel({
             <Slider
               label={t("mmStrength")}
               value={cur.shoreStrength}
+          defaultValue={base.shoreStrength}
               min={0}
               max={1}
               step={0.01}
@@ -181,6 +190,7 @@ export function CoastEffectPanel({
             <Slider
               label={t("mmWidth")}
               value={cur.shoreWidth}
+          defaultValue={base.shoreWidth}
               min={0.001}
               max={0.02}
               step={0.0005}
@@ -196,6 +206,7 @@ export function CoastEffectPanel({
             <Slider
               label={t("mmDarkLight")}
               value={cur.landShade}
+          defaultValue={base.landShade}
               min={-1}
               max={1}
               step={0.01}
@@ -205,6 +216,7 @@ export function CoastEffectPanel({
             <Slider
               label={t("mmWidth")}
               value={cur.landShadeWidth}
+          defaultValue={base.landShadeWidth}
               min={0.002}
               max={0.04}
               step={0.0005}
@@ -218,6 +230,7 @@ export function CoastEffectPanel({
             <Slider
               label={t("mmBrushOpacity")}
               value={cur.glowOpacity}
+          defaultValue={base.glowOpacity}
               min={0}
               max={1}
               step={0.01}
@@ -227,6 +240,7 @@ export function CoastEffectPanel({
             <Slider
               label={t("mmWidth")}
               value={cur.glowWidth}
+          defaultValue={base.glowWidth}
               min={0.002}
               max={0.06}
               step={0.0005}
@@ -243,6 +257,7 @@ export function CoastEffectPanel({
             <Slider
               label={t("mmCount")}
               value={cur.waves}
+          defaultValue={base.waves}
               min={0}
               max={12}
               step={1}
@@ -251,6 +266,7 @@ export function CoastEffectPanel({
             <Slider
               label={t("mmSpacing")}
               value={cur.waveSpacing}
+          defaultValue={base.waveSpacing}
               min={0.002}
               max={0.025}
               step={0.0005}
@@ -260,6 +276,7 @@ export function CoastEffectPanel({
             <Slider
               label={t("mmWaveOffset")}
               value={cur.waveOffset}
+          defaultValue={base.waveOffset}
               min={0}
               max={0.03}
               step={0.0005}
@@ -269,6 +286,7 @@ export function CoastEffectPanel({
             <Slider
               label={t("mmWidth")}
               value={cur.waveWidth}
+          defaultValue={base.waveWidth}
               min={0.0003}
               max={0.004}
               step={0.0001}
@@ -278,6 +296,7 @@ export function CoastEffectPanel({
             <Slider
               label={t("mmBrushOpacity")}
               value={cur.waveOpacity}
+          defaultValue={base.waveOpacity}
               min={0}
               max={1}
               step={0.01}
@@ -287,6 +306,7 @@ export function CoastEffectPanel({
             <Slider
               label={t("mmWaveFade")}
               value={cur.waveFade}
+          defaultValue={base.waveFade}
               min={0}
               max={0.9}
               step={0.01}
@@ -296,6 +316,7 @@ export function CoastEffectPanel({
             <Slider
               label={t("mmWaveBreakup")}
               value={cur.waveBreakup}
+          defaultValue={base.waveBreakup}
               min={0}
               max={1}
               step={0.01}
@@ -312,6 +333,7 @@ export function CoastEffectPanel({
             <Slider
               label={t("mmStrength")}
               value={cur.depthStrength}
+          defaultValue={base.depthStrength}
               min={0}
               max={1}
               step={0.01}
@@ -321,6 +343,7 @@ export function CoastEffectPanel({
             <Slider
               label={t("mmDepthDistance")}
               value={cur.depthDistance}
+          defaultValue={base.depthDistance}
               min={0.01}
               max={0.4}
               step={0.005}
@@ -336,9 +359,9 @@ export function CoastEffectPanel({
 
           <button
             className="secondary-button"
-            onClick={() => onChange(coastStyle(cur.style ?? "classic"))}
+            onClick={() => onChange(base)}
           >
-            {t("mmResetCoast")}
+            {t("mmResetCoastTo", { style: t(COAST_STYLES.find((st) => st.id === base.style)?.labelKey ?? "mmCoastClassic") })}
           </button>
         </>
       )}

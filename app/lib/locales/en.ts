@@ -91,4 +91,6 @@ export const en = {
   aspect: "Keep dimensions equal",
   cancel: "Cancel",
   uploadError: "Could not load this map.",
+  valueTypeHint: "Click to type an exact value",
+  valueResetTo: "Reset to default ({{value}})",
 };

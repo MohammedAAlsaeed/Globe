@@ -2,6 +2,7 @@
 /**
  * The editor's save state (status bar) and the conflict dialog.
  */
+import { shortcutLabel } from "../shortcuts";
 import { useEffect, useRef } from "react";
 import Link from "next/link";
 import { useTranslation } from "react-i18next";
@@ -39,7 +40,7 @@ export function CloudStatusBar({ status, onSave }: { status: CloudStatus; onSave
         </Link>
       )}
       {(status === "pending" || status === "error" || status === "offline") && (
-        <button className="mm-cloud-action" onClick={onSave} title="⌘S">
+        <button className="mm-cloud-action" onClick={onSave} title={shortcutLabel("file.save")}>
           {t("mmSaveNow")}
         </button>
       )}

@@ -118,6 +118,9 @@ export function selectSet(s: StampToolState, set: StampSet, variant = 0): StampT
   };
 }
 
+/** Scatter and variety settings of a fresh Stamp tool (what their resets return to). */
+export const STAMP_TOOL_DEFAULTS = { sizeJitter: 0.25, toneJitter: 0.2, spacing: 0.8, spread: 0.6 } as const;
+
 export function initialStampState(): StampToolState {
   const base: StampToolState = {
     set: "mountain",
@@ -125,12 +128,9 @@ export function initialStampState(): StampToolState {
     placement: "auto",
     autoSelect: false,
     randomVariant: true,
-    sizeJitter: 0.25,
     rotationJitter: 0,
     randomFlip: true,
-    toneJitter: 0.2,
-    spacing: 0.8,
-    spread: 0.6,
+    ...STAMP_TOOL_DEFAULTS,
     depthSort: true,
     look: BASE_LOOK,
     memory: {},

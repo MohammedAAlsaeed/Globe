@@ -20,7 +20,7 @@
 import { useMemo, useReducer, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import Link from "next/link";
 import { Glyph } from "../glyphs";
-import { ColorControl, ResetSlider, Section, Toggle } from "../components/EditorControls";
+import { ColorControl, Section, Slider, Toggle } from "../components/EditorControls";
 import { BLEND_MODES } from "../brush/BrushPanel";
 import { stampThumb } from "../stamps/render";
 import { catalogVersion, subscribeCatalog } from "../stamps/catalog";
@@ -384,11 +384,10 @@ export function LinePanel({
               recentLabel={t("mmRecents")}
             />
           </div>
-          <ResetSlider
+          <Slider
             label={t("lnWidth")}
             value={s.width}
             defaultValue={base.stroke.width}
-            resetLabel={t("stReset")}
             min={0.0005}
             max={0.04}
             step={0.0001}
@@ -404,10 +403,10 @@ export function LinePanel({
             ))}
           </div>
           {(s.pattern === "dashed" || s.pattern === "dashdot" || s.pattern === "custom") && (
-            <ResetSlider label={t("lnDash")} value={s.dash} defaultValue={base.stroke.dash} resetLabel={t("stReset")} min={0.2} max={20} step={0.1} onChange={(v) => setStroke({ dash: v })} format={(v) => `×${v.toFixed(1)}`} />
+            <Slider label={t("lnDash")} value={s.dash} defaultValue={base.stroke.dash} min={0.2} max={20} step={0.1} onChange={(v) => setStroke({ dash: v })} format={(v) => `×${v.toFixed(1)}`} />
           )}
           {s.pattern !== "solid" && (
-            <ResetSlider label={t("lnGap")} value={s.gap} defaultValue={base.stroke.gap} resetLabel={t("stReset")} min={0.2} max={20} step={0.1} onChange={(v) => setStroke({ gap: v })} format={(v) => `×${v.toFixed(1)}`} />
+            <Slider label={t("lnGap")} value={s.gap} defaultValue={base.stroke.gap} min={0.2} max={20} step={0.1} onChange={(v) => setStroke({ gap: v })} format={(v) => `×${v.toFixed(1)}`} />
           )}
           <span className="mm-bp-subtitle">{t("lnCap")}</span>
           <div className="mm-bp-segment small" role="radiogroup" aria-label={t("lnCap")}>
@@ -425,8 +424,8 @@ export function LinePanel({
               </button>
             ))}
           </div>
-          <ResetSlider label={t("lnBlur")} value={s.blur} defaultValue={base.stroke.blur} resetLabel={t("stReset")} min={0} max={1} step={0.01} onChange={(v) => setStroke({ blur: v })} format={pct} />
-          <ResetSlider label={t("lnCasing")} value={s.casing} defaultValue={base.stroke.casing} resetLabel={t("stReset")} min={0} max={0.01} step={0.0001} onChange={(v) => setStroke({ casing: v })} format={(v) => (v ? px(v) : t("lnNone"))} />
+          <Slider label={t("lnBlur")} value={s.blur} defaultValue={base.stroke.blur} min={0} max={1} step={0.01} onChange={(v) => setStroke({ blur: v })} format={pct} />
+          <Slider label={t("lnCasing")} value={s.casing} defaultValue={base.stroke.casing} min={0} max={0.01} step={0.0001} onChange={(v) => setStroke({ casing: v })} format={(v) => (v ? px(v) : t("lnNone"))} />
           {s.casing > 0 && (
             <div className="mm-st-color-row">
               <span>{t("lnCasingColor")}</span>
@@ -471,10 +470,10 @@ export function LinePanel({
             </div>
           </Section>
           <Section title={t("lnStampLayout")} open>
-            <ResetSlider label={t("lnStampSize")} value={st.size} defaultValue={setBase.size} resetLabel={t("stReset")} min={0.001} max={0.1} step={0.0002} onChange={(v) => setStamp({ size: v })} format={px} />
-            <ResetSlider label={t("lnSpacing")} value={st.spacing} defaultValue={setBase.spacing} resetLabel={t("stReset")} min={-0.8} max={3} step={0.01} onChange={(v) => setStamp({ spacing: v })} format={(v) => `${v > 0 ? "+" : ""}${Math.round(v * 100)}%`} />
-            <ResetSlider label={t("lnOffset")} value={st.offset} defaultValue={0} resetLabel={t("stReset")} min={-3} max={3} step={0.05} onChange={(v) => setStamp({ offset: v })} format={(v) => `${v > 0 ? "+" : ""}${v.toFixed(2)}`} />
-            <ResetSlider label={t("stRotation")} value={st.rotation} defaultValue={0} resetLabel={t("stReset")} min={-180} max={180} step={1} onChange={(v) => setStamp({ rotation: v })} format={(v) => `${v}°`} />
+            <Slider label={t("lnStampSize")} value={st.size} defaultValue={setBase.size} min={0.001} max={0.1} step={0.0002} onChange={(v) => setStamp({ size: v })} format={px} />
+            <Slider label={t("lnSpacing")} value={st.spacing} defaultValue={setBase.spacing} min={-0.8} max={3} step={0.01} onChange={(v) => setStamp({ spacing: v })} format={(v) => `${v > 0 ? "+" : ""}${Math.round(v * 100)}%`} />
+            <Slider label={t("lnOffset")} value={st.offset} defaultValue={0} min={-3} max={3} step={0.05} onChange={(v) => setStamp({ offset: v })} format={(v) => `${v > 0 ? "+" : ""}${v.toFixed(2)}`} />
+            <Slider label={t("stRotation")} value={st.rotation} defaultValue={0} min={-180} max={180} step={1} onChange={(v) => setStamp({ rotation: v })} format={(v) => `${v}°`} />
             <Toggle label={t("lnFollowPath")} checked={st.followPath} onChange={(v) => setStamp({ followPath: v })} />
             <Toggle label={t("lnFit")} checked={st.fit} onChange={(v) => setStamp({ fit: v })} />
             <Toggle label={t("lnFlip")} checked={st.flip} onChange={(v) => setStamp({ flip: v })} />
@@ -498,8 +497,8 @@ export function LinePanel({
             </div>
           </Section>
           <Section title={t("stVariety")}>
-            <ResetSlider label={t("stSizeJitter")} value={st.scaleJitter} defaultValue={setBase.scaleJitter} resetLabel={t("stReset")} min={0} max={1} step={0.01} onChange={(v) => setStamp({ scaleJitter: v })} format={pct} />
-            <ResetSlider label={t("stRotationJitter")} value={st.rotationJitter} defaultValue={setBase.rotationJitter} resetLabel={t("stReset")} min={0} max={1} step={0.01} onChange={(v) => setStamp({ rotationJitter: v })} format={pct} />
+            <Slider label={t("stSizeJitter")} value={st.scaleJitter} defaultValue={setBase.scaleJitter} min={0} max={1} step={0.01} onChange={(v) => setStamp({ scaleJitter: v })} format={pct} />
+            <Slider label={t("stRotationJitter")} value={st.rotationJitter} defaultValue={setBase.rotationJitter} min={0} max={1} step={0.01} onChange={(v) => setStamp({ rotationJitter: v })} format={pct} />
             <button className="mm-pill" onClick={() => setStamp({ seed: newSeed() })} title={t("lnReshuffleHint")}>
               <Glyph name="shuffle" size={13} />
               {t("lnReshuffle")}
@@ -534,7 +533,7 @@ export function LinePanel({
       )}
 
       <Section title={t("lnBlending")}>
-        <ResetSlider label={t("stOpacity")} value={look.opacity} defaultValue={base.opacity} resetLabel={t("stReset")} min={0.05} max={1} step={0.01} onChange={(v) => setLook({ ...look, opacity: v })} format={pct} />
+        <Slider label={t("stOpacity")} value={look.opacity} defaultValue={base.opacity} min={0.05} max={1} step={0.01} onChange={(v) => setLook({ ...look, opacity: v })} format={pct} />
         <label className="mm-ln-select">
           <span>{t("mmBlendMode")}</span>
           <select value={look.blend ?? "normal"} onChange={(e) => setLook({ ...look, blend: e.target.value === "normal" ? undefined : (e.target.value as BlendMode) })}>
@@ -550,7 +549,7 @@ export function LinePanel({
       {!editing && (
         <Section title={t("lnDrawing")}>
           {state.draw === "free" && (
-            <ResetSlider label={t("lnSmoothing")} value={state.smoothing} defaultValue={0.5} resetLabel={t("stReset")} min={0} max={1} step={0.01} onChange={(v) => onChange({ ...state, smoothing: v })} format={pct} />
+            <Slider label={t("lnSmoothing")} value={state.smoothing} defaultValue={0.5} min={0} max={1} step={0.01} onChange={(v) => onChange({ ...state, smoothing: v })} format={pct} />
           )}
           <label className="mm-ln-select">
             <span>{t("lnAngleStep")}</span>

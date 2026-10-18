@@ -12,7 +12,7 @@
 import { useMemo, useReducer, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import Link from "next/link";
 import { Glyph } from "../glyphs";
-import { ColorControl, ResetSlider, Section, Slider, Toggle } from "../components/EditorControls";
+import { ColorControl, Section, Slider, Toggle } from "../components/EditorControls";
 import { BLEND_MODES } from "../brush/BrushPanel";
 import { SourcePicker } from "../brush/SourcePicker";
 import type { BlendMode, PaintSource, ShadowSettings, StampClip, StampShadowMode } from "../types";
@@ -25,8 +25,8 @@ import {
   type StampCategory,
   type StampSet,
 } from "./catalog";
-import { stampThumb } from "./render";
-import { factoryLook, selectSet, type StampLook, type StampPlacement, type StampToolState } from "./state";
+import { DEFAULT_SHADOW, stampThumb } from "./render";
+import { STAMP_TOOL_DEFAULTS, factoryLook, selectSet, type StampLook, type StampPlacement, type StampToolState } from "./state";
 
 type T = (k: string, opts?: Record<string, unknown>) => string;
 
@@ -298,50 +298,47 @@ export function StampPanel({
           )}
           {s.placement !== "single" && (
             <Section title={t("stScatter")} open>
-              <Slider label={t("stSpacing")} value={s.spacing} min={0.2} max={3} step={0.05} onChange={(v) => patch({ spacing: v })} format={(v) => `×${v.toFixed(2)}`} />
-              <Slider label={t("stSpread")} value={s.spread} min={0} max={4} step={0.05} onChange={(v) => patch({ spread: v })} format={(v) => `×${v.toFixed(2)}`} />
+              <Slider label={t("stSpacing")} defaultValue={STAMP_TOOL_DEFAULTS.spacing} value={s.spacing} min={0.2} max={3} step={0.05} onChange={(v) => patch({ spacing: v })} format={(v) => `×${v.toFixed(2)}`} />
+              <Slider label={t("stSpread")} defaultValue={STAMP_TOOL_DEFAULTS.spread} value={s.spread} min={0} max={4} step={0.05} onChange={(v) => patch({ spread: v })} format={(v) => `×${v.toFixed(2)}`} />
               <Toggle label={t("stDepthSort")} checked={s.depthSort} onChange={(v) => patch({ depthSort: v })} />
             </Section>
           )}
           <Section title={t("stVariety")}>
             <Toggle label={t("stRandomVariant")} checked={s.randomVariant} onChange={(v) => patch({ randomVariant: v })} />
-            <Slider label={t("stSizeJitter")} value={s.sizeJitter} min={0} max={1} step={0.05} onChange={(v) => patch({ sizeJitter: v })} format={pct} />
-            <Slider label={t("stRotationJitter")} value={s.rotationJitter} min={0} max={180} step={1} onChange={(v) => patch({ rotationJitter: v })} format={(v) => `±${v}°`} />
+            <Slider label={t("stSizeJitter")} defaultValue={STAMP_TOOL_DEFAULTS.sizeJitter} value={s.sizeJitter} min={0} max={1} step={0.05} onChange={(v) => patch({ sizeJitter: v })} format={pct} />
+            <Slider label={t("stRotationJitter")} defaultValue={set?.rotationJitter ?? 0} value={s.rotationJitter} min={0} max={180} step={1} onChange={(v) => patch({ rotationJitter: v })} format={(v) => `±${v}°`} />
             <Toggle label={t("stRandomFlip")} checked={s.randomFlip} onChange={(v) => patch({ randomFlip: v })} />
-            <Slider label={t("stToneJitter")} value={s.toneJitter} min={0} max={1} step={0.05} onChange={(v) => patch({ toneJitter: v })} format={pct} />
+            <Slider label={t("stToneJitter")} defaultValue={STAMP_TOOL_DEFAULTS.toneJitter} value={s.toneJitter} min={0} max={1} step={0.05} onChange={(v) => patch({ toneJitter: v })} format={pct} />
           </Section>
         </>
       )}
 
       {/* ---- look: new stamps, or the selected ones ---- */}
       <Section title={t("stTransform")} open>
-        <ResetSlider
+        <Slider
           label={t("stSize")}
           value={look.size}
           defaultValue={factory.size}
-          resetLabel={t("stReset")}
           min={Math.max(0.002, factory.size * 0.1)}
           max={Math.min(0.8, factory.size * 5)}
           step={factory.size * 0.01}
           onChange={(v) => setLook({ size: v })}
           format={(v) => `${Math.round((v / factory.size) * 100)}% · ${px(v)}`}
         />
-        <ResetSlider
+        <Slider
           label={t("stRotation")}
           value={Math.round(look.rotation)}
           defaultValue={0}
-          resetLabel={t("stReset")}
           min={-180}
           max={180}
           step={1}
           onChange={(v) => setLook({ rotation: v })}
           format={(v) => `${v}°`}
         />
-        <ResetSlider
+        <Slider
           label={t("stStretch")}
           value={look.stretch}
           defaultValue={1}
-          resetLabel={t("stReset")}
           min={0.5}
           max={2}
           step={0.01}
@@ -415,11 +412,11 @@ export function StampPanel({
             </div>
           </>
         )}
-        <ResetSlider label={t("stOpacity")} value={look.opacity} defaultValue={1} resetLabel={t("stReset")} min={0.05} max={1} step={0.01} onChange={(v) => setLook({ opacity: v })} format={pct} />
-        <ResetSlider label={t("mmHue")} value={look.hue} defaultValue={0} resetLabel={t("stReset")} min={-180} max={180} step={1} onChange={(v) => setLook({ hue: v })} format={(v) => `${Math.round(v)}°`} />
-        <ResetSlider label={t("mmSaturation")} value={look.saturation} defaultValue={0} resetLabel={t("stReset")} min={-1} max={1} step={0.01} onChange={(v) => setLook({ saturation: v })} format={signed} />
-        <ResetSlider label={t("mmBrightness")} value={look.brightness} defaultValue={0} resetLabel={t("stReset")} min={-1} max={1} step={0.01} onChange={(v) => setLook({ brightness: v })} format={signed} />
-        <ResetSlider label={t("mmContrast")} value={look.contrast} defaultValue={0} resetLabel={t("stReset")} min={-1} max={1} step={0.01} onChange={(v) => setLook({ contrast: v })} format={signed} />
+        <Slider label={t("stOpacity")} value={look.opacity} defaultValue={1} min={0.05} max={1} step={0.01} onChange={(v) => setLook({ opacity: v })} format={pct} />
+        <Slider label={t("mmHue")} value={look.hue} defaultValue={0} min={-180} max={180} step={1} onChange={(v) => setLook({ hue: v })} format={(v) => `${Math.round(v)}°`} />
+        <Slider label={t("mmSaturation")} value={look.saturation} defaultValue={0} min={-1} max={1} step={0.01} onChange={(v) => setLook({ saturation: v })} format={signed} />
+        <Slider label={t("mmBrightness")} value={look.brightness} defaultValue={0} min={-1} max={1} step={0.01} onChange={(v) => setLook({ brightness: v })} format={signed} />
+        <Slider label={t("mmContrast")} value={look.contrast} defaultValue={0} min={-1} max={1} step={0.01} onChange={(v) => setLook({ contrast: v })} format={signed} />
         {((look.hue || look.saturation || look.brightness || look.contrast) !== 0 || (vector && (look.ink !== factory.ink || look.fill !== factory.fill))) && (
           <button
             className="mm-pill"
@@ -491,10 +488,10 @@ export function StampPanel({
               <span>{t("stShadowColor")}</span>
               <ColorControl color={look.customShadow.color} recents={[]} onChange={(c) => setShadow({ color: c })} label={t("stShadowColor")} recentLabel="" />
             </div>
-            <Slider label={t("stOpacity")} value={look.customShadow.opacity} min={0} max={1} step={0.01} onChange={(v) => setShadow({ opacity: v })} format={pct} />
-            <Slider label={t("stShadowBlur")} value={look.customShadow.blur} min={0} max={0.5} step={0.01} onChange={(v) => setShadow({ blur: v })} format={pct} />
-            <Slider label={t("stShadowDistance")} value={look.customShadow.distance} min={0} max={0.5} step={0.01} onChange={(v) => setShadow({ distance: v })} format={pct} />
-            <Slider label={t("stShadowAngle")} value={look.customShadow.angle} min={0} max={359} step={1} onChange={(v) => setShadow({ angle: v })} format={(v) => `${v}°`} />
+            <Slider label={t("stOpacity")} defaultValue={DEFAULT_SHADOW.opacity} value={look.customShadow.opacity} min={0} max={1} step={0.01} onChange={(v) => setShadow({ opacity: v })} format={pct} />
+            <Slider label={t("stShadowBlur")} defaultValue={DEFAULT_SHADOW.blur} value={look.customShadow.blur} min={0} max={0.5} step={0.01} onChange={(v) => setShadow({ blur: v })} format={pct} />
+            <Slider label={t("stShadowDistance")} defaultValue={DEFAULT_SHADOW.distance} value={look.customShadow.distance} min={0} max={0.5} step={0.01} onChange={(v) => setShadow({ distance: v })} format={pct} />
+            <Slider label={t("stShadowAngle")} defaultValue={DEFAULT_SHADOW.angle} value={look.customShadow.angle} min={0} max={359} step={1} onChange={(v) => setShadow({ angle: v })} format={(v) => `${v}°`} />
           </>
         )}
       </Section>
