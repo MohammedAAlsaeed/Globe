@@ -756,3 +756,34 @@
     transition: none !important;
   }
 }
+
+/* ---- sliders with a typed value (components/ui/fields RangeField) ---- */
+.range-field {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 10px;
+  color: #7b886b;
+}
+.range-field input[type="range"] {
+  margin: 0;
+}
+.object-inspector .range-field input[type="range"] {
+  flex: 1;
+}
+.range-field-value {
+  min-width: 34px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  background: #eeeedd;
+  color: #68704e;
+  font-size: 10px;
+  text-align: center;
+}
+.range-field-value.editing {
+  background: none;
+  padding: 0;
+}
+.range-field-reset {
+  color: #68704e;
+}

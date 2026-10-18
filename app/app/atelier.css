@@ -1354,3 +1354,90 @@ dialog .export-button {
     left: -95px;
   }
 }
+
+/* ---- typed slider values and reset buttons (components/ui/ValueEditor) ---- */
+.value-editor {
+  appearance: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 3px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: text;
+  /* "12 px" / "−30°" keep their own order inside right-to-left UI */
+  unicode-bidi: plaintext;
+}
+button.value-editor:hover {
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+}
+.value-editor:focus-visible,
+.value-reset:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 1px;
+}
+.value-editor.editing {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 2px;
+  direction: ltr;
+  cursor: auto;
+}
+.value-editor-input {
+  min-width: 3ch;
+  max-width: 9ch;
+  margin: 0;
+  padding: 1px 4px;
+  border: 1px solid currentColor;
+  border-radius: 3px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: end;
+}
+.value-editor-unit {
+  opacity: 0.7;
+}
+.value-reset {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  color: inherit;
+  opacity: 0.65;
+  cursor: pointer;
+}
+.value-reset:hover {
+  opacity: 1;
+}
+.number-box .number-box-reset {
+  margin-inline-start: 4px;
+  color: #7b886b;
+}
+.range-label > span.range-label-value {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  background: none;
+}
+.range-label-value .value-editor {
+  min-width: 28px;
+  padding: 3px 7px;
+  border-radius: 3px;
+  background: #eeeedd;
+  color: #68704e;
+  font-size: 11px;
+  text-align: center;
+}
+.range-label-value .value-reset {
+  color: #68704e;
+}

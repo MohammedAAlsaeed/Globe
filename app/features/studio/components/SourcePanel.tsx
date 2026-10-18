@@ -4,7 +4,7 @@ import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Icon } from "../../../components/ui/ornaments";
 import { NumberField, SelectField } from "../../../components/ui/fields";
-import type { GlobeSettings } from "../domain/types";
+import { DEFAULT_GLOBE, type GlobeSettings } from "../domain/types";
 import type { SourceState } from "../hooks/useSource";
 export function SourcePanel({
   source,
@@ -102,6 +102,7 @@ export function SourcePanel({
           <div className="field-pair">
             <NumberField
               label={t("northBound")}
+              defaultValue={DEFAULT_GLOBE.north}
               value={globe.north}
               min={1}
               max={89}
@@ -111,6 +112,7 @@ export function SourcePanel({
             />
             <NumberField
               label={t("southBound")}
+              defaultValue={DEFAULT_GLOBE.south}
               value={globe.south}
               min={-89}
               max={-1}

@@ -130,6 +130,7 @@ function validCoast(v: unknown) {
   return (
     bool(v.enabled) &&
     (v.style === null || typeof v.style === "string") &&
+    (v.baseStyle === undefined || v.baseStyle === null || typeof v.baseStyle === "string") &&
     nums.every(([k, lo, hi]) => finite(v[k], lo, hi)) &&
     [
       "outlineColor",

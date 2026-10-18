@@ -8,7 +8,11 @@ import {
   Toggle,
 } from "../../../components/ui/fields";
 import { recommendGores } from "../domain/geometry";
-import type { GlobeSettings } from "../domain/types";
+import { ResetButton, ValueEditor } from "../../../components/ui/ValueEditor";
+import { DEFAULT_GLOBE, type GlobeSettings } from "../domain/types";
+/** The widest gore the suggestion starts from, in mm. */
+const MAX_GORE_DEFAULT = 40;
+
 export function GlobeControls({
   globe: s,
   onChange,
@@ -19,7 +23,7 @@ export function GlobeControls({
   const { t } = useTranslation(),
     [linked, setLinked] = useState(true),
     [unit, setUnit] = useState("mm"),
-    [maxWidth, setMaxWidth] = useState(40);
+    [maxWidth, setMaxWidth] = useState(MAX_GORE_DEFAULT);
   const factor = unit === "cm" ? 10 : unit === "in" ? 25.4 : 1;
   const dimension = (key: "height" | "width", v: number) =>
     onChange(
@@ -45,6 +49,7 @@ export function GlobeControls({
             <NumberField
               key={key}
               label={t(key)}
+              defaultValue={DEFAULT_GLOBE[key] / factor}
               value={s[key] / factor}
               onChange={(v) => dimension(key, v)}
               min={20 / factor}
@@ -70,7 +75,10 @@ export function GlobeControls({
         )}
         <div className="range-label">
           <label htmlFor="gores">{t("gores")}</label>
-          <span>{s.gores}</span>
+          <span className="range-label-value">
+            <ValueEditor value={s.gores} min={6} max={72} step={2} onChange={(gores) => onChange({ gores })} label={t("gores")} />
+            <ResetButton value={s.gores} defaultValue={DEFAULT_GLOBE.gores} onReset={() => onChange({ gores: DEFAULT_GLOBE.gores })} label={t("gores")} />
+          </span>
         </div>
         <input
           id="gores"
@@ -96,6 +104,7 @@ export function GlobeControls({
           <summary>{t("suggest")}</summary>
           <NumberField
             label={t("maxGore")}
+              defaultValue={MAX_GORE_DEFAULT}
             value={maxWidth}
             onChange={setMaxWidth}
             min={5}
@@ -121,6 +130,7 @@ export function GlobeControls({
         <div className="field-pair">
           <NumberField
             label={t("seam")}
+              defaultValue={DEFAULT_GLOBE.offset}
             value={s.offset}
             onChange={(offset) => onChange({ offset })}
             min={-180}
@@ -129,6 +139,7 @@ export function GlobeControls({
           />
           <NumberField
             label={t("gap")}
+              defaultValue={DEFAULT_GLOBE.gap}
             value={s.gap}
             onChange={(gap) => onChange({ gap })}
             min={0}
@@ -140,6 +151,7 @@ export function GlobeControls({
         <div className="field-pair">
           <NumberField
             label={t("tabWidth")}
+              defaultValue={DEFAULT_GLOBE.tab}
             value={s.tab}
             onChange={(tab) => onChange({ tab })}
             min={0}
@@ -149,6 +161,7 @@ export function GlobeControls({
           />
           <NumberField
             label={t("bleedWidth")}
+              defaultValue={DEFAULT_GLOBE.bleed}
             value={s.bleed}
             onChange={(bleed) => onChange({ bleed })}
             min={0}

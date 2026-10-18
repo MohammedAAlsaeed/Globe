@@ -4,10 +4,12 @@
  * file (rather than one file per widget) since each is only a few lines and
  * they're only ever used from MapCreatorEditor.tsx — mirrors how the print
  * studio keeps its own editor UI self-contained (features/studio/components). */
-import type { ReactNode } from "react";
+import { useId, type ReactNode } from "react";
+import { ResetButton, ValueEditor } from "@/components/ui/ValueEditor";
 import { Glyph } from "../glyphs";
 import { shortcutLabel } from "../shortcuts";
-import { ARABIC_RANGE } from "../domain";
+import { ARABIC_RANGE, TOOL_DEFAULTS } from "../domain";
+import { DEFAULT_BRUSH } from "../brush/presets";
 import type { LabelAlign, MMObject, MMPatch } from "../types";
 import {SelectField} from "@/components/ui/fields";
 
@@ -53,6 +55,12 @@ export function Toggle({
     </label>
   );
 }
+/**
+ * A setting's slider. Its value can be typed exactly (click it — see
+ * ValueEditor), and with a `defaultValue` a reset button appears beside it
+ * once the value differs (the button always keeps its place, so rows line up).
+ * Every slider in the editor passes its default (checked by a test).
+ */
 export function Slider({
   label,
   value,
@@ -61,6 +69,8 @@ export function Slider({
   step,
   onChange,
   format,
+  parse,
+  defaultValue,
 }: {
   label: string;
   value: number;
@@ -69,45 +79,26 @@ export function Slider({
   step: number;
   onChange: (v: number) => void;
   format?: (v: number) => string;
+  /** Typed number (in the units shown) → value, for displays that aren't linear. */
+  parse?: (shown: number) => number;
+  /** The value the reset button returns to. */
+  defaultValue?: number;
 }) {
-  return (
-    <label className="mm-slider">
-      <span>{label}</span>
-      <input
-        type="range"
-        min={min}
-        max={max}
-        step={step}
-        value={value}
-        onChange={(e) => onChange(+e.target.value)}
-      />
-      <b>{format ? format(value) : value}</b>
-    </label>
+  const id = useId();
+  const slider = (
+    <div className="mm-slider">
+      <label htmlFor={id}>{label}</label>
+      <input id={id} type="range" min={min} max={max} step={step} value={value} onChange={(e) => onChange(+e.target.value)} />
+      <b>
+        <ValueEditor value={value} min={min} max={max} step={step} onChange={onChange} format={format} parse={parse} label={label} />
+      </b>
+    </div>
   );
-}
-
-/**
- * A slider with a reset button that returns it to its default value (shown
- * only once the value differs, but always taking its space so rows line up).
- */
-export function ResetSlider({
-  defaultValue,
-  resetLabel,
-  ...slider
-}: Parameters<typeof Slider>[0] & { defaultValue: number; resetLabel: string }) {
-  const changed = Math.abs(slider.value - defaultValue) > 1e-9;
+  if (defaultValue === undefined) return slider;
   return (
     <div className="mm-reset-row">
-      <Slider {...slider} />
-      <button
-        className="mm-reset"
-        title={resetLabel}
-        aria-label={`${resetLabel}: ${slider.label}`}
-        style={{ visibility: changed ? "visible" : "hidden" }}
-        onClick={() => slider.onChange(defaultValue)}
-      >
-        <Glyph name="reset" size={12} />
-      </button>
+      {slider}
+      <ResetButton value={value} defaultValue={defaultValue} onReset={() => onChange(defaultValue)} label={label} format={format} className="mm-reset" />
     </div>
   );
 }
@@ -175,8 +166,8 @@ export function ObjectQuickBar({
             }}
           />
           <ColorControl color={obj.color} recents={[]} onChange={(v) => onPatch({ color: v })} label={t("mmColor")} recentLabel="" />
-          <Slider label={t("mmLabelSize")} value={obj.size} min={0.01} max={0.1} step={0.005} onChange={(v) => onPatch({ size: v })} />
-          <Slider label={t("mmIconRotation")} value={obj.rotation ?? 0} min={-180} max={180} step={1} onChange={(v) => onPatch({ rotation: v })} format={(v) => `${v}°`} />
+          <Slider label={t("mmLabelSize")} defaultValue={TOOL_DEFAULTS.labelSize} value={obj.size} min={0.01} max={0.1} step={0.005} onChange={(v) => onPatch({ size: v })} />
+          <Slider label={t("mmIconRotation")} defaultValue={0} value={obj.rotation ?? 0} min={-180} max={180} step={1} onChange={(v) => onPatch({ rotation: v })} format={(v) => `${v}°`} />
           <SelectField label={t("mmLabelAlign")} value={obj.align} onChange={(v) => onPatch({ align: v as LabelAlign })}>
             <option value="start">{t("mmAlignStart")}</option>
             <option value="center">{t("mmAlignCenter")}</option>
@@ -198,14 +189,14 @@ export function ObjectQuickBar({
         </div>
       )}
       {obj.kind === "region" && (
-        <Slider label={t("mmFillOpacity")} value={obj.opacity} min={0.1} max={1} step={0.05} onChange={(v) => onPatch({ opacity: v })} format={(v) => `${Math.round(v * 100)}%`} />
+        <Slider label={t("mmFillOpacity")} defaultValue={TOOL_DEFAULTS.fillOpacity} value={obj.opacity} min={0.1} max={1} step={0.05} onChange={(v) => onPatch({ opacity: v })} format={(v) => `${Math.round(v * 100)}%`} />
       )}
       {obj.kind === "brush" && (
         <>
           <ColorControl color={obj.color} recents={[]} onChange={(v) => onPatch({ color: v })} label={t("mmColor")} recentLabel="" />
-          <Slider label={t("mmBrushSize")} value={obj.size} min={0.002} max={0.05} step={0.001} onChange={(v) => onPatch({ size: v })} />
-          <Slider label={t("mmBrushOpacity")} value={obj.opacity} min={0.1} max={1} step={0.05} onChange={(v) => onPatch({ opacity: v })} format={(v) => `${Math.round(v * 100)}%`} />
-          <Slider label={t("mmBrushSoftness")} value={obj.softness} min={0} max={1} step={0.05} onChange={(v) => onPatch({ softness: v })} format={(v) => `${Math.round(v * 100)}%`} />
+          <Slider label={t("mmBrushSize")} defaultValue={DEFAULT_BRUSH.size} value={obj.size} min={0.002} max={0.05} step={0.001} onChange={(v) => onPatch({ size: v })} />
+          <Slider label={t("mmBrushOpacity")} defaultValue={1} value={obj.opacity} min={0.1} max={1} step={0.05} onChange={(v) => onPatch({ opacity: v })} format={(v) => `${Math.round(v * 100)}%`} />
+          <Slider label={t("mmBrushSoftness")} defaultValue={DEFAULT_BRUSH.softness} value={obj.softness} min={0} max={1} step={0.05} onChange={(v) => onPatch({ softness: v })} format={(v) => `${Math.round(v * 100)}%`} />
         </>
       )}
       <div className="button-row">
@@ -320,8 +311,8 @@ export function MultiSelectionBar({
     <div className="mm-quickbar">
       <span className="mm-toolbar-note">{t("mmMultiSelected", { count })}</span>
       <div className="mm-icon-group">
-        <IconButton glyph="group" label={`${t("mmGroup")} (⌘G)`} onClick={onGroup} />
-        <IconButton glyph="ungroup" label={`${t("mmUngroup")} (⇧⌘G)`} onClick={onUngroup} disabled={!grouped} />
+        <IconButton glyph="group" label={`${t("mmGroup")} (${shortcutLabel("edit.group")})`} onClick={onGroup} />
+        <IconButton glyph="ungroup" label={`${t("mmUngroup")} (${shortcutLabel("edit.ungroup")})`} onClick={onUngroup} disabled={!grouped} />
       </div>
       <div className="mm-icon-group">
         <IconButton glyph="alignLeft" label={t("mmAlignLeft")} onClick={() => onAlign("left")} />
@@ -340,8 +331,8 @@ export function MultiSelectionBar({
         <IconButton glyph="eyeOff" label={t("mmHideObjects")} onClick={onHide} />
       </div>
       <div className="mm-icon-group">
-        <IconButton glyph="copy" label={`${t("mmCopyObject")} (⌘C)`} onClick={onCopy} />
-        <IconButton glyph="duplicate" label={`${t("mmDuplicateObject")} (⌘D)`} onClick={onDuplicate} />
+        <IconButton glyph="copy" label={`${t("mmCopyObject")} (${shortcutLabel("edit.copy")})`} onClick={onCopy} />
+        <IconButton glyph="duplicate" label={`${t("mmDuplicateObject")} (${shortcutLabel("edit.duplicate")})`} onClick={onDuplicate} />
         <IconButton glyph="trash" label={t("mmDeleteObject")} onClick={onDelete} />
         {onSaveStamp && <IconButton glyph="stamp" label={t("stSaveAsStamp")} onClick={onSaveStamp} />}
         <IconButton glyph="close" label={t("mmClearSelection")} onClick={onClear} />

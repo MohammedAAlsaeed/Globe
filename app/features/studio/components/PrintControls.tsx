@@ -10,7 +10,7 @@ import { Icon } from "../../../components/ui/ornaments";
 import type { PrintSettings } from "../domain/types";
 import { calibrationPdf } from "../export/pdf";
 import { validateDocument } from "../domain/validation";
-import { DEFAULT_DOCUMENT } from "../domain/types";
+import { DEFAULT_DOCUMENT, DEFAULT_PRINT } from "../domain/types";
 import { saveBlob } from "../export/svg";
 export function PrintControls({
   settings: p,
@@ -89,6 +89,7 @@ export function PrintControls({
           <div className="field-pair">
             <NumberField
               label={t("paperWidth")}
+              defaultValue={DEFAULT_PRINT.width}
               value={p.width}
               onChange={(width) => onChange({ width })}
               min={50}
@@ -97,6 +98,7 @@ export function PrintControls({
             />
             <NumberField
               label={t("paperHeight")}
+              defaultValue={DEFAULT_PRINT.height}
               value={p.height}
               onChange={(height) => onChange({ height })}
               min={50}
@@ -110,6 +112,7 @@ export function PrintControls({
       <div className="field-pair">
         <NumberField
           label={t("margin")}
+              defaultValue={DEFAULT_PRINT.margin}
           value={p.margin}
           onChange={(margin) => onChange({ margin })}
           min={0}
@@ -119,6 +122,7 @@ export function PrintControls({
         />
         <NumberField
           label={t("overlap")}
+              defaultValue={DEFAULT_PRINT.overlap}
           value={p.overlap}
           onChange={(overlap) => onChange({ overlap })}
           min={0}
@@ -155,6 +159,7 @@ export function PrintControls({
         <div className="field-pair">
           <NumberField
             label={t("measuredWidth")}
+              defaultValue={100}
             value={measuredX}
             onChange={setMeasuredX}
             min={84}
@@ -164,6 +169,7 @@ export function PrintControls({
           />
           <NumberField
             label={t("measuredHeight")}
+              defaultValue={100}
             value={measuredY}
             onChange={setMeasuredY}
             min={84}

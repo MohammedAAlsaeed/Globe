@@ -42,10 +42,10 @@ export function LayerStampSettings({
           <span>{t("stShadowColor")}</span>
           <ColorControl color={shadow.color} recents={[]} onChange={(c) => setShadow({ color: c })} label={t("stShadowColor")} recentLabel="" />
         </div>
-        <Slider label={t("stOpacity")} value={shadow.opacity} min={0} max={1} step={0.01} onChange={(v) => setShadow({ opacity: v })} format={pct} />
-        <Slider label={t("stShadowBlur")} value={shadow.blur} min={0} max={0.5} step={0.01} onChange={(v) => setShadow({ blur: v })} format={pct} />
-        <Slider label={t("stShadowDistance")} value={shadow.distance} min={0} max={0.5} step={0.01} onChange={(v) => setShadow({ distance: v })} format={pct} />
-        <Slider label={t("stShadowAngle")} value={shadow.angle} min={0} max={359} step={1} onChange={(v) => setShadow({ angle: v })} format={(v) => `${v}°`} />
+        <Slider label={t("stOpacity")} defaultValue={DEFAULT_SHADOW.opacity} value={shadow.opacity} min={0} max={1} step={0.01} onChange={(v) => setShadow({ opacity: v })} format={pct} />
+        <Slider label={t("stShadowBlur")} defaultValue={DEFAULT_SHADOW.blur} value={shadow.blur} min={0} max={0.5} step={0.01} onChange={(v) => setShadow({ blur: v })} format={pct} />
+        <Slider label={t("stShadowDistance")} defaultValue={DEFAULT_SHADOW.distance} value={shadow.distance} min={0} max={0.5} step={0.01} onChange={(v) => setShadow({ distance: v })} format={pct} />
+        <Slider label={t("stShadowAngle")} defaultValue={DEFAULT_SHADOW.angle} value={shadow.angle} min={0} max={359} step={1} onChange={(v) => setShadow({ angle: v })} format={(v) => `${v}°`} />
       </Section>
     </div>
   );

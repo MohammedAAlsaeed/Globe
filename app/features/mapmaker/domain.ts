@@ -70,6 +70,9 @@ export const PATH_KIND_LABEL_KEY: Record<PathKind, string> = {
 
 export const DEFAULT_BACKGROUND = "#2c5678";
 
+/** Starting settings of the Region and Text tools (what their resets return to). */
+export const TOOL_DEFAULTS = { textureScale: 1, textureRotation: 0, fillOpacity: 0.75, labelSize: 0.03 } as const;
+
 /** Arabic script block — used to auto-detect right-to-left label text. */
 export const ARABIC_RANGE = /[\u0600-\u06FF]/;
 

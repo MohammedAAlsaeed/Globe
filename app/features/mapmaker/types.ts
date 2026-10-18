@@ -463,6 +463,8 @@ export interface CoastEffect {
   enabled: boolean;
   /** Preset the settings came from (null once customized). */
   style: string | null;
+  /** The preset a customized coast started from: what its resets return to. */
+  baseStyle?: string | null;
   // ---- coastline shape
   /** 0..1 how far the coast wanders from the drawn land edge (0 = exact). */
   roughness: number;

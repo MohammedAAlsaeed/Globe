@@ -22,7 +22,7 @@ import {
 } from "./presets";
 import { SourcePicker } from "./SourcePicker";
 import { TIP_LIST } from "./tips";
-import { applyFavorite, applyPreset, type BrushState } from "./state";
+import { applyFavorite, applyPreset, brushBase, type BrushState } from "./state";
 import type {
   BlendMode,
   BrushSettings,
@@ -133,13 +133,19 @@ export function BrushPanel({
     set({ edge: { ...s.edge, ...patch } });
   const px = (v: number) => `${Math.max(0, Math.round(v * mapWidthPx))} px`;
 
-  const presetLabel = useMemo(() => {
-    if (!s.presetId) return t("mmPresetCustom");
-    const fav = favorites.find((f) => f.id === s.presetId);
+  /** A preset's or favorite's name (null when unknown). */
+  const nameOf = (id: string | null | undefined) => {
+    if (!id) return null;
+    const fav = favorites.find((f) => f.id === id);
     if (fav) return fav.name;
-    const p = presetById(s.presetId);
-    return p ? t(p.labelKey) : t("mmPresetCustom");
-  }, [s.presetId, favorites, t]);
+    const p = presetById(id);
+    return p ? t(p.labelKey) : null;
+  };
+  // What resets return to: the brush this one started from (see brushBase).
+  const base = useMemo(() => brushBase(s, favorites), [s, favorites]),
+    baseName = nameOf(s.baseId);
+  const edited = !s.presetId && !!baseName,
+    presetLabel = nameOf(s.presetId) ?? baseName ?? t("mmPresetCustom");
 
   const softness = free ? s.brush.softness : Math.min(1, s.edge.feather / 0.01);
   const modeInfo = PAINT_MODES.find((m) => m.key === s.mode)!;
@@ -193,14 +199,15 @@ export function BrushPanel({
       <p className="mm-bp-hint">{t(modeInfo.hintKey)}</p>
 
       {/* ---- presets & favorites ---- */}
-      <div className="mm-bp-presets">
+      <div className={`mm-bp-presets ${edited ? "edited" : ""}`}>
         <button
           className="mm-bp-preset-button"
           onClick={() => setPresetsOpen((v) => !v)}
           aria-expanded={presetsOpen}
         >
           <img src={brushPreview(s.brush, s.source)} alt="" />
-          <span>{presetLabel}</span>
+          <span title={edited ? t("mmPresetModified", { name: presetLabel }) : undefined}>{presetLabel}</span>
+          {edited && <i className="mm-bp-edited-dot" aria-label={t("mmPresetModified", { name: presetLabel })} />}
           <Glyph name="chevronDown" size={14} />
         </button>
         <button
@@ -210,6 +217,16 @@ export function BrushPanel({
         >
           <Glyph name="star" size={15} />
         </button>
+        {edited && (
+          <button
+            className="mm-bp-icon-button"
+            title={t("mmPresetRevert", { name: baseName })}
+            aria-label={t("mmPresetRevert", { name: baseName })}
+            onClick={() => onChange({ ...base, mode: s.mode, erase: s.erase, edge: s.edge, rough: s.rough, grid: s.grid })}
+          >
+            <Glyph name="reset" size={15} />
+          </button>
+        )}
       </div>
       {favName !== null && (
         <form
@@ -300,7 +317,7 @@ export function BrushPanel({
       <div className="mm-bp-props">
         {free && (
           <Slider
-            label={t("mmBrushSize")}
+            label={t("mmBrushSize")} defaultValue={Math.round(base.brush.size * mapWidthPx)}
             value={Math.round(s.brush.size * mapWidthPx)}
             min={1}
             max={Math.round(mapWidthPx * 0.25)}
@@ -310,7 +327,7 @@ export function BrushPanel({
           />
         )}
         <Slider
-          label={s.erase ? t("mmEraseStrength") : t("mmBrushOpacity")}
+          label={s.erase ? t("mmEraseStrength") : t("mmBrushOpacity")} defaultValue={base.opacity}
           value={s.opacity}
           min={0.02}
           max={1}
@@ -319,7 +336,7 @@ export function BrushPanel({
           format={pct}
         />
         <Slider
-          label={t("mmBrushSoftness")}
+          label={t("mmBrushSoftness")} defaultValue={free ? base.brush.softness : base.edge.feather / 0.01}
           value={softness}
           min={0}
           max={1}
@@ -348,7 +365,7 @@ export function BrushPanel({
       {!s.erase && (
         <Section title={t("mmColorFilters")}>
           <Slider
-            label={t("mmHue")}
+            label={t("mmHue")} defaultValue={base.source.hue}
             value={s.source.hue}
             min={-180}
             max={180}
@@ -357,7 +374,7 @@ export function BrushPanel({
             format={(v) => `${v}°`}
           />
           <Slider
-            label={t("mmSaturation")}
+            label={t("mmSaturation")} defaultValue={base.source.saturation}
             value={s.source.saturation}
             min={-1}
             max={1}
@@ -366,7 +383,7 @@ export function BrushPanel({
             format={signedPct}
           />
           <Slider
-            label={t("mmBrightness")}
+            label={t("mmBrightness")} defaultValue={base.source.brightness}
             value={s.source.brightness}
             min={-1}
             max={1}
@@ -375,7 +392,7 @@ export function BrushPanel({
             format={signedPct}
           />
           <Slider
-            label={t("mmContrast")}
+            label={t("mmContrast")} defaultValue={base.source.contrast}
             value={s.source.contrast}
             min={-1}
             max={1}
@@ -465,7 +482,7 @@ export function BrushPanel({
             </select>
           </label>
           <Slider
-            label={t("mmFlow")}
+            label={t("mmFlow")} defaultValue={base.brush.flow}
             value={s.brush.flow}
             min={0.02}
             max={1}
@@ -474,7 +491,7 @@ export function BrushPanel({
             format={pct}
           />
           <Slider
-            label={t("mmSpacing")}
+            label={t("mmSpacing")} defaultValue={base.brush.spacing}
             value={s.brush.spacing}
             min={0.02}
             max={2}
@@ -483,7 +500,7 @@ export function BrushPanel({
             format={pct}
           />
           <Slider
-            label={t("mmRotation")}
+            label={t("mmRotation")} defaultValue={base.brush.rotation}
             value={s.brush.rotation}
             min={-180}
             max={180}
@@ -492,7 +509,7 @@ export function BrushPanel({
             format={(v) => `${v}°`}
           />
           <Slider
-            label={t("mmSizeJitter")}
+            label={t("mmSizeJitter")} defaultValue={base.brush.sizeJitter}
             value={s.brush.sizeJitter}
             min={0}
             max={1}
@@ -501,7 +518,7 @@ export function BrushPanel({
             format={pct}
           />
           <Slider
-            label={t("mmOpacityJitter")}
+            label={t("mmOpacityJitter")} defaultValue={base.brush.opacityJitter}
             value={s.brush.opacityJitter}
             min={0}
             max={1}
@@ -510,7 +527,7 @@ export function BrushPanel({
             format={pct}
           />
           <Slider
-            label={t("mmRotationJitter")}
+            label={t("mmRotationJitter")} defaultValue={base.brush.rotationJitter}
             value={s.brush.rotationJitter}
             min={0}
             max={1}
@@ -519,7 +536,7 @@ export function BrushPanel({
             format={pct}
           />
           <Slider
-            label={t("mmScatter")}
+            label={t("mmScatter")} defaultValue={base.brush.scatter}
             value={s.brush.scatter}
             min={0}
             max={2}
@@ -578,7 +595,7 @@ export function BrushPanel({
       {shape && s.rough && !s.erase && (
         <Section title={t("mmEdgeSettings")} open>
           <Slider
-            label={t("mmRoughness")}
+            label={t("mmRoughness")} defaultValue={base.edge.roughness}
             value={s.edge.roughness}
             min={0}
             max={1}
@@ -587,7 +604,7 @@ export function BrushPanel({
             format={pct}
           />
           <Slider
-            label={t("mmEdgeDetail")}
+            label={t("mmEdgeDetail")} defaultValue={base.edge.detail}
             value={s.edge.detail}
             min={0}
             max={1}
@@ -616,7 +633,7 @@ export function BrushPanel({
             </button>
           </div>
           <Slider
-            label={t("mmCellSize")}
+            label={t("mmCellSize")} defaultValue={tileCell}
             value={s.grid.cell}
             min={0.005}
             max={0.15}

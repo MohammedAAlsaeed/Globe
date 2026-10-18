@@ -14,6 +14,7 @@ import {
   type TextureCategory,
 } from "./textures";
 import type { PaintSource } from "../types";
+import { DEFAULT_SOURCE } from "./presets";
 
 type T = (k: string, opts?: Record<string, unknown>) => string;
 
@@ -89,7 +90,7 @@ export function SourcePicker({
             {t(textureDef(source.texture).labelKey)}
           </div>
           <Slider
-            label={t("mmTextureScale")}
+            label={t("mmTextureScale")} defaultValue={DEFAULT_SOURCE.textureScale}
             value={source.textureScale}
             min={0.25}
             max={4}
@@ -98,7 +99,7 @@ export function SourcePicker({
             format={(v) => `${v.toFixed(2)}×`}
           />
           <Slider
-            label={t("mmTextureRotation")}
+            label={t("mmTextureRotation")} defaultValue={DEFAULT_SOURCE.textureRotation}
             value={source.textureRotation}
             min={0}
             max={359}

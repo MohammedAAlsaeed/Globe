@@ -1124,6 +1124,12 @@
   color: var(--mm-accent);
   background: rgba(224, 164, 88, 0.12);
 }
+/* The style a customized coast started from (its resets return to it). */
+.mm-bp-chips button.modified {
+  border-style: dashed;
+  border-color: var(--mm-accent);
+  color: var(--mm-accent);
+}
 
 /* texture catalog */
 .mm-bp-texture-grid {
@@ -1966,4 +1972,41 @@
 .mm-quickbar .secondary-button.active {
   border-color: var(--mm-accent);
   color: var(--mm-accent);
+}
+
+/* ---- typed slider values (EditorControls Slider → ValueEditor) ---- */
+.mm-slider > label {
+  cursor: default;
+}
+.mm-slider b .value-editor {
+  color: var(--mm-text);
+  font-weight: 600;
+}
+.mm-slider b button.value-editor:hover {
+  color: var(--mm-accent);
+}
+.mm-shell .mm-slider .value-editor-input {
+  padding: 1px 4px;
+  font-size: 10px;
+  font-weight: 600;
+  border-color: var(--mm-accent);
+  background: var(--mm-bg);
+  color: var(--mm-text);
+}
+.mm-slider b .value-editor-unit {
+  color: var(--mm-muted);
+  font-weight: 400;
+}
+
+/* A preset that has been edited: a dot after its name, a smaller preview to
+   make room for the button that returns to it. */
+.mm-bp-edited-dot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--mm-accent);
+}
+.mm-bp-presets.edited .mm-bp-preset-button img {
+  width: 56px;
 }

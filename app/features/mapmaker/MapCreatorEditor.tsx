@@ -37,6 +37,7 @@ import {
   type StrokeStyle,
 } from "./brush/engine";
 import {
+  DEFAULT_LAND_TOOL,
   LAND_MODES,
   landBrush,
   landSettings,
@@ -47,7 +48,7 @@ import {
 } from "./brush/land";
 import { mulberry32, newSeed } from "./brush/noise";
 import { DEFAULT_SOURCE, loadFavorites, saveFavorites, type FavoriteBrush } from "./brush/presets";
-import { loadBrushState, saveBrushState, type BrushState } from "./brush/state";
+import { brushBase, loadBrushState, saveBrushState, type BrushState } from "./brush/state";
 import { textureDef } from "./brush/textures";
 import { biomeSwatchDataUrl, biomeTexture } from "./textures";
 import { LineShapeNode } from "./lines/LineShape";
@@ -64,6 +65,7 @@ import {
   createLayer,
   pushRecent,
   resolutionBadge,
+  TOOL_DEFAULTS,
 } from "./domain";
 import { useHistory } from "./hooks/useHistory";
 import { ColorControl, MenuHint, MenuRow, MultiSelectionBar, ObjectQuickBar, Slider } from "./components/EditorControls";
@@ -113,7 +115,7 @@ import { LayerStampSettings } from "./stamps/LayerStampSettings";
 import { alignDeltas, distributeDeltas, pickable, shiftPatch, withGroups, type AlignMode, type Rect as Box } from "./arrange";
 import { StampPanel, setLabel } from "./stamps/StampPanel";
 import { resolveShadow, stampCompositeOp, stampPicture } from "./stamps/render";
-import { Scatter, loadStampState, lookOf, makeStamp, saveStampState, selectSet, type StampLook, type StampToolState } from "./stamps/state";
+import { Scatter, factoryLook as stampFactoryLook, loadStampState, lookOf, makeStamp, saveStampState, selectSet, type StampLook, type StampToolState } from "./stamps/state";
 
 type Tool = "select" | "brush" | "land" | "stamp" | "line" | "region" | "label";
 const TOOLS: { key: Tool; labelKey: string }[] = [
@@ -388,10 +390,10 @@ export function MapCreatorEditor({
     /** Bumped after each placement, so the next stamp (and its preview) is a new draw. */
     [stampDraw, setStampDraw] = useState(1),
     [biome, setBiome] = useState<Biome>("forest"),
-    [textureScale, setTextureScale] = useState(1),
-    [textureRotation, setTextureRotation] = useState(0),
-    [fillOpacity, setFillOpacity] = useState(0.75),
-    [labelSize, setLabelSize] = useState(0.03),
+    [textureScale, setTextureScale] = useState<number>(TOOL_DEFAULTS.textureScale),
+    [textureRotation, setTextureRotation] = useState<number>(TOOL_DEFAULTS.textureRotation),
+    [fillOpacity, setFillOpacity] = useState<number>(TOOL_DEFAULTS.fillOpacity),
+    [labelSize, setLabelSize] = useState<number>(TOOL_DEFAULTS.labelSize),
     [labelAlign, setLabelAlign] = useState<LabelAlign>("start"),
     [labelRtl, setLabelRtl] = useState(false),
     [labelText, setLabelText] = useState(""),
@@ -2890,7 +2892,7 @@ export function MapCreatorEditor({
                 </button>
                 {brushState.mode === "free" && (
                   <Slider
-                    label={t("mmBrushSize")}
+                    label={t("mmBrushSize")} defaultValue={Math.round(brushBase(brushState, favorites).brush.size * project.width)}
                     value={Math.round(brushState.brush.size * project.width)}
                     min={1}
                     max={Math.round(project.width * 0.25)}
@@ -2900,7 +2902,7 @@ export function MapCreatorEditor({
                   />
                 )}
                 <Slider
-                  label={t("mmBrushOpacity")}
+                  label={t("mmBrushOpacity")} defaultValue={brushBase(brushState, favorites).opacity}
                   value={brushState.opacity}
                   min={0.02}
                   max={1}
@@ -2940,7 +2942,7 @@ export function MapCreatorEditor({
                 </button>
                 {landTool.mode === "free" && (
                   <Slider
-                    label={t("mmBrushSize")}
+                    label={t("mmBrushSize")} defaultValue={Math.round(DEFAULT_LAND_TOOL.size * project.width)}
                     value={Math.round(landTool.size * project.width)}
                     min={2}
                     max={Math.round(project.width * 0.3)}
@@ -2959,7 +2961,7 @@ export function MapCreatorEditor({
             {tool === "stamp" && (
               <>
                 <Slider
-                  label={t("stSize")}
+                  label={t("stSize")} defaultValue={stampFactoryLook(stampSet(stampTool.set)).size}
                   value={stampTool.look.size}
                   min={0.003}
                   max={0.4}
@@ -2968,7 +2970,7 @@ export function MapCreatorEditor({
                   format={(v) => `${Math.round(v * project.width)} px`}
                 />
                 <Slider
-                  label={t("stRotation")}
+                  label={t("stRotation")} defaultValue={0}
                   value={Math.round(stampTool.look.rotation)}
                   min={-180}
                   max={180}
@@ -2985,7 +2987,7 @@ export function MapCreatorEditor({
                     <button
                       key={m.key}
                       className={lineTool.draw === m.key ? "active" : ""}
-                      title={`${t(m.labelKey)} (${m.shortcut})`}
+                      title={`${t(m.labelKey)} (${shortcutLabel(m.shortcut, keys)})`}
                       role="radio"
                       aria-checked={lineTool.draw === m.key}
                       onClick={() => changeLineTool({ ...lineTool, draw: m.key })}
@@ -2997,7 +2999,7 @@ export function MapCreatorEditor({
                 {lineTool.draw !== "edit" &&
                   (lineTool.look.mode === "color" ? (
                     <Slider
-                      label={t("lnWidth")}
+                      label={t("lnWidth")} defaultValue={Math.round(lineBaseLook(lineTool.styleId, libraryStyles).stroke.width * project.width * 10) / 10}
                       value={Math.round(lineTool.look.stroke.width * project.width * 10) / 10}
                       min={0.5}
                       max={Math.round(project.width * 0.04)}
@@ -3007,7 +3009,7 @@ export function MapCreatorEditor({
                     />
                   ) : (
                     <Slider
-                      label={t("lnStampSize")}
+                      label={t("lnStampSize")} defaultValue={Math.round(lineBaseLook(lineTool.styleId, libraryStyles).stamp.size * project.width * 10) / 10}
                       value={Math.round(lineTool.look.stamp.size * project.width * 10) / 10}
                       min={1}
                       max={Math.round(project.width * 0.1)}
@@ -3043,9 +3045,9 @@ export function MapCreatorEditor({
                   ))}
                 </div>
                 <span className="mm-toolbar-note mm-texture-name">{t(BIOME_LABEL_KEY[biome])}</span>
-                <Slider label={t("mmTextureScale")} value={textureScale} min={0.4} max={3} step={0.1} onChange={setTextureScale} />
-                <Slider label={t("mmTextureRotation")} value={textureRotation} min={0} max={359} step={1} onChange={setTextureRotation} format={(v) => `${v}°`} />
-                <Slider label={t("mmFillOpacity")} value={fillOpacity} min={0.1} max={1} step={0.05} onChange={setFillOpacity} format={(v) => `${Math.round(v * 100)}%`} />
+                <Slider label={t("mmTextureScale")} defaultValue={TOOL_DEFAULTS.textureScale} value={textureScale} min={0.4} max={3} step={0.1} onChange={setTextureScale} />
+                <Slider label={t("mmTextureRotation")} defaultValue={TOOL_DEFAULTS.textureRotation} value={textureRotation} min={0} max={359} step={1} onChange={setTextureRotation} format={(v) => `${v}°`} />
+                <Slider label={t("mmFillOpacity")} defaultValue={TOOL_DEFAULTS.fillOpacity} value={fillOpacity} min={0.1} max={1} step={0.05} onChange={setFillOpacity} format={(v) => `${Math.round(v * 100)}%`} />
                 {regionDraft && regionDraft.length >= 3 && (
                   <button className="secondary-button" onClick={() => commitRegion(regionDraft)}>
                     {t("mmFinishShape")}
@@ -3056,7 +3058,7 @@ export function MapCreatorEditor({
             {tool === "label" && !labelDraft && (
               <>
                 <ColorControl color={color} recents={recentColors} onChange={commitColor} label={t("mmColor")} recentLabel={t("mmRecents")} />
-                <Slider label={t("mmLabelSize")} value={labelSize} min={0.01} max={0.1} step={0.005} onChange={setLabelSize} />
+                <Slider label={t("mmLabelSize")} defaultValue={TOOL_DEFAULTS.labelSize} value={labelSize} min={0.01} max={0.1} step={0.005} onChange={setLabelSize} />
                 <SelectField label={t("mmLabelAlign")} value={labelAlign} onChange={(v) => setLabelAlign(v as LabelAlign)}>
                   <option value="start">{t("mmAlignStart")}</option>
                   <option value="center">{t("mmAlignCenter")}</option>
@@ -3437,7 +3439,9 @@ export function MapCreatorEditor({
                       ? t(LINE_DRAW_MODES.find((m) => m.key === lineTool.draw)!.hintKey)
                       : t(HINT_KEY[tool])}
               </span>
-              <span className="mm-shortcut-legend">1–7 {t("mmToolSelect")}/{t("mmToolBrush")}/… · {t("mmMultiSelectHint")} · ⌘Z {t("undo")} · ⌘⇧Z {t("redo")} · ⌘D {t("mmDuplicateObject")} · ⌘C/⌘V copy/paste · ⌘] / ⌘[ {t("mmBringToFront")}/{t("mmSendToBack")} · ⌘ scroll {t("mmZoom")}</span>
+              <span className="mm-shortcut-legend">
+                1–7 {t("mmToolSelect")}/{t("mmToolBrush")}/… · {t("mmMultiSelectHint")} · {shortcutLabel("edit.undo", keys)} {t("undo")} · {shortcutLabel("edit.redo", keys)} {t("redo")} · {shortcutLabel("edit.duplicate", keys)} {t("mmDuplicateObject")} · {shortcutLabel("edit.copy", keys)}/{shortcutLabel("edit.paste", keys)} {t("mmCopyObject")}/{t("mmPasteObject")} · {shortcutLabel("arrange.front", keys)} / {shortcutLabel("arrange.back", keys)} {t("mmBringToFront")}/{t("mmSendToBack")} · {t("mmZoomHint")}
+              </span>
             </div>
           )}
         </div>
@@ -3601,11 +3605,18 @@ export function MapCreatorEditor({
                 ))}
               </div>
               {active && (
-                <label className="mm-slider mm-layer-opacity">
-                  <span>{t("mmLayerOpacity")}</span>
-                  <input type="range" min={0} max={1} step={0.05} value={active.opacity} onChange={(e) => updateLayer(active.id, { opacity: +e.target.value })} />
-                  <b>{Math.round(active.opacity * 100)}%</b>
-                </label>
+                <div className="mm-layer-opacity">
+                  <Slider
+                    label={t("mmLayerOpacity")}
+                    defaultValue={1}
+                    value={active.opacity}
+                    min={0}
+                    max={1}
+                    step={0.05}
+                    onChange={(v) => updateLayer(active.id, { opacity: v })}
+                    format={(v) => `${Math.round(v * 100)}%`}
+                  />
+                </div>
               )}
               {active && <LayerStampSettings layer={active} onChange={(patch) => updateLayer(active.id, patch)} t={t} />}
               {landTarget && (

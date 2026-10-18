@@ -173,6 +173,8 @@ export const mapmakerEn = {
   mmModePolygonHint:
     "Click to place corners; click the first one, double-click or press Enter to close.",
   mmPresetCustom: "Custom brush",
+  mmPresetModified: "{{name}} (edited)",
+  mmPresetRevert: "Back to {{name}} — undo every change to the brush",
   mmSaveFavorite: "Save as favorite",
   mmFavoriteName: "Favorite name",
   mmSave: "Save",
@@ -337,6 +339,8 @@ export const mapmakerEn = {
   mmDepthShading: "Depth shading",
   mmDepthDistance: "Full depth at",
   mmResetCoast: "Reset to style",
+  mmResetCoastTo: "Reset to {{style}}",
+  mmStyleModified: "Edited from this style — resets return to it",
   mmEditCoast: "Edit coast",
   mmToolLand: "Land",
   mmShortcutHintLand: "Draw where land is — the coast follows it",

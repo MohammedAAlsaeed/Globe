@@ -11,7 +11,7 @@ import { Glyph } from "../glyphs";
 import { shortcutLabel } from "../shortcuts";
 import { Slider } from "../components/EditorControls";
 import { SourcePicker } from "./SourcePicker";
-import { LAND_MODES, type LandToolState } from "./land";
+import { DEFAULT_LAND_TOOL, LAND_MODES, type LandToolState } from "./land";
 import type { NaturalEdge, PaintSource } from "../types";
 
 type T = (k: string, opts?: Record<string, unknown>) => string;
@@ -98,7 +98,7 @@ export function LandPanel({
       <div className="mm-bp-props">
         {s.mode === "free" && (
           <Slider
-            label={t("mmBrushSize")}
+            label={t("mmBrushSize")} defaultValue={Math.round(DEFAULT_LAND_TOOL.size * mapWidthPx)}
             value={Math.round(s.size * mapWidthPx)}
             min={2}
             max={Math.round(mapWidthPx * 0.3)}
@@ -121,7 +121,7 @@ export function LandPanel({
         {natural && (
           <>
             <Slider
-              label={t("mmRoughness")}
+              label={t("mmRoughness")} defaultValue={DEFAULT_LAND_TOOL.edge.roughness}
               value={s.edge.roughness}
               min={0}
               max={1}
@@ -130,7 +130,7 @@ export function LandPanel({
               format={pct}
             />
             <Slider
-              label={t("mmEdgeDetail")}
+              label={t("mmEdgeDetail")} defaultValue={DEFAULT_LAND_TOOL.edge.detail}
               value={s.edge.detail}
               min={0}
               max={1}
