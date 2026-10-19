@@ -90,9 +90,12 @@ export const maps = {
     return api.post<One<CloudMap>>(`maps/${id}/thumbnail`, form).then((r) => r.data);
   },
 
-  /** Checks an export against the plan and records its license. */
-  recordExport: (id: string, width: number, height: number) =>
-    api.post<One<{ id: number; plan: string; commercial_use: boolean }>>(`maps/${id}/exports`, { width, height }).then((r) => r.data),
+  /**
+   * Checks an export against the plan and records its license — of a cloud
+   * map (`id`), or of a map kept on this device (`null`).
+   */
+  recordExport: (id: string | null, width: number, height: number) =>
+    api.post<One<{ id: number; plan: string; commercial_use: boolean }>>(id ? `maps/${id}/exports` : "exports", { width, height }).then((r) => r.data),
 };
 
 // ---- asset library (stamps) ---------------------------------------------------------

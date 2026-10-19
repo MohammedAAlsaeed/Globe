@@ -2455,11 +2455,11 @@ export function MapCreatorEditor({
     setPrinting(true);
     setNotice(null);
     try {
-      // Cloud maps record each export with the plan's license; the server
-      // refuses sizes above what the plan exports.
-      if (user && cloud) {
+      // Every signed-in export (cloud map or not) is recorded with the plan's
+      // license; the server refuses sizes above what the plan exports.
+      if (user) {
         try {
-          await maps.recordExport(cloud.id, project.width, project.height);
+          await maps.recordExport(cloud?.id ?? null, project.width, project.height);
         } catch (e) {
           if (e instanceof ApiError && e.code === "plan_limit_reached") {
             setNoticeOk(false);
@@ -2494,11 +2494,12 @@ export function MapCreatorEditor({
   async function exportImage(format: ImageFormat, size: ExportSize, quality: number) {
     const stage = stageRef.current;
     if (!stage) throw new Error("noStage");
-    // Cloud maps record each export with the plan's license (the server
-    // also refuses sizes above the plan).
-    if (user && cloud) {
+    // Every signed-in export (cloud map or not) is recorded with the plan's
+    // license, and the server refuses sizes above the plan. Guests are held
+    // to the guest size here in the browser.
+    if (user) {
       try {
-        await maps.recordExport(cloud.id, size.width, size.height);
+        await maps.recordExport(cloud?.id ?? null, size.width, size.height);
       } catch (e) {
         if (e instanceof ApiError && e.code === "plan_limit_reached") {
           setExportLimit(typeof e.body.max === "number" ? e.body.max : exportMaxPx);

@@ -4,7 +4,7 @@
  * 2:1 (or a Mercator map), else a 2:1 version of it — the map kept in
  * proportion on its sea, or stretched (see ../domain/fit).
  */
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { fitRect, needsFit } from "../domain/fit";
 import { maxCanvasPixels } from "../../../lib/canvasLimits";
 import type { GlobeSettings } from "../domain/types";
@@ -34,17 +34,23 @@ export function useGlobeSource(source: SourceState | null, globe: GlobeSettings)
     applies = !!source && globe.sourceProjection === "equirectangular" && needsFit(source.width, source.height),
     key = applies ? `${source!.url}|${mode}|${fill}` : "";
   const [result, setResult] = useState<{ key: string; source: SourceState } | null>(null);
+  // The image on screen. It is released only once its replacement is shown
+  // (or the page closes) — never on a timer, which could pull it out from
+  // under the preview while a large map is still being fitted.
+  const shown = useRef<SourceState | null>(null);
   useEffect(() => {
     if (!applies || !source) return;
-    let live = true,
-      made: SourceState | null = null;
+    let live = true;
     // A short pause: picking a colour fires many changes.
     const timer = setTimeout(() => {
       fitted(source, mode, fill).then(
         (s) => {
-          made = s;
-          if (live) setResult({ key, source: s });
-          else URL.revokeObjectURL(s.url);
+          if (!live) return URL.revokeObjectURL(s.url);
+          const old = shown.current;
+          shown.current = s;
+          setResult({ key, source: s });
+          // The preview switches to the new image on the next render.
+          if (old) setTimeout(() => URL.revokeObjectURL(old.url), 1000);
         },
         () => {},
       );
@@ -52,10 +58,14 @@ export function useGlobeSource(source: SourceState | null, globe: GlobeSettings)
     return () => {
       live = false;
       clearTimeout(timer);
-      // Keep the shown image until its replacement is ready (revoked then).
-      if (made) setTimeout(() => URL.revokeObjectURL(made!.url), 2000);
     };
   }, [applies, source, mode, fill, key]);
+  useEffect(
+    () => () => {
+      if (shown.current) URL.revokeObjectURL(shown.current.url);
+    },
+    [],
+  );
   if (!source) return { source: null, pending: false, fitted: false };
   if (!applies) return { source, pending: false, fitted: false };
   return result && result.key === key ? { source: result.source, pending: false, fitted: true } : { source: result?.source ?? null, pending: true, fitted: true };
