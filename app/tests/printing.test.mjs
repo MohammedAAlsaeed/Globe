@@ -145,3 +145,90 @@ test("poster and fit settings are validated in saved projects", () => {
   assert.throws(() => validateDocument({ ...DEFAULT_DOCUMENT, globe: { ...DEFAULT_DOCUMENT.globe, fit: "zoom" } }));
   assert.throws(() => validateDocument({ ...DEFAULT_DOCUMENT, poster: { ...DEFAULT_POSTER, title: "x".repeat(500) } }));
 });
+
+test("canvases stay within what the device draws (iPhone and iPad: about 16 MP)", async () => {
+  const { canvasPixelsFor, isAppleMobile, canvasFits, APPLE_MOBILE_CANVAS_PIXELS } = await import("../lib/canvasLimits.ts");
+  assert.ok(isAppleMobile("Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)"));
+  // iPadOS reports itself as a Mac; the touch screen gives it away.
+  assert.ok(isAppleMobile("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)", 5));
+  assert.ok(!isAppleMobile("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)", 0));
+  assert.equal(canvasPixelsFor("Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X)"), APPLE_MOBILE_CANVAS_PIXELS);
+  assert.ok(!canvasFits(40000, 100, 1e9));
+  // An 8192 × 4096 map: double size is offered on a computer, never on an iPhone.
+  const desktop = exportSizes(8192, 4096, 99999),
+    phone = exportSizes(8192, 4096, 99999, APPLE_MOBILE_CANVAS_PIXELS);
+  assert.ok(desktop.some((s) => s.scale === 1));
+  assert.ok(!phone.some((s) => s.width * s.height > APPLE_MOBILE_CANVAS_PIXELS));
+  assert.deepEqual(phone.map((s) => s.scale), [0.25, 0.5]);
+});
+
+test("poster print canvas is capped for the device, and the PPI shown is the one printed", async () => {
+  const { printScale, printedPpi } = await import("../features/studio/poster/render.ts");
+  const plan = planPoster(2, { ...DEFAULT_POSTER, size: "custom", printWidth: 1500, paper: "A3" });
+  const phone = 16e6,
+    k = printScale(plan, 20000, 300, phone);
+  assert.ok(plan.canvas.width * k * plan.canvas.height * k <= phone + 1);
+  // A 20000 px map on a 1.5 m poster would be ~339 PPI; capped to 300, and lower on a phone.
+  assert.ok(Math.abs(printedPpi(plan, 20000, 1e12) - 300) < 1e-6);
+  assert.ok(printedPpi(plan, 20000, phone) < 100);
+  // Even a vast poster never asks a phone for a larger canvas.
+  const vast = planPoster(1, { ...DEFAULT_POSTER, size: "custom", printWidth: 5000, paper: "A0" }),
+    kv = printScale(vast, 100, 300, phone);
+  assert.ok(vast.canvas.width * kv * vast.canvas.height * kv <= phone + 1);
+});
+
+test("PDF images are compressed natively, with a soft mask only when needed", async () => {
+  const { PDFDocument, PDFName, PDFRawStream } = await import("pdf-lib");
+  const { embedPixels, decodePng } = await import("../lib/pdfImage.ts");
+  const { inflateSync, deflateSync } = await import("node:zlib");
+  const w = 300,
+    h = 200,
+    rgba = new Uint8Array(w * h * 4);
+  for (let i = 0; i < w * h; i++) rgba.set([i % 256, (i >> 8) % 256, 77, 255], i * 4);
+  const pdf = await PDFDocument.create(),
+    image = await embedPixels(pdf, { width: w, height: h, read: (y, rows) => rgba.subarray(y * w * 4, (y + rows) * w * 4) });
+  image.draw(pdf.addPage([w, h]), { x: 0, y: 0, width: w, height: h });
+  const loaded = await PDFDocument.load(await pdf.save());
+  const streams = loaded.context.enumerateIndirectObjects().map(([, o]) => o).filter((o) => o instanceof PDFRawStream && o.dict.get(PDFName.of("Subtype")) === PDFName.of("Image"));
+  assert.equal(streams.length, 1, "opaque: no soft mask");
+  const px = inflateSync(streams[0].contents);
+  assert.equal(px.length, w * h * 3);
+  assert.deepEqual([...px.subarray(3 * 301, 3 * 301 + 3)], [301 % 256, 1, 77]);
+
+  // A transparent PNG (as a canvas makes it) gets its mask; every filter type is undone.
+  const header = Buffer.alloc(13);
+  header.writeUInt32BE(4, 0);
+  header.writeUInt32BE(5, 4);
+  header[8] = 8;
+  header[9] = 6;
+  const rows = [];
+  const pixels = [];
+  for (let y = 0; y < 5; y++) {
+    const row = [];
+    for (let x = 0; x < 4; x++) row.push(x * 40 + y, y * 30, 200 - x * 10, x === 0 ? 0 : 255);
+    pixels.push(row);
+  }
+  // Encode each row with filter = y % 5.
+  for (let y = 0; y < 5; y++) {
+    const cur = pixels[y], up = y ? pixels[y - 1] : new Array(16).fill(0), out = [y % 5];
+    for (let i = 0; i < 16; i++) {
+      const a = i >= 4 ? cur[i - 4] : 0, b = up[i], c = i >= 4 ? up[i - 4] : 0;
+      const pa = Math.abs(b - c), pb = Math.abs(a - c), pc = Math.abs(a + b - 2 * c);
+      const pred = [0, a, b, (a + b) >> 1, pa <= pb && pa <= pc ? a : pb <= pc ? b : c][y % 5];
+      out.push((cur[i] - pred) & 255);
+    }
+    rows.push(Buffer.from(out));
+  }
+  const crc = (bytes) => { let c = 0xffffffff; for (const b of bytes) { c ^= b; for (let j = 0; j < 8; j++) c = (c >>> 1) ^ (c & 1 ? 0xedb88320 : 0); } return (c ^ 0xffffffff) >>> 0; };
+  const chunk = (name, data) => { const t = Buffer.from(name), len = Buffer.alloc(4), sum = Buffer.alloc(4); len.writeUInt32BE(data.length); sum.writeUInt32BE(crc(Buffer.concat([t, data]))); return Buffer.concat([len, t, data, sum]); };
+  const png = Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk("IHDR", header), chunk("IDAT", deflateSync(Buffer.concat(rows))), chunk("IEND", Buffer.alloc(0))]);
+  const decoded = await decodePng(new Uint8Array(png));
+  assert.deepEqual([...decoded.rgba], pixels.flat());
+  const { embedPngFast } = await import("../lib/pdfImage.ts");
+  const pdf2 = await PDFDocument.create();
+  (await embedPngFast(pdf2, new Uint8Array(png))).draw(pdf2.addPage([4, 5]), { x: 0, y: 0, width: 4, height: 5 });
+  const l2 = await PDFDocument.load(await pdf2.save());
+  const imgs = l2.context.enumerateIndirectObjects().map(([, o]) => o).filter((o) => o instanceof PDFRawStream && o.dict.get(PDFName.of("Subtype")) === PDFName.of("Image"));
+  assert.equal(imgs.length, 2, "colour + soft mask");
+  assert.ok(imgs.some((o) => o.dict.get(PDFName.of("SMask"))));
+});

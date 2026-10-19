@@ -16,6 +16,7 @@ import {
   closePath,
   stroke,
 } from "pdf-lib";
+import { embedPngFast, type PdfImage } from "../../../lib/pdfImage";
 import { edgePoints, goreBox, latitudeLines } from "../domain/geometry";
 import type {
   GlobeSettings,
@@ -54,7 +55,9 @@ export async function makePrintPdf(
   pdf.setTitle("Al-Idrisi - Globe print plates");
   pdf.setCreator("Al-Idrisi Atelier");
   const font = await pdf.embedFont(StandardFonts.Helvetica);
-  const images = new Map<number, Awaited<ReturnType<typeof pdf.embedPng>>>();
+  // Each gore is embedded once (natively compressed; see lib/pdfImage) and
+  // drawn on every page it appears on.
+  const images = new Map<number, PdfImage>();
   for (let i = 0; i < plan.pages.length; i++) {
     if (signal?.aborted) throw new DOMException("Cancelled", "AbortError");
     const spec = plan.pages[i],
@@ -74,15 +77,16 @@ export async function makePrintPdf(
       if (!p.outline) {
         let image = images.get(item.gore);
         if (!image) {
-          image = await pdf.embedPng(
-            await assets[item.gore].blob.arrayBuffer(),
+          image = await embedPngFast(
+            pdf,
+            new Uint8Array(await assets[item.gore].blob.arrayBuffer()),
           );
           images.set(item.gore, image);
         }
         const ox = (item.x - item.cropX) * PT,
           oy = item.y - item.cropY;
         if (item.rotated)
-          page.drawImage(image, {
+          image.draw(page, {
             x: ox,
             y: (spec.height - oy) * PT,
             width: item.fullHeight * PT,
@@ -90,7 +94,7 @@ export async function makePrintPdf(
             rotate: degrees(-90),
           });
         else
-          page.drawImage(image, {
+          image.draw(page, {
             x: ox,
             y: (spec.height - oy - item.fullHeight) * PT,
             width: item.fullWidth * PT,

@@ -7,10 +7,19 @@ const send = (m: RenderResponse) => self.postMessage(m);
 self.onmessage = async (event: MessageEvent<RenderRequest>) => {
   try {
     const { source, globe: s, layers, dpi, mode, preview } = event.data;
-    const bitmap = await createImageBitmap(source);
+    const limit = Math.min(60e6, event.data.maxPixels ?? 60e6);
+    let bitmap = await createImageBitmap(source);
+    if (bitmap.width * bitmap.height > 60e6) throw new Error("errorImage");
+    // A map larger than this device can draw (an iPhone or iPad) is scaled
+    // down as it is decoded; gores rarely need more detail than that.
+    if (bitmap.width * bitmap.height > limit) {
+      const f = Math.sqrt(limit / (bitmap.width * bitmap.height)),
+        large = bitmap;
+      bitmap = await createImageBitmap(large, { resizeWidth: Math.floor(large.width * f), resizeHeight: Math.floor(large.height * f), resizeQuality: "high" });
+      large.close();
+    }
     let w = bitmap.width,
       h = bitmap.height;
-    if (w * h > 60e6) throw new Error("errorImage");
     // Progressive downscaling provides an area prefilter before inverse sampling.
     const g = goreBox(s),
       ppm = dpi / 25.4;
@@ -43,7 +52,7 @@ self.onmessage = async (event: MessageEvent<RenderRequest>) => {
       const index = indices[position];
       const ow = mode === "panorama" ? 2048 : Math.ceil(g.width * ppm),
         oh = mode === "panorama" ? 1024 : Math.ceil(g.height * ppm);
-      if (ow * oh > 32e6 || Math.max(ow, oh) > 16000)
+      if (ow * oh > Math.min(32e6, limit) || Math.max(ow, oh) > 16000)
         throw new Error("pieceLimit");
       const canvas = new OffscreenCanvas(ow, oh),
         out = canvas.getContext("2d")!,

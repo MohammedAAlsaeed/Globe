@@ -11,6 +11,8 @@
  * Everything here except `encodeMapImage` is pure, so it is unit tested.
  */
 
+import { DEFAULT_CANVAS_PIXELS, canvasFits } from "../../../lib/canvasLimits";
+
 export type ImageFormat = "png" | "jpeg" | "webp" | "tiff" | "pdf";
 
 export const IMAGE_FORMATS: { id: ImageFormat; ext: string; mime: string; lossy: boolean }[] = [
@@ -21,8 +23,8 @@ export const IMAGE_FORMATS: { id: ImageFormat; ext: string; mime: string; lossy:
   { id: "pdf", ext: "pdf", mime: "application/pdf", lossy: false },
 ];
 
-/** The largest canvas we render (browsers fail well before 268 MP). */
-export const MAX_CANVAS_PIXELS = 120_000_000;
+/** The largest canvas we render on a computer (browsers fail well before 268 MP). */
+export const MAX_CANVAS_PIXELS = DEFAULT_CANVAS_PIXELS;
 
 export interface ExportSize {
   scale: number;
@@ -32,11 +34,15 @@ export interface ExportSize {
   locked: boolean;
 }
 
-/** The sizes offered for a map: a quarter, half, full and double size. */
-export function exportSizes(width: number, height: number, maxPx: number): ExportSize[] {
+/**
+ * The sizes offered for a map: a quarter, half, full and double size.
+ * Sizes this device can't draw (`canvasPixels`, see lib/canvasLimits) are
+ * never offered — on an iPhone or iPad they would come out blank.
+ */
+export function exportSizes(width: number, height: number, maxPx: number, canvasPixels = MAX_CANVAS_PIXELS): ExportSize[] {
   return [0.25, 0.5, 1, 2]
     .map((scale) => ({ scale, width: Math.round(width * scale), height: Math.round(height * scale) }))
-    .filter((s) => s.width >= 64 && s.height >= 64 && s.width * s.height <= MAX_CANVAS_PIXELS)
+    .filter((s) => s.width >= 64 && s.height >= 64 && canvasFits(s.width, s.height, canvasPixels))
     .map((s) => ({ ...s, locked: Math.max(s.width, s.height) > maxPx }));
 }
 

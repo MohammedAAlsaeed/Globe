@@ -6,12 +6,14 @@
  */
 import { useEffect, useState } from "react";
 import { fitRect, needsFit } from "../domain/fit";
+import { maxCanvasPixels } from "../../../lib/canvasLimits";
 import type { GlobeSettings } from "../domain/types";
 import type { SourceState } from "./useSource";
 
 async function fitted(source: SourceState, mode: "contain" | "stretch", fill: string): Promise<SourceState> {
   const image = await createImageBitmap(source.blob),
-    r = fitRect(image.width, image.height, mode),
+    // 2:1, so width² / 2 pixels: kept within what this device can draw.
+    r = fitRect(image.width, image.height, mode, Math.min(16384, Math.floor(Math.sqrt(2 * maxCanvasPixels())))),
     canvas = document.createElement("canvas");
   canvas.width = r.canvas.width;
   canvas.height = r.canvas.height;
