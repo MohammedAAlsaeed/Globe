@@ -5,8 +5,7 @@ import { useTranslation } from "react-i18next";
 import { usePreview } from "../hooks/usePreview";
 import { goreBox } from "../domain/geometry";
 import { goreSvg, pageSvg } from "../export/svg";
-import { MapEditor } from "./MapEditor";
-import type { StudioDocument, PrintPlan, MapLayer } from "../domain/types";
+import type { StudioDocument, PrintPlan } from "../domain/types";
 import type { SourceState } from "../hooks/useSource";
 const GlobePreview = dynamic(
   () => import("./GlobePreview").then((m) => m.GlobePreview),
@@ -16,14 +15,10 @@ export function PreviewPanel({
   document: d,
   source,
   plan,
-  onLayers,
-  notify,
 }: {
   document: StudioDocument;
   source: SourceState | null;
   plan: PrintPlan;
-  onLayers: (l: MapLayer[]) => void;
-  notify: (m: string) => void;
 }) {
   const { t } = useTranslation(),
     [view, setView] = useState("sheets"),
@@ -49,7 +44,7 @@ export function PreviewPanel({
       </div>
       <div className="preview-toolbar">
         <div className="tabs preview-tabs">
-          {["sheets", "goresView", "globe3d", "editor"].map((v) => (
+          {["sheets", "goresView", "globe3d"].map((v) => (
             <button
               key={v}
               className={view === v ? "active" : ""}
@@ -83,14 +78,7 @@ export function PreviewPanel({
           </div>
         )}
       </div>
-      {view === "editor" && source ? (
-        <MapEditor
-          source={source}
-          layers={d.layers}
-          onChange={onLayers}
-          notify={notify}
-        />
-      ) : (
+      {(
         <>
           {preview.error ? (
             <p className="notice warning">{t(preview.error)}</p>

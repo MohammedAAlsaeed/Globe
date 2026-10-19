@@ -1,10 +1,34 @@
 import { zipSync, unzipSync, strToU8, strFromU8 } from "fflate";
 import { validateDocument } from "../domain/validation";
 import type { StudioDocument } from "../domain/types";
+/** Where a print studio source came from (a map handed off from the editor). */
+export interface SourceOrigin {
+  kind: "editor";
+  /** The map's name in the editor. */
+  name: string;
+  /** Its cloud id, for the way back to the editor (null: on this device). */
+  mapId: string | null;
+  /** The map's background (its sea), to fill the globe around a non-2:1 map. */
+  background: string;
+}
 export interface SavedProject {
   document: StudioDocument;
   source: Blob;
   filename: string;
+  origin?: SourceOrigin;
+}
+/** A stored or imported origin, if it is a valid one (untrusted input). */
+export function validOrigin(v: unknown): SourceOrigin | undefined {
+  if (!v || typeof v !== "object") return undefined;
+  const o = v as Record<string, unknown>;
+  return o.kind === "editor" &&
+    typeof o.name === "string" &&
+    o.name.length <= 100 &&
+    (o.mapId === null || (typeof o.mapId === "string" && /^[\w-]{1,64}$/.test(o.mapId))) &&
+    typeof o.background === "string" &&
+    /^#[0-9a-f]{6}$/i.test(o.background)
+    ? { kind: "editor", name: o.name, mapId: o.mapId as string | null, background: o.background }
+    : undefined;
 }
 export async function checkImage(blob: Blob) {
   if (blob.size > 40 * 1024 * 1024) throw new Error("errorImage");
@@ -28,6 +52,7 @@ export async function encodeProject(project: SavedProject) {
     document: project.document,
     filename: project.filename,
     mime: project.source.type,
+    origin: project.origin,
   };
   return new Blob(
     [
@@ -73,7 +98,7 @@ export async function decodeProject(file: File): Promise<SavedProject> {
       type: meta.mime,
     });
   await checkImage(source);
-  return { document, source, filename: meta.filename.slice(0, 200) };
+  return { document, source, filename: meta.filename.slice(0, 200), origin: validOrigin(meta.origin) };
 }
 function db(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -111,6 +136,7 @@ export async function loadLocal(): Promise<SavedProject | null> {
           resolve({
             ...request.result,
             document: validateDocument(request.result.document),
+            origin: validOrigin(request.result.origin),
           });
         } catch {
           reject(new Error("invalidProject"));
@@ -154,6 +180,7 @@ export async function loadHandoff(): Promise<SavedProject | null> {
           resolve({
             ...request.result,
             document: validateDocument(request.result.document),
+            origin: validOrigin(request.result.origin),
           });
         } catch {
           reject(new Error("invalidProject"));

@@ -74,6 +74,10 @@ import { deleteProject, exportProjectToFile, saveProject } from "./storage";
 import { useCloudSync } from "./cloud/useCloudSync";
 import { CloudStatusBar, ConflictDialog } from "./cloud/CloudControls";
 import { UpgradeDialog } from "../account/UpgradeDialog";
+import { GUEST_LIMITS } from "../account/types";
+import { ExportImageDialog } from "./components/ExportImageDialog";
+import { IMAGE_FORMATS, fileName, type ExportSize, type ImageFormat } from "./export/imageFormats";
+import { downloadBlob, encodeMapImage } from "./export/encodeImage";
 import { pressed, shortcutLabel, shortcutLabels, useShortcuts, type ShortcutId } from "./shortcuts";
 import { maps } from "../account/api";
 import { useAuth } from "../account/AuthProvider";
@@ -412,6 +416,10 @@ export function MapCreatorEditor({
   const [landTool, setLandTool] = useState<LandToolState>(loadLandTool);
   // ---- Line Tool state ----
   /** The Line tool's mode, settings and the look new lines get; per browser. */
+  // "Save as image" and the plan's export limit (guests: the free plan's).
+  const [exportOpen, setExportOpen] = useState(false),
+    [exportLimit, setExportLimit] = useState<number | null>(null);
+  const exportMaxPx = user?.plan.max_export_px ?? GUEST_LIMITS.max_export_px;
   // The keyboard shortcuts in force (defaults, or the person's own).
   const keys = useShortcuts();
   const [lineTool, setLineTool] = useState<LineToolState>(loadLineTool),
@@ -2357,11 +2365,12 @@ export function MapCreatorEditor({
    *  - Land layers are rebuilt at full resolution (in the worker) with every
    *    edit included; paint on other layers is re-rendered at full resolution
    *    too (not upscaled from the screen raster), so textures stay crisp. */
-  async function renderMapCanvas(stage: Konva.Stage) {
-    // Exactly the project's own pixel size (W/H are rounded display sizes).
-    const ratio = project.width / W,
-      outW = project.width,
-      outH = project.height;
+  async function renderMapCanvas(stage: Konva.Stage, scale = 1) {
+    // The project's own pixel size × scale (W/H are rounded display sizes).
+    // Land, paint and stamps are re-rendered at that size, never upscaled.
+    const outW = Math.max(1, Math.round(project.width * scale)),
+      outH = Math.max(1, Math.round(project.height * scale)),
+      ratio = outW / W;
     // Full-resolution land layers first (async), then the synchronous capture.
     const landImages = new Map<string, HTMLCanvasElement | null>();
     for (const layer of project.layers) {
@@ -2403,7 +2412,7 @@ export function MapCreatorEditor({
       for (const o of layer.objects) {
         if (o.kind !== "paint") continue;
         const node = findNode(stage, o.id),
-          hi = node ? renderPaint(o, project.width, project.height) : null;
+          hi = node ? renderPaint(o, outW, outH) : null;
         if (!node || !hi) continue;
         swap(node, { image: hi.canvas, x: hi.x / ratio, y: hi.y / ratio, width: hi.canvas.width / ratio, height: hi.canvas.height / ratio });
       }
@@ -2472,11 +2481,42 @@ export function MapCreatorEditor({
       await saveHandoff({
         document: { ...DEFAULT_DOCUMENT, name: project.name || "My map" },
         source: blob,
-        filename: `${(project.name || "map").replace(/[^\w\-]+/g, "-")}.png`,
+        filename: fileName(project.name || "map", "png"),
+        // Where it came from: the print studio names it, offers the way back
+        // to the editor, and fills the globe around it with the map's sea.
+        origin: { kind: "editor", name: project.name || "", mapId: cloud?.id ?? null, background: project.background },
       });
       router.push("/print?handoff=1");
     } finally {
       setPrinting(false);
+    }
+  }
+
+  /** "Save as image": renders at the chosen size and downloads it. */
+  async function exportImage(format: ImageFormat, size: ExportSize, quality: number) {
+    const stage = stageRef.current;
+    if (!stage) throw new Error("noStage");
+    // Cloud maps record each export with the plan's license (the server
+    // also refuses sizes above the plan).
+    if (user && cloud) {
+      try {
+        await maps.recordExport(cloud.id, size.width, size.height);
+      } catch (e) {
+        if (e instanceof ApiError && e.code === "plan_limit_reached") {
+          setExportLimit(typeof e.body.max === "number" ? e.body.max : exportMaxPx);
+          return;
+        }
+      }
+    }
+    await new Promise((resolve) => requestAnimationFrame(() => setTimeout(resolve, 0)));
+    const canvas = await renderMapCanvas(stage, size.scale);
+    try {
+      const blob = await encodeMapImage(canvas, format, { quality, dpi: 300, title: project.name || "Map" });
+      downloadBlob(blob, fileName(project.name || "map", IMAGE_FORMATS.find((f) => f.id === format)!.ext));
+      setNoticeOk(true);
+      setNotice(t("exSaved", { w: size.width, h: size.height }));
+    } finally {
+      canvas.width = canvas.height = 0;
     }
   }
 
@@ -2587,6 +2627,9 @@ export function MapCreatorEditor({
         </button>
         <button className="mm-back" title={t("mmExportMap")} onClick={() => exportProjectToFile(project)}>
           <Glyph name="download" size={16} />
+        </button>
+        <button className="mm-back" title={t("exSaveTitle")} onClick={() => setExportOpen(true)}>
+          <Glyph name="image" size={16} />
         </button>
         <input
           className="mm-title-input"
@@ -3634,6 +3677,28 @@ export function MapCreatorEditor({
           )}
         </aside>
       </div>
+      {exportOpen && (
+        <ExportImageDialog
+          t={t}
+          name={project.name}
+          width={project.width}
+          height={project.height}
+          maxPx={exportMaxPx}
+          onExport={exportImage}
+          onLocked={() => setExportLimit(exportMaxPx)}
+          onClose={() => setExportOpen(false)}
+        />
+      )}
+      {exportLimit !== null && (
+        <UpgradeDialog
+          limit="export_px"
+          planCode={user?.plan.code ?? "explorer"}
+          max={exportLimit}
+          title={t("exLimitTitle")}
+          message={t(user ? "exLimitText" : "exLimitGuest", { plan: t(`acPlan_${user?.plan.code ?? "explorer"}`), px: exportLimit.toLocaleString() })}
+          onClose={() => setExportLimit(null)}
+        />
+      )}
       {lineLib.limitPrompt && user && (
         <UpgradeDialog
           limit="line_styles"

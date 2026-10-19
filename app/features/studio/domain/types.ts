@@ -1,4 +1,6 @@
 import type { IconId } from "./icons";
+import type { PaperId } from "./paper";
+import type { PosterSettings } from "../poster/types";
 /** Millimetres are the canonical unit. UI units never enter projection math. */
 export type Resampling = "bilinear" | "bicubic" | "lanczos";
 export type SourceProjection = "equirectangular" | "mercator";
@@ -17,9 +19,16 @@ export interface GlobeSettings {
   north: number;
   south: number;
   resampling: Resampling;
+  /**
+   * A map that isn't 2:1 on the globe: kept in proportion with the rest
+   * filled with `fill` (its sea), or stretched over the whole sphere.
+   */
+  fit?: "contain" | "stretch";
+  /** The colour around a contained map (the map's own background). */
+  fill?: string;
 }
 export interface PrintSettings {
-  paper: "A4" | "A3" | "Letter" | "custom";
+  paper: PaperId;
   width: number;
   height: number;
   orientation: "auto" | "portrait" | "landscape";
@@ -96,8 +105,11 @@ export interface MapLayer {
 }
 export interface StudioDocument {
   name: string;
+  /** Printed as globe gores, or flat as a poster. */
+  mode?: "globe" | "poster";
   globe: GlobeSettings;
   print: PrintSettings;
+  poster?: PosterSettings;
   dpi: number;
   layers: MapLayer[];
 }

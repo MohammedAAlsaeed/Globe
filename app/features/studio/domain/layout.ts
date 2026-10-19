@@ -5,14 +5,10 @@ import type {
   PrintPlan,
   PrintPage,
 } from "./types";
-export const PAPER_SIZES = {
-  A4: [210, 297],
-  A3: [297, 420],
-  Letter: [215.9, 279.4],
-} as const;
+import { paperSize } from "./paper";
 /** All placements are physical millimetres. Calibration applies before packing. */
 export function planPrint(s: GlobeSettings, p: PrintSettings): PrintPlan {
-  const raw = p.paper === "custom" ? [p.width, p.height] : PAPER_SIZES[p.paper];
+  const raw = paperSize(p.paper, p.width, p.height);
   const sizes =
     p.orientation === "auto"
       ? [

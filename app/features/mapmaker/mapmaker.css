@@ -2010,3 +2010,178 @@
 .mm-bp-presets.edited .mm-bp-preset-button img {
   width: 56px;
 }
+
+/* ---- Save as image (components/ExportImageDialog) ---- */
+dialog.mm-export-dialog {
+  width: min(620px, calc(100% - 32px));
+  max-width: none;
+  padding: 22px 24px 20px;
+  border: 1px solid var(--mm-border, #2c3138);
+  border-radius: 12px;
+  background: #1c2025;
+  color: #e7e9ec;
+  font-family: var(--sans, Arial), sans-serif;
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.55);
+}
+dialog.mm-export-dialog::backdrop {
+  background: rgba(8, 10, 14, 0.66);
+  backdrop-filter: blur(3px);
+}
+.mm-export-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+dialog.mm-export-dialog h2 {
+  margin: 0;
+  font-family: var(--serif), serif;
+  font-size: 22px;
+  color: #e7e9ec;
+}
+dialog.mm-export-dialog .mm-export-head p {
+  margin: 2px 0 0;
+  font-size: 12px;
+  line-height: 1.4;
+  color: #8c94a0;
+  white-space: normal;
+}
+.mm-export-close {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #8c94a0;
+}
+.mm-export-close:hover {
+  background: #22262c;
+  color: #e0a458;
+}
+.mm-export-label {
+  display: block;
+  margin: 14px 0 7px;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #8c94a0;
+}
+.mm-export-formats {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 6px;
+}
+.mm-export-formats button,
+.mm-export-sizes button {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 9px 8px;
+  border: 1px solid #2c3138;
+  border-radius: 8px;
+  background: #15181c;
+  color: #e7e9ec;
+  text-align: start;
+  cursor: pointer;
+}
+.mm-export-formats button b {
+  font-size: 13px;
+}
+.mm-export-formats button small {
+  font-size: 10px;
+  line-height: 1.3;
+  color: #8c94a0;
+}
+.mm-export-formats button.active,
+.mm-export-sizes button.active {
+  border-color: #e0a458;
+  background: rgba(224, 164, 88, 0.1);
+}
+.mm-export-formats button:hover:not(:disabled),
+.mm-export-sizes button:hover:not(:disabled) {
+  border-color: #6b5a40;
+}
+.mm-export-sizes {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 6px;
+}
+.mm-export-size-name {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.mm-export-size-px {
+  font-size: 11px;
+  color: #e7e9ec;
+  font-variant-numeric: tabular-nums;
+  unicode-bidi: plaintext;
+}
+.mm-export-size-cm {
+  font-size: 10px;
+  color: #8c94a0;
+}
+.mm-export-sizes button.locked {
+  border-style: dashed;
+  color: #8c94a0;
+}
+.mm-export-sizes button.locked .mm-export-size-px {
+  color: #8c94a0;
+}
+.mm-export-quality {
+  margin-top: 12px;
+}
+dialog.mm-export-dialog p.mm-export-note {
+  margin: 14px 0 0;
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: #8c94a0;
+  white-space: normal;
+}
+dialog.mm-export-dialog p.mm-export-error {
+  margin: 10px 0 0;
+  font-size: 12px;
+  color: #f5c2b3;
+}
+.mm-export-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 18px;
+}
+dialog.mm-export-dialog .mm-export-actions .export-button {
+  flex: none;
+  width: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 16px;
+  border: 0;
+  border-radius: 7px;
+  background: #e0a458;
+  color: #1a1408;
+  font-size: 12px;
+  font-weight: 700;
+}
+.mm-export-actions .export-button:disabled {
+  opacity: 0.6;
+}
+.mm-export-actions .secondary-button {
+  padding: 9px 14px;
+  border: 1px solid #2c3138;
+  border-radius: 7px;
+  background: #22262c;
+  color: #e7e9ec;
+  font-size: 12px;
+}
+@media (max-width: 560px) {
+  .mm-export-formats {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}

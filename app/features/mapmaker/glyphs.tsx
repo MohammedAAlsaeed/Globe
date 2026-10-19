@@ -234,6 +234,13 @@ const PATHS: Record<string, React.ReactNode> = {
   folder: (
     <path d="M3 7.5A1.5 1.5 0 0 1 4.5 6h4.6l1.8 2H19.5A1.5 1.5 0 0 1 21 9.5v8A1.5 1.5 0 0 1 19.5 19h-15A1.5 1.5 0 0 1 3 17.5Z" />
   ),
+  image: (
+    <>
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+      <circle cx="8.5" cy="9.5" r="1.8" />
+      <path d="m21 16-5.2-5.2a1 1 0 0 0-1.4 0L5 20" />
+    </>
+  ),
   download: (
     <>
       <path d="M12 3v12" />

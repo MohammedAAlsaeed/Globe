@@ -1,5 +1,7 @@
 import { DEFAULT_DOCUMENT, type StudioDocument, type MapObject } from "./types";
 import { ICON_IDS } from "./icons";
+import { PAPER_IDS } from "./paper";
+import { validPoster } from "../poster/types";
 const finite = (v: unknown, min: number, max: number) =>
   typeof v === "number" && Number.isFinite(v) && v >= min && v <= max;
 const hexColor = (v: unknown) =>
@@ -94,7 +96,14 @@ export function validateDocument(value: unknown): StudioDocument {
   for (const key of ["guides", "grid", "labels"] as const)
     if (typeof g[key] !== "boolean") throw new Error("invalidProject");
   if (
-    !["A4", "A3", "Letter", "custom"].includes(p.paper) ||
+    (g.fit !== undefined && !["contain", "stretch"].includes(g.fit)) ||
+    (g.fill !== undefined && !hexColor(g.fill)) ||
+    (d.mode !== undefined && !["globe", "poster"].includes(d.mode)) ||
+    (d.poster !== undefined && !validPoster(d.poster))
+  )
+    throw new Error("invalidProject");
+  if (
+    !PAPER_IDS.includes(p.paper) ||
     !["auto", "portrait", "landscape"].includes(p.orientation) ||
     !finite(p.width, 50, 1500) ||
     !finite(p.height, 50, 1500) ||

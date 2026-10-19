@@ -8,6 +8,7 @@ import {
 } from "../../../components/ui/fields";
 import { Icon } from "../../../components/ui/ornaments";
 import type { PrintSettings } from "../domain/types";
+import { PAPER_IDS } from "../domain/paper";
 import { calibrationPdf } from "../export/pdf";
 import { validateDocument } from "../domain/validation";
 import { DEFAULT_DOCUMENT, DEFAULT_PRINT } from "../domain/types";
@@ -62,7 +63,7 @@ export function PrintControls({
             onChange({ paper: paper as PrintSettings["paper"] })
           }
         >
-          {["A4", "A3", "Letter", "custom"].map((v) => (
+          {PAPER_IDS.map((v) => (
             <option key={v} value={v}>
               {v === "custom" ? t(v) : v}
             </option>

@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import type { StudioDocument } from "../domain/types";
 import type { SourceState } from "../hooks/useSource";
 import {
+  type SourceOrigin,
   encodeProject,
   decodeProject,
   saveLocal,
@@ -14,6 +15,7 @@ import { saveBlob } from "../export/svg";
 export function ProjectToolbar({
   document: d,
   source,
+  origin,
   onName,
   onRestore,
   undo,
@@ -24,6 +26,8 @@ export function ProjectToolbar({
 }: {
   document: StudioDocument;
   source: SourceState | null;
+  /** Kept with saved projects (the way back to the editor, the sea colour). */
+  origin?: SourceOrigin | null;
   onName: (name: string) => void;
   onRestore: (p: SavedProject) => Promise<void>;
   undo: () => void;
@@ -37,7 +41,7 @@ export function ProjectToolbar({
     [busy, setBusy] = useState(false);
   const project = () => {
     if (!source) throw new Error("missingSource");
-    return { document: d, source: source.blob, filename: source.filename };
+    return { document: d, source: source.blob, filename: source.filename, origin: origin ?? undefined };
   };
   async function task(fn: () => Promise<void>) {
     setBusy(true);
