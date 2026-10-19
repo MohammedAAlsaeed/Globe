@@ -51,7 +51,8 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
     Route::patch('maps/{map}', [MapController::class, 'rename']);
     Route::delete('maps/{map}', [MapController::class, 'destroy']);
     Route::post('maps/{map}/thumbnail', MapThumbnailController::class)->middleware('throttle:uploads');
-    Route::post('maps/{map}/exports', MapExportController::class);
+    Route::post('maps/{map}/exports', [MapExportController::class, 'forMap']);
+    Route::post('exports', [MapExportController::class, 'store']);
 
     Route::get('asset-packs', [AssetPackController::class, 'index']);
     Route::post('asset-packs', [AssetPackController::class, 'store']);

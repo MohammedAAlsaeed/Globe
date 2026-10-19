@@ -169,6 +169,22 @@ class MapTest extends TestCase
         $this->assertDatabaseCount('exports', 2);
     }
 
+    public function test_exports_of_maps_kept_on_the_device_are_checked_too(): void
+    {
+        $user = User::factory()->create();
+        $this->actingAs($user);
+
+        $this->postJson('/api/v1/exports', ['width' => 4096, 'height' => 3072])
+            ->assertForbidden()->assertJsonPath('limit', 'export_px')->assertJsonPath('max', 2048);
+        $this->postJson('/api/v1/exports', ['width' => 2048, 'height' => 1536])
+            ->assertCreated()->assertJsonPath('data.plan', 'explorer');
+        $this->assertDatabaseHas('exports', ['user_id' => $user->id, 'map_id' => null, 'width' => 2048]);
+
+        // Guests have no account to check against.
+        $this->app['auth']->forgetGuards();
+        $this->postJson('/api/v1/exports', ['width' => 512, 'height' => 512])->assertUnauthorized();
+    }
+
     public function test_purging_the_trash_deletes_files(): void
     {
         $user = User::factory()->create();
