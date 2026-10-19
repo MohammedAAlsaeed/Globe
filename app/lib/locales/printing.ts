@@ -90,6 +90,8 @@ export const printingEn = {
   prQualityHigh: "About {{ppi}} PPI at this size: sharp, even up close.",
   prDownloadImage: "Download poster image",
   prPrintOpened: "The poster opened in a new tab. Print it at 100% (actual size).",
+  prPrintPreparing: "Preparing your poster for printing…",
+  prPrintDownloaded: "Your browser didn't allow a new tab, so the poster was downloaded as a PDF. Open it and print at 100% (actual size).",
   prAssembleNote: "Print every sheet at 100% with \"fit to page\" off. Trim each sheet along the red dashed line of its neighbour, then glue them in order: A1, A2… row by row.",
   prActualSize: "Print at 100% (actual size) with \"fit to page\" off.",
 };
@@ -184,6 +186,8 @@ export const printingAr: typeof printingEn = {
   prQualityHigh: "نحو {{ppi}} نقطة/بوصة بهذا المقاس: حادة حتى عن قرب.",
   prDownloadImage: "تنزيل صورة البوستر",
   prPrintOpened: "فُتح البوستر في تبويب جديد. اطبعه بمقاس 100% (الحجم الفعلي).",
+  prPrintPreparing: "جارٍ تجهيز البوستر للطباعة…",
+  prPrintDownloaded: "لم يسمح المتصفح بفتح تبويب جديد، فنُزِّل البوستر كملف PDF. افتحه واطبعه بمقاس 100% (الحجم الفعلي).",
   prAssembleNote: "اطبع كل الأوراق بمقاس 100% مع إيقاف «ملاءمة الصفحة». قصّ كل ورقة على الخط الأحمر المتقطع لجارتها، ثم ألصقها بالترتيب: A1 ثم A2… صفًا بعد صف.",
   prActualSize: "اطبع بمقاس 100% (الحجم الفعلي) مع إيقاف «ملاءمة الصفحة».",
 };

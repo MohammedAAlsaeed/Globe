@@ -1,3 +1,4 @@
+import { maxCanvasPixels } from "../../../lib/canvasLimits";
 import type { GoreAsset } from "../domain/types";
 import type { RenderRequest, RenderResponse } from "../workers/protocol";
 export function releaseAssets(assets: GoreAsset[]) {
@@ -41,6 +42,7 @@ export function renderInWorker(
         resolve(assets);
       } else fail(new Error(m.message));
     };
-    worker.postMessage(request);
+    // Workers can't tell an iPad from a Mac, so the page sends the limit.
+    worker.postMessage({ ...request, maxPixels: request.maxPixels ?? maxCanvasPixels() });
   });
 }

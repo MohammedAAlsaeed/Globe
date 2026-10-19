@@ -7,8 +7,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { SourceState } from "../hooks/useSource";
-import { posterPpi, sheetName, type PosterPlan } from "./layout";
-import { printScale, renderPoster } from "./render";
+import { sheetName, type PosterPlan } from "./layout";
+import { printScale, printedPpi, renderPoster } from "./render";
 import { posterPdf, sheetSvg } from "./sheets";
 import type { PosterSettings } from "./types";
 
@@ -21,6 +21,20 @@ function download(blob: Blob, name: string) {
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 60_000);
+}
+/** A new tab showing a short message until the PDF is ready (null if blocked). */
+function waitingTab(message: string): Window | null {
+  const tab = window.open("", "_blank");
+  if (!tab) return null;
+  try {
+    const doc = tab.document;
+    doc.title = message;
+    doc.body.style.cssText = "margin:0;min-height:100vh;display:grid;place-items:center;background:#0f1d33;color:#e9d9a8;font:16px system-ui,sans-serif";
+    doc.body.textContent = message;
+  } catch {
+    // A blank tab is fine too.
+  }
+  return tab;
 }
 const safe = (v: string) => v.trim().replace(/[\\/:*?"<>|\s]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 80) || "map";
 
@@ -86,6 +100,9 @@ export function PosterView({
 
   async function run(kind: "print" | "pdf" | "png") {
     if (!source || job) return;
+    // The print tab is opened now, while the click still counts: browsers
+    // block a tab opened after the seconds the poster takes to make.
+    const tab = kind === "print" ? waitingTab(t("prPrintPreparing")) : null;
     setJob({ stage: "preparing", progress: 0 });
     try {
       await new Promise((r) => setTimeout(r, 30));
@@ -93,28 +110,36 @@ export function PosterView({
       setJob({ stage: "assembling", progress: 0.3 });
       if (kind === "png") {
         const blob = await new Promise<Blob | null>((r) => canvas.toBlob(r, "image/png"));
-        if (blob) download(blob, `${safe(name)}-poster.png`);
+        if (!blob) throw new Error("exFailed");
+        download(blob, `${safe(name)}-poster.png`);
+        notify("jobComplete");
       } else {
         const pdf = await posterPdf(plan, s, canvas, name, (v) => setJob({ stage: "assembling", progress: 0.3 + v * 0.7 }));
-        if (kind === "pdf") download(pdf, `${safe(name)}-poster.pdf`);
-        else {
+        if (kind === "pdf") {
+          download(pdf, `${safe(name)}-poster.pdf`);
+          notify("jobComplete");
+        } else if (tab && !tab.closed) {
           // The browser's PDF viewer prints at the exact page size.
-          const url = URL.createObjectURL(pdf),
-            tab = window.open(url, "_blank");
-          if (!tab) download(pdf, `${safe(name)}-poster.pdf`);
+          const url = URL.createObjectURL(pdf);
+          tab.location.href = url;
           setTimeout(() => URL.revokeObjectURL(url), 120_000);
+          notify("prPrintOpened");
+        } else {
+          // No tab (blocked, or closed meanwhile): the PDF is downloaded instead.
+          download(pdf, `${safe(name)}-poster.pdf`);
+          notify("prPrintDownloaded");
         }
       }
       canvas.width = canvas.height = 0;
-      notify(kind === "print" ? "prPrintOpened" : "jobComplete");
     } catch (e) {
+      tab?.close();
       notify(e instanceof Error ? e.message : "errorGeneric");
     } finally {
       setJob(null);
     }
   }
 
-  const ppi = source ? posterPpi(plan, source.width) : 0,
+  const ppi = source ? printedPpi(plan, source.width) : 0,
     index = Math.min(page, Math.max(0, plan.sheets.length - 1)),
     ready = !!preview && !plan.error;
   return (

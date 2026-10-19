@@ -5,9 +5,10 @@
  * quality. The map is rendered at the chosen size, never upscaled from the
  * screen (see MapCreatorEditor → renderMapCanvas).
  */
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Glyph } from "../glyphs";
 import { Slider } from "./EditorControls";
+import { maxCanvasPixels } from "../../../lib/canvasLimits";
 import { IMAGE_FORMATS, exportSizes, printSizeCm, type ExportSize, type ImageFormat } from "../export/imageFormats";
 
 type T = (k: string, o?: Record<string, unknown>) => string;
@@ -48,7 +49,7 @@ export function ExportImageDialog({
   onClose: () => void;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
-  const sizes = exportSizes(width, height, maxPx);
+  const sizes = useMemo(() => exportSizes(width, height, maxPx, maxCanvasPixels()), [width, height, maxPx]);
   const [format, setFormat] = useState<ImageFormat>(savedFormat),
     [scale, setScale] = useState(() => (sizes.find((s) => s.scale === 1 && !s.locked) ?? sizes.filter((s) => !s.locked).at(-1) ?? sizes[0])?.scale ?? 1),
     [quality, setQuality] = useState(0.9),

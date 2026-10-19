@@ -7,17 +7,30 @@
  * The title is drawn by the browser (Amiri, which shapes Arabic properly),
  * not by the PDF library, so Arabic and English titles both print right.
  */
+import { MAX_CANVAS_SIDE, maxCanvasPixels } from "../../../lib/canvasLimits";
 import type { PosterPlan } from "./layout";
 import type { PosterSettings } from "./types";
 
 /** The largest artwork canvas (pixels): enough for 300 DPI on large posters. */
 export const MAX_POSTER_PIXELS = 90_000_000;
 
-/** Pixels per millimetre for a print: the map's own detail, at most 300 DPI. */
-export function printScale(plan: PosterPlan, sourceWidthPx: number, maxDpi = 300): number {
+/**
+ * Pixels per millimetre for a print: the map's own detail, at most 300 DPI,
+ * and never a canvas this device can't draw (an iPhone or iPad stops at
+ * about 16 MP — see lib/canvasLimits).
+ */
+export function printScale(plan: PosterPlan, sourceWidthPx: number, maxDpi = 300, maxPixels = Math.min(MAX_POSTER_PIXELS, maxCanvasPixels())): number {
   const native = plan.artwork.map.width > 0 ? sourceWidthPx / plan.artwork.map.width : maxDpi / 25.4,
-    byPixels = Math.sqrt(MAX_POSTER_PIXELS / Math.max(1, plan.canvas.width * plan.canvas.height));
-  return Math.max(0.5, Math.min(maxDpi / 25.4, native, byPixels));
+    byPixels = Math.sqrt(maxPixels / Math.max(1, plan.canvas.width * plan.canvas.height)),
+    bySide = MAX_CANVAS_SIDE / Math.max(1, plan.canvas.width, plan.canvas.height);
+  return Math.min(Math.max(0.5, Math.min(maxDpi / 25.4, native)), byPixels, bySide);
+}
+
+/** The map's detail as printed (PPI): its own pixels, at most 300, or fewer where the canvas is capped. */
+export function printedPpi(plan: PosterPlan, sourceWidthPx: number, maxPixels?: number): number {
+  if (!(plan.artwork.map.width > 0)) return 0;
+  const native = sourceWidthPx / (plan.artwork.map.width / 25.4);
+  return Math.min(native, printScale(plan, sourceWidthPx, 300, maxPixels) * 25.4);
 }
 
 const ARABIC = /[؀-ۿ]/;

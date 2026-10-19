@@ -7,6 +7,8 @@ export interface RenderRequest {
   mode: "gores" | "panorama";
   preview: boolean;
   indices?: number[];
+  /** The largest canvas this device draws (pixels; see lib/canvasLimits). */
+  maxPixels?: number;
 }
 export type RenderResponse =
   | { type: "progress"; value: number }

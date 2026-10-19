@@ -144,9 +144,7 @@ const HINT_KEY: Record<Tool, string> = {
 // Local, editor-only constants/types. Shared, reusable pieces (the object
 // model, resolution/aspect presets, storage, the small toolbar widgets) live
 // in ./types.ts, ./domain.ts, ./storage.ts and ./components/EditorControls —
-// this file is the standalone editor's own page-level orchestration, the
-// same way features/studio/components/MapEditor.tsx stays one big component
-// for the embedded editor rather than being split further.
+// this file is the editor's own page-level orchestration.
 // ---------------------------------------------------------------------------
 // -----------------------------------------------------------------------------
 // Drawing limits & tuning

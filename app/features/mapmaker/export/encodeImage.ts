@@ -34,10 +34,12 @@ export async function encodeMapImage(
       const pdf = await PDFDocument.create();
       pdf.setTitle(title);
       pdf.setCreator("Al-Idrisi Atelier");
-      const png = await pdf.embedPng(await (await toBlob(canvas, "image/png")).arrayBuffer()),
+      // Compressed natively, a strip at a time: a big map no longer freezes the page.
+      const { embedPixels, canvasPixels } = await import("../../../lib/pdfImage");
+      const image = await embedPixels(pdf, canvasPixels(canvas)),
         w = (canvas.width / dpi) * 72,
         h = (canvas.height / dpi) * 72;
-      pdf.addPage([w, h]).drawImage(png, { x: 0, y: 0, width: w, height: h });
+      image.draw(pdf.addPage([w, h]), { x: 0, y: 0, width: w, height: h });
       return new Blob([new Uint8Array(await pdf.save())], { type: "application/pdf" });
     }
   }

@@ -85,7 +85,7 @@ export const studioEn = {
   pageLimit:
     "This setup needs more than 250 pages. Use larger paper or a smaller globe.",
   pieceLimit:
-    "A gore exceeds the safe image size. Lower the DPI or increase the gore count.",
+    "A gore is larger than this device can draw. Lower the DPI or increase the gore count.",
   totalLimit:
     "This job exceeds the 240-megapixel processing budget. Lower the DPI or globe size.",
   workerUnsupported:
