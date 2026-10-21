@@ -53,6 +53,8 @@ export interface LoadedFace {
   fonts: Map<number, HB.Font>;
   /** The browser's name for it (FontFace), for the inline editor. */
   cssFamily: string;
+  /** The file itself (for fonts embedded in exports, see ./subset). */
+  bytes: ArrayBuffer;
 }
 
 const faces = new Map<string, LoadedFace>();
@@ -141,6 +143,7 @@ export function loadFile(path: string): Promise<LoadedFace | null> {
           wghtAxis: w ? [w.min, w.default, w.max] : null,
           fonts: new Map(),
           cssFamily: cssFamilyOf(owner.def.id),
+          bytes,
         };
         faces.set(path, loaded);
         registerCss(loaded, bytes);

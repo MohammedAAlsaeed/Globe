@@ -89,6 +89,8 @@ export interface PlacedGlyph {
   line: number;
 }
 export interface LaidLine {
+  /** The line's letters as shaped (capitals and kashida applied); clusters index into it. */
+  text: string;
   glyphs: PlacedGlyph[];
   width: number;
   /** Left edge of the line (em, from the anchor). */
@@ -344,7 +346,7 @@ function itemize(
     faceAt[i] = firstFace;
   }
   const runs: Run[] = [];
-  for (let i = 0; i < n;) {
+  for (let i = 0; i < n; ) {
     let j = i + 1;
     while (
       j < n &&
@@ -516,7 +518,7 @@ function visualOrder<T extends { level: number }>(runs: T[]): T[] {
       Infinity,
     );
   for (let lvl = max; lvl >= minOdd && lvl > 0; lvl--) {
-    for (let i = 0; i < out.length;) {
+    for (let i = 0; i < out.length; ) {
       if (out[i].level < lvl) {
         i++;
         continue;
@@ -698,6 +700,7 @@ export function shapeText(
   const src = prepared(text, look);
   const dir = look.direction === "auto" ? "auto" : look.direction;
   const drafts: LineDraft[] = [];
+  const lineTexts: string[] = [];
   for (const para of src.split("\n")) {
     const pieces = boxWidthEm
       ? wrap(para, look, dir, boxWidthEm, report)
@@ -710,8 +713,10 @@ export function shapeText(
           ? "rtl"
           : "ltr"
         : dir;
-    for (const piece of pieces)
+    for (const piece of pieces) {
       drafts.push(shapeLine(piece, look, paraDir, drafts.length, report));
+      lineTexts.push(piece);
+    }
     if (report.pending) break;
   }
   if (report.pending) {
@@ -759,6 +764,7 @@ export function shapeText(
       pen += r.width;
     }
     lines.push({
+      text: lineTexts[i],
       glyphs,
       width: d.width,
       x0: 0,

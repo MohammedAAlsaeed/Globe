@@ -128,6 +128,7 @@ import {
   encodeSvg,
   encodeVectorPdf,
   isVectorText,
+  prepareTextExport,
   type MapPart,
   type TextExportMode,
 } from "./export/vectorExport";
@@ -650,7 +651,8 @@ export function MapCreatorEditor({
     : undefined;
   const editedLine =
     (editedLayer?.objects.find((o) => o.id === nodeEditState?.id) as
-      MMLine | undefined) ?? null;
+      | MMLine
+      | undefined) ?? null;
   const nodeEditing =
     !!editedLine &&
     !!editedLayer &&
@@ -2476,7 +2478,8 @@ export function MapCreatorEditor({
         // Stamps drawn from art sized for the picture, not the screen.
         if (o.kind === "stamp") {
           const img = (node as Konva.Group).findOne(`.${STAMP_IMAGE}`) as
-              Konva.Image | undefined,
+              | Konva.Image
+              | undefined,
             hi = stampPicture(o, o.size * W * k, W, H);
           if (img && hi) {
             const old = img.image();
@@ -3760,6 +3763,7 @@ export function MapCreatorEditor({
     size: ExportSize,
     quality: number,
     textMode: TextExportMode = "outlines",
+    embedFonts = true,
   ) {
     const stage = stageRef.current;
     if (!stage) throw new Error("noStage");
@@ -3785,6 +3789,17 @@ export function MapCreatorEditor({
     if (format === "svg" || format === "pdf") {
       // Texts as vectors (sharp at any size), the rest as pictures between them.
       await ensureTextFonts();
+      // East Asian letters drawn by the browser: their outlines, from the same web fonts.
+      await prepareTextExport(
+        project.layers
+          .filter((l) => l.visible)
+          .flatMap((l) =>
+            l.objects.filter(
+              (o): o is MMText => o.kind === "text" && !o.hidden,
+            ),
+          ),
+        size.height / size.width,
+      ).catch(() => {});
       const parts = await renderMapParts(stage, size.scale, (o) =>
         isVectorText(o, size.height / size.width),
       );
@@ -3794,6 +3809,7 @@ export function MapCreatorEditor({
             ? await encodeSvg(parts, size.width, size.height, {
                 title,
                 mode: textMode,
+                embedFonts,
               })
             : await encodeVectorPdf(parts, size.width, size.height, {
                 title,

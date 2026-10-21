@@ -89,7 +89,8 @@ final class LineRules
                 }
             }
         }
-        if (array_key_exists('name', $line) && ! (is_string($line['name']) && mb_strlen($line['name']) <= 80)) {
+        // An empty name arrives as null (requests turn "" into null).
+        if (array_key_exists('name', $line) && ! ($line['name'] === null || (is_string($line['name']) && mb_strlen($line['name']) <= 80))) {
             return 'A line name is at most 80 characters.';
         }
         if (array_key_exists('styleId', $line) && ! ($line['styleId'] === null || (is_string($line['styleId']) && strlen($line['styleId']) <= 64))) {

@@ -50,6 +50,19 @@ class TextStyleTest extends TestCase
         $this->assertDatabaseCount('text_styles', 0);
     }
 
+    public function test_a_look_comes_back_as_the_editor_sent_it(): void
+    {
+        // Requests turn "" into null, and PHP can't tell {} from []: the
+        // editor must get back an empty language and an empty features object.
+        $user = User::factory()->create();
+        $this->actingAs($user)->postJson('/api/v1/text-styles', ['name' => 'Plain', 'look' => self::look(['lang' => '', 'features' => new \stdClass])])
+            ->assertCreated()
+            ->assertJsonPath('data.look.lang', '');
+        $raw = $this->getJson('/api/v1/text-styles')->assertOk()->getContent();
+        $this->assertStringContainsString('"features":{}', $raw);
+        $this->assertStringContainsString('"lang":""', $raw);
+    }
+
     public function test_the_plan_caps_text_styles_and_a_downgrade_deletes_nothing(): void
     {
         $user = User::factory()->create();

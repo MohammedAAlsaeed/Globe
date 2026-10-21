@@ -561,8 +561,7 @@
   align-items: flex-start;
   justify-content: center;
   padding: 24px;
-  background:
-    linear-gradient(45deg, #1a1d21 25%, transparent 25%),
+  background: linear-gradient(45deg, #1a1d21 25%, transparent 25%),
     linear-gradient(-45deg, #1a1d21 25%, transparent 25%),
     linear-gradient(45deg, transparent 75%, #1a1d21 75%),
     linear-gradient(-45deg, transparent 75%, #1a1d21 75%);
@@ -2083,6 +2082,16 @@ dialog.mm-export-dialog .mm-export-head p {
   display: grid;
   grid-template-columns: repeat(6, 1fr);
   gap: 6px;
+}
+.mm-export-embed {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 8px;
+}
+.mm-export-embed small {
+  font-size: 11px;
+  color: #8c94a0;
 }
 .mm-export-formats.mm-export-textmode {
   grid-template-columns: repeat(2, 1fr);

@@ -4,6 +4,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   editParts,
   firstNumber,
@@ -99,7 +100,7 @@ function sources(dir) {
 }
 
 test("every slider can be typed into and reset", () => {
-  const files = sources(new URL("../features", import.meta.url).pathname);
+  const files = sources(fileURLToPath(new URL("../features", import.meta.url)));
   for (const file of files) {
     const src = readFileSync(file, "utf8");
     for (const m of src.matchAll(/<(Slider|RangeField)\b([\s\S]*?)\/>/g))
@@ -121,8 +122,9 @@ test("every slider can be typed into and reset", () => {
 });
 
 test("brush resets return to the brush it started from", async () => {
-  const { brushBase, applyPreset, DEFAULT_BRUSH_STATE } =
-    await import("../features/mapmaker/brush/state.ts");
+  const { brushBase, applyPreset, DEFAULT_BRUSH_STATE } = await import(
+    "../features/mapmaker/brush/state.ts"
+  );
   const { PRESETS } = await import("../features/mapmaker/brush/presets.ts");
   const soft = PRESETS.find((p) => p.id === "soft-round") ?? PRESETS[1];
   // Pick a preset, then edit it: the edit clears presetId but keeps the base.
@@ -160,8 +162,9 @@ test("brush resets return to the brush it started from", async () => {
 });
 
 test("coast resets return to the style it was edited from", async () => {
-  const { coastBase, coastStyle } =
-    await import("../features/mapmaker/brush/coastStyles.ts");
+  const { coastBase, coastStyle } = await import(
+    "../features/mapmaker/brush/coastStyles.ts"
+  );
   const tropical = coastStyle("tropical");
   const edited = {
     ...tropical,
