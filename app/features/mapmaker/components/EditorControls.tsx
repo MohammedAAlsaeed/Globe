@@ -8,10 +8,9 @@ import { useId, type ReactNode } from "react";
 import { ResetButton, ValueEditor } from "@/components/ui/ValueEditor";
 import { Glyph } from "../glyphs";
 import { shortcutLabel } from "../shortcuts";
-import { ARABIC_RANGE, TOOL_DEFAULTS } from "../domain";
+import { TOOL_DEFAULTS } from "../domain";
 import { DEFAULT_BRUSH } from "../brush/presets";
-import type { LabelAlign, MMObject, MMPatch } from "../types";
-import {SelectField} from "@/components/ui/fields";
+import type { MMObject, MMPatch } from "../types";
 
 /** A collapsible group of settings in a tool panel. */
 export function Section({
@@ -153,28 +152,6 @@ export function ObjectQuickBar({
 }) {
   return (
     <div className="mm-quickbar">
-      {obj.kind === "label" && (
-        <>
-          <input
-            className="mm-inline-text"
-            value={obj.text}
-            dir={obj.rtl ? "rtl" : "ltr"}
-            onChange={(e) => {
-              const text = e.target.value,
-                rtl = ARABIC_RANGE.test(text);
-              onPatch(rtl !== obj.rtl ? { text, rtl } : { text });
-            }}
-          />
-          <ColorControl color={obj.color} recents={[]} onChange={(v) => onPatch({ color: v })} label={t("mmColor")} recentLabel="" />
-          <Slider label={t("mmLabelSize")} defaultValue={TOOL_DEFAULTS.labelSize} value={obj.size} min={0.01} max={0.1} step={0.005} onChange={(v) => onPatch({ size: v })} />
-          <Slider label={t("mmIconRotation")} defaultValue={0} value={obj.rotation ?? 0} min={-180} max={180} step={1} onChange={(v) => onPatch({ rotation: v })} format={(v) => `${v}°`} />
-          <SelectField label={t("mmLabelAlign")} value={obj.align} onChange={(v) => onPatch({ align: v as LabelAlign })}>
-            <option value="start">{t("mmAlignStart")}</option>
-            <option value="center">{t("mmAlignCenter")}</option>
-            <option value="end">{t("mmAlignEnd")}</option>
-          </SelectField>
-        </>
-      )}
       {obj.kind === "line" && lineActions && (
         <div className="button-row">
           <button className={`secondary-button ${lineActions.editingNodes ? "active" : ""}`} aria-pressed={lineActions.editingNodes} onClick={lineActions.onEditNodes} title={t("lnEditNodesHint", { key: shortcutLabel("line.editNodes") })}>

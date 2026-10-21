@@ -16,10 +16,23 @@ import { mapmakerEn } from "../lib/locales/mapmaker.en.ts";
 import { mapmakerAr } from "../lib/locales/mapmaker.ar.ts";
 import { linesEn, linesAr } from "../lib/locales/lines.ts";
 import { shortcutsEn, shortcutsAr } from "../lib/locales/shortcuts.ts";
+import { textEn } from "../lib/locales/text.ts";
 import { en } from "../lib/locales/en.ts";
 
 const key = (code, mods = {}) => ({ code, ctrlKey: false, metaKey: false, shiftKey: false, altKey: false, ...mods });
 const defaults = resolveBindings();
+
+test("the Text Tool's keys: T text, V select, Ctrl+A, arrows (Shift: 10 px)", () => {
+  assert.ok(pressed(key("KeyT"), "tool.text", defaults));
+  assert.ok(pressed(key("KeyV"), "tool.select", defaults));
+  assert.ok(!pressed(key("KeyV", { ctrlKey: true }), "tool.select", defaults));
+  assert.ok(pressed(key("KeyA", { ctrlKey: true }), "edit.selectAll", defaults));
+  assert.ok(!pressed(key("KeyA", { ctrlKey: true }), "line.editNodes", defaults));
+  assert.ok(pressed(key("ArrowLeft"), "edit.nudgeLeft", defaults));
+  assert.ok(pressed(key("ArrowLeft", { shiftKey: true }), "edit.nudgeLeft", defaults));
+  assert.ok(pressed(key("Enter", { ctrlKey: true }), "text.finish", defaults));
+  assert.ok(!pressed(key("Enter", { ctrlKey: true }), "text.edit", defaults));
+});
 
 test("the default keys: N line, L land, A edit nodes", () => {
   assert.ok(pressed(key("KeyN"), "tool.line", defaults));
@@ -87,13 +100,15 @@ test("labels follow the platform and leave out number-pad twins", () => {
   assert.equal(formatBinding("Mod+Shift+KeyZ", true), "⇧⌘Z");
   assert.equal(formatBinding("BracketRight", false), "]");
   assert.equal(shortcutLabels("tool.line", defaults), "N / 5");
-  assert.equal(shortcutLabels("tool.select", defaults), "1");
+  assert.equal(shortcutLabels("tool.select", defaults), "V / 1");
+  assert.equal(shortcutLabels("tool.text", defaults), "T / 7");
+  assert.equal(formatBinding("ArrowLeft", false), "←");
   assert.equal(shortcutLabels("line.wider", defaults), "+ / ]");
   assert.equal(shortcutLabel("line.editNodes", defaults), "A");
 });
 
 test("every action has a name, and texts name keys only through placeholders", () => {
-  const all = { ...en, ...mapmakerEn, ...linesEn, ...shortcutsEn };
+  const all = { ...en, ...mapmakerEn, ...linesEn, ...shortcutsEn, ...textEn };
   for (const s of SHORTCUTS) assert.ok(all[s.labelKey] || s.labelKey === "undo" || s.labelKey === "redo", `${s.id}: ${s.labelKey}`);
   for (const g of new Set(SHORTCUTS.map((s) => s.group))) assert.ok(shortcutsEn[`kbGroup_${g}`] && shortcutsAr[`kbGroup_${g}`]);
   for (const dict of [mapmakerEn, mapmakerAr, linesEn, linesAr]) {

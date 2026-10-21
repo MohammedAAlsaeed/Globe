@@ -42,6 +42,9 @@ export async function encodeMapImage(
       image.draw(pdf.addPage([w, h]), { x: 0, y: 0, width: w, height: h });
       return new Blob([new Uint8Array(await pdf.save())], { type: "application/pdf" });
     }
+    case "svg":
+      // Made from the map's parts (./vectorExport), not from one picture.
+      throw new Error("svgNeedsParts");
   }
 }
 

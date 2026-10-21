@@ -7,6 +7,7 @@ use App\Models\Asset;
 use App\Models\AssetPack;
 use App\Models\LineStyle;
 use App\Models\Plan;
+use App\Models\TextStyle;
 use App\Models\User;
 
 /**
@@ -28,7 +29,7 @@ class Entitlements
             ->first()?->plan ?? Plan::default();
     }
 
-    /** @return array{maps: int, upload_bytes: int, line_styles: int} */
+    /** @return array{maps: int, upload_bytes: int, line_styles: int, text_styles: int} */
     public function usage(User $user): array
     {
         return [
@@ -37,6 +38,7 @@ class Entitlements
                 ->whereIn('pack_id', $user->assetPacks()->select('id'))
                 ->sum('bytes'),
             'line_styles' => $user->lineStyles()->count(),
+            'text_styles' => $user->textStyles()->count(),
         ];
     }
 
@@ -79,6 +81,25 @@ class Entitlements
         if ($max !== null && $user->lineStyles()->count() >= $max) {
             throw ApiException::planLimit('line_styles', $max, $plan->code);
         }
+    }
+
+    /**
+     * Own text styles are capped per plan, like line styles: official ones
+     * never count, and a downgrade deletes nothing — only saving more is blocked.
+     */
+    public function ensureCanSaveTextStyle(User $user): void
+    {
+        $plan = $this->plan($user);
+        $max = $plan->max_text_styles;
+        if ($max !== null && $user->textStyles()->count() >= $max) {
+            throw ApiException::planLimit('text_styles', $max, $plan->code);
+        }
+    }
+
+    /** Whether the user may use a text style's look (own styles always; admins all). */
+    public function canUseTextStyle(User $user, TextStyle $style): bool
+    {
+        return $style->owner_id === $user->id || $user->isAdmin() || $style->tier <= $this->plan($user)->tier;
     }
 
     /** Whether the user may use a style's look (own styles always; admins all). */

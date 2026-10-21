@@ -22,8 +22,11 @@ type Handlers = {
   draggable: boolean;
   onClick: (e: Konva.KonvaEventObject<MouseEvent>) => void;
   onTap: () => void;
-  onDragStart: () => void;
+  onPointerDown?: (e: Konva.KonvaEventObject<PointerEvent>) => void;
+  onDragStart: (e: Konva.KonvaEventObject<DragEvent>) => void;
+  onDragMove?: (e: Konva.KonvaEventObject<DragEvent>) => void;
   onDragEnd: (e: Konva.KonvaEventObject<DragEvent>) => void;
+  onTransform?: (e: Konva.KonvaEventObject<Event>) => void;
   onTransformEnd: (e: Konva.KonvaEventObject<Event>) => void;
 };
 

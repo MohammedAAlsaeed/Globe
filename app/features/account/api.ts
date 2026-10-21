@@ -2,8 +2,8 @@
  * Typed calls to the API: accounts, maps and the asset library. Components use these, never
  * `api` directly, so every endpoint has one place that knows its shape.
  */
-import type { LineLook, MMProject } from "../mapmaker/types";
-import type { Asset, AssetPack, CloudMap, LineStyleRecord, Plan, User } from "./types";
+import type { LineLook, MMProject, TextLook } from "../mapmaker/types";
+import type { Asset, AssetPack, CloudMap, LineStyleRecord, Plan, TextStyleRecord, User } from "./types";
 import {api, API_URL} from "@/lib/api/client";
 
 type One<T> = { data: T };
@@ -140,4 +140,15 @@ export const lineStyles = {
   update: (id: string, patch: { name?: string; look?: LineLook; tier?: number; published?: boolean; sort?: number }) =>
     api.patch<One<LineStyleRecord>>(`line-styles/${id}`, patch).then((r) => r.data),
   remove: (id: string) => api.delete<void>(`line-styles/${id}`),
+};
+
+// ---- Text Tool styles ----------------------------------------------------------------
+export const textStyles = {
+  /** The person's own text styles and the official ones, with their plan limit. */
+  list: () => api.get<{ data: TextStyleRecord[]; limits: { count: number; max: number | null } }>("text-styles"),
+  create: (input: { name: string; look: TextLook; official?: boolean; tier?: number; published?: boolean }) =>
+    api.post<One<TextStyleRecord>>("text-styles", input).then((r) => r.data),
+  update: (id: string, patch: { name?: string; look?: TextLook; tier?: number; published?: boolean; sort?: number }) =>
+    api.patch<One<TextStyleRecord>>(`text-styles/${id}`, patch).then((r) => r.data),
+  remove: (id: string) => api.delete<void>(`text-styles/${id}`),
 };

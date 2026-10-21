@@ -12,6 +12,7 @@ import { TEXTURE_IDS } from "./brush/textures";
 import { TIP_LIST } from "./brush/tips";
 import type { MMLayer, MMObject, MMProject } from "./types";
 import { validLine } from "./lines/validate";
+import { validText } from "./text/validate";
 
 const finite = (v: unknown, min: number, max: number) =>
   typeof v === "number" && Number.isFinite(v) && v >= min && v <= max;
@@ -284,6 +285,8 @@ function validObject(o: unknown): o is MMObject {
       finite(obj.textureScale, 0.1, 8) &&
       finite(obj.textureRotation, -3600, 3600)
     );
+  if (obj.kind === "text") return validText(obj);
+  // Legacy labels (converted to texts when the map is opened).
   if (obj.kind === "label")
     return (
       typeof obj.text === "string" &&

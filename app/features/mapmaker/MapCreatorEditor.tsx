@@ -11,7 +11,6 @@ import {
   Layer,
   Rect,
   Line,
-  Text as KonvaText,
   Circle,
   Group,
   Image as KonvaImage,
@@ -59,7 +58,6 @@ import { fitTrail, reverseNodes, shiftNodes, snapAngle, transformNodes, type Lin
 import { lineAssetKeys, lineSet, lineSetLabel } from "./lines/catalog";
 import { useLineLibrary } from "./lines/remote";
 import {
-  ARABIC_RANGE,
   BIOME_LABEL_KEY,
   BIOME_LIST,
   createLayer,
@@ -68,7 +66,7 @@ import {
   TOOL_DEFAULTS,
 } from "./domain";
 import { useHistory } from "./hooks/useHistory";
-import { ColorControl, MenuHint, MenuRow, MultiSelectionBar, ObjectQuickBar, Slider } from "./components/EditorControls";
+import { MenuHint, MenuRow, MultiSelectionBar, ObjectQuickBar, Slider } from "./components/EditorControls";
 import { EditTarget } from "./components/EditTarget";
 import { deleteProject, exportProjectToFile, saveProject } from "./storage";
 import { useCloudSync } from "./cloud/useCloudSync";
@@ -78,6 +76,7 @@ import { GUEST_LIMITS } from "../account/types";
 import { ExportImageDialog } from "./components/ExportImageDialog";
 import { IMAGE_FORMATS, fileName, type ExportSize, type ImageFormat } from "./export/imageFormats";
 import { downloadBlob, encodeMapImage } from "./export/encodeImage";
+import { encodeSvg, encodeVectorPdf, isVectorText, type MapPart, type TextExportMode } from "./export/vectorExport";
 import { pressed, shortcutLabel, shortcutLabels, useShortcuts, type ShortcutId } from "./shortcuts";
 import { maps } from "../account/api";
 import { useAuth } from "../account/AuthProvider";
@@ -85,13 +84,11 @@ import { saveHandoff } from "../studio/storage/projects";
 import { DEFAULT_DOCUMENT } from "../studio/domain/types";
 import type {
   Biome,
-  LabelAlign,
   CloudBinding,
   CoastEffect,
   LandMode,
   LayerRole,
   MMBrush,
-  MMLabel,
   MMLand,
   MMLayer,
   MMLine,
@@ -105,14 +102,25 @@ import type {
   PaintSource,
   Point,
   MMStamp,
+  MMText,
+  TextLook,
 } from "./types";
-import {SelectField} from "@/components/ui/fields";
 import {ApiError} from "@/lib/api/client";
 import { setOfAsset, stampSet } from "./stamps/catalog";
 import { clearLibrary, loadLibrary, resolvePlaced } from "./stamps/remote";
 import { uploadStamps } from "./stamps/upload";
 import { errorMessage } from "../account/ui";
-import { migrateProject } from "./stamps/migrate";
+import { measureGeorgia, migrateObject, migrateProject } from "./stamps/migrate";
+import { MapTextNode } from "./text/TextShape";
+import { TextPanel } from "./text/TextPanel";
+import { InlineTextEditor } from "./text/InlineTextEditor";
+import { BUILTIN_TEXT_STYLES, DEFAULT_TEXT_PATH, baseTextLook, loadTextTool, lookOfText, makeText, saveTextTool, type TextToolState } from "./text/state";
+import { useTextLibrary } from "./text/remote";
+import { validLook as validTextLook } from "./text/validate";
+import { attachTo, defaultTextPath, followStamps, pathMiddle, remapAttachments, shiftText, textAlongLine, textTitle } from "./text/objects";
+import { shapeText, neededFiles } from "./text/shape";
+import { loadFile, loadHarfBuzz, loadWebFont } from "./text/fontStore";
+import { flatten } from "./lines/geometry";
 import { STAMP_IMAGE, StampNode } from "./stamps/StampNode";
 import { repivot } from "./stamps/geometry";
 import { LayerStampSettings } from "./stamps/LayerStampSettings";
@@ -121,7 +129,7 @@ import { StampPanel, setLabel } from "./stamps/StampPanel";
 import { resolveShadow, stampCompositeOp, stampPicture } from "./stamps/render";
 import { Scatter, factoryLook as stampFactoryLook, loadStampState, lookOf, makeStamp, saveStampState, selectSet, type StampLook, type StampToolState } from "./stamps/state";
 
-type Tool = "select" | "brush" | "land" | "stamp" | "line" | "region" | "label";
+type Tool = "select" | "brush" | "land" | "stamp" | "line" | "region" | "text";
 const TOOLS: { key: Tool; labelKey: string }[] = [
   { key: "select", labelKey: "mmToolSelect" },
   { key: "brush", labelKey: "mmToolBrush" },
@@ -129,7 +137,7 @@ const TOOLS: { key: Tool; labelKey: string }[] = [
   { key: "stamp", labelKey: "mmToolStamp" },
   { key: "line", labelKey: "mmToolLine" },
   { key: "region", labelKey: "mmToolRegion" },
-  { key: "label", labelKey: "mmToolLabel" },
+  { key: "text", labelKey: "mmToolText" },
 ];
 const HINT_KEY: Record<Tool, string> = {
   select: "mmShortcutHintSelect",
@@ -138,7 +146,7 @@ const HINT_KEY: Record<Tool, string> = {
   stamp: "mmShortcutHintStamp",
   line: "lnHintPen",
   region: "mmShortcutHintRegion",
-  label: "mmShortcutHintLabel",
+  text: "txHintTool",
 };
 // ---------------------------------------------------------------------------
 // Local, editor-only constants/types. Shared, reusable pieces (the object
@@ -159,11 +167,10 @@ const MAX_LAYERS = 20,
   /** Display width that stroke softness and texture sizes were tuned at. Both
    * are scaled by `W / EFFECT_REF_WIDTH`, so they stay proportional to the
    * map at every zoom level and in the full-resolution print export. */
-  EFFECT_REF_WIDTH = 900,
-  LABEL_FONT = 'Georgia, "Times New Roman", serif';
+  EFFECT_REF_WIDTH = 900;
 
 type StrokeDraft = Omit<MMBrush, "points">;
-type ObjUpdater = (o: MMObject) => MMPatch | Partial<MMStamp> | Partial<MMLine>;
+type ObjUpdater = (o: MMObject) => MMPatch | Partial<MMStamp> | Partial<MMLine> | Partial<MMText>;
 type StagePoint = { x: number; y: number };
 /** Drawing on a land layer: its base texture and its current land coverage
  * (null while it has no land) — texture previews are clipped to the land. */
@@ -299,34 +306,6 @@ function regionFill(biome: Biome, textureScale: number, textureRotation: number,
   };
 }
 
-let measureCtx: CanvasRenderingContext2D | null = null;
-/** Width (canvas px) of a label's widest line at the given font size. */
-function measureLabel(text: string, fontSize: number) {
-  measureCtx ??= document.createElement("canvas").getContext("2d");
-  if (!measureCtx) return 0;
-  measureCtx.font = `${fontSize}px ${LABEL_FONT}`;
-  let max = 0;
-  for (const line of text.split("\n")) max = Math.max(max, measureCtx.measureText(line).width);
-  return max;
-}
-/** Logical start/end → physical side, honouring the label's direction. */
-function physicalAlign(o: Pick<MMLabel, "align" | "rtl">): "left" | "center" | "right" {
-  if (o.align === "center") return "center";
-  return (o.align === "end") !== o.rtl ? "right" : "left";
-}
-/** Konva only aligns text inside an explicit width, so labels get a measured
- * block width, and `offsetX` turns the label's (x, y) into a true anchor:
- * left edge for start, middle for center, right edge for end (mirrored for
- * RTL). Labels saved before anchoring existed (`anchored` unset) keep their
- * original top-left placement, so existing maps never shift. */
-function labelLayout(o: MMLabel, W: number) {
-  const fontSize = Math.max(1, o.size * W),
-    width = Math.ceil(measureLabel(o.text, fontSize)) + 1,
-    align = physicalAlign(o),
-    offsetX = !o.anchored ? 0 : align === "center" ? width / 2 : align === "right" ? width : 0;
-  return { fontSize, width, align, offsetX };
-}
-
 // =============================================================================
 // The standalone map-creator page/editor
 // =============================================================================
@@ -344,11 +323,16 @@ export function MapCreatorEditor({
 
   // ---- Project state (undo/redo history) ----------------------------------
   // Maps saved before the Stamp Tool open with their icons as stamps.
-  const [migratedInitial] = useState(() => migrateProject(initial));
+  const [migratedInitial] = useState(() => migrateProject(initial, measureGeorgia));
   /** The preview that follows the pointer while placing stamps. */
   const stampGhostRef = useRef<Konva.Group>(null);
-  const { project, updateProject, undo, redo, canUndo, canRedo } = useHistory(migratedInitial);
-  const setProject = updateProject;
+  const { project, updateProject, undo, redo, seal, canUndo, canRedo } = useHistory(migratedInitial);
+  /** Every change goes through here: texts attached to a stamp follow it.
+   * `coalesce` merges changes with the same key into one undo step. */
+  const setProject = useCallback(
+    (updater: (p: MMProject) => MMProject, coalesce?: string) => updateProject((p) => followStamps(p, updater(p)), coalesce),
+    [updateProject],
+  );
   /** Each map layer's Konva layer (its own canvas), for layer blend modes. */
   const konvaLayersRef = useRef(new Map<string, Konva.Layer>());
   /** A Konva layer's blend mode, as a canvas composite operation. */
@@ -380,8 +364,7 @@ export function MapCreatorEditor({
   const [zoom, setZoom] = useState(1);
   const [fitWidth, setFitWidth] = useState(900);
 
-  const [color, setColor] = useState("#e7dcb8"),
-    [recentColors, setRecentColors] = useState<string[]>([]),
+  const [recentColors, setRecentColors] = useState<string[]>([]),
     [stampTool, setStampTool] = useState<StampToolState>(loadStampState),
     /** Multiple placement in progress: the stamps dropped so far. */
     [scatterDraft, setScatterDraft] = useState<MMStamp[] | null>(null),
@@ -394,12 +377,20 @@ export function MapCreatorEditor({
     [biome, setBiome] = useState<Biome>("forest"),
     [textureScale, setTextureScale] = useState<number>(TOOL_DEFAULTS.textureScale),
     [textureRotation, setTextureRotation] = useState<number>(TOOL_DEFAULTS.textureRotation),
-    [fillOpacity, setFillOpacity] = useState<number>(TOOL_DEFAULTS.fillOpacity),
-    [labelSize, setLabelSize] = useState<number>(TOOL_DEFAULTS.labelSize),
-    [labelAlign, setLabelAlign] = useState<LabelAlign>("start"),
-    [labelRtl, setLabelRtl] = useState(false),
-    [labelText, setLabelText] = useState(""),
-    [labelDraft, setLabelDraft] = useState<Point | null>(null);
+    [fillOpacity, setFillOpacity] = useState<number>(TOOL_DEFAULTS.fillOpacity);
+  // ---- Text Tool state ----
+  /** The look the next text gets; remembered per browser. */
+  const [textTool, setTextTool] = useState<TextToolState>(loadTextTool),
+    /** Typing on the map: the text (null until its first letter makes it) and where. */
+    [textEdit, setTextEdit] = useState<{ id: string | null; x: number; y: number; draft: string } | null>(null),
+    /** A text waiting for a click on a stamp to follow. */
+    [attachPick, setAttachPick] = useState<string | null>(null),
+    /** Reshaping the path under a text. */
+    [pathEdit, setPathEdit] = useState<{ id: string; sel: number[] } | null>(null),
+    /** Shift held (rotation snaps to 15°). */
+    [shiftDown, setShiftDown] = useState(false),
+    /** The value shown by the pointer while moving, turning or resizing. */
+    [gestureInfo, setGestureInfo] = useState<{ x: number; y: number; text: string } | null>(null);
   const [regionDraft, setRegionDraft] = useState<Point[] | null>(null);
   // ---- Brush Tool 2.0 state ----
   /** Everything the Brush panel edits; remembered per browser. */
@@ -670,14 +661,12 @@ export function MapCreatorEditor({
       stage = stageRef.current;
     if (!tr || !stage) return;
     const handleIds = selectedObjs.filter((o) => o.kind !== "paint" && o.kind !== "land" && !o.locked && !o.hidden).map((o) => o.id);
-    const nodes =
-      tool === "select" && selectionEditable && !nodeEdit
-        ? handleIds.map((id) => findNode(stage, id)).filter((n): n is Konva.Node => !!n)
-        : [];
+    const handles = (tool === "select" || (tool === "text" && selectedObjs.every((o) => o.kind === "text"))) && selectionEditable && !nodeEdit && !pathEdit && !textEdit;
+    const nodes = handles ? handleIds.map((id) => findNode(stage, id)).filter((n): n is Konva.Node => !!n) : [];
     tr.nodes(nodes);
     tr.getLayer()?.batchDraw();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tool, selectedIds, project, selectionEditable, nodeEdit]);
+  }, [tool, selectedIds, project, selectionEditable, nodeEdit, pathEdit, textEdit]);
 
   // The Stamp tool's settings persist per browser too.
   useEffect(() => {
@@ -698,6 +687,24 @@ export function MapCreatorEditor({
     const timer = setTimeout(() => saveLineTool(lineTool), 400);
     return () => clearTimeout(timer);
   }, [lineTool]);
+  useEffect(() => {
+    const timer = setTimeout(() => saveTextTool(textTool), 400);
+    return () => clearTimeout(timer);
+  }, [textTool]);
+  // Shift snaps rotation to 15° steps while turning with the handle.
+  useEffect(() => {
+    const down = (e: KeyboardEvent) => e.key === "Shift" && setShiftDown(true),
+      up = (e: KeyboardEvent) => e.key === "Shift" && setShiftDown(false),
+      blur = () => setShiftDown(false);
+    window.addEventListener("keydown", down);
+    window.addEventListener("keyup", up);
+    window.addEventListener("blur", blur);
+    return () => {
+      window.removeEventListener("keydown", down);
+      window.removeEventListener("keyup", up);
+      window.removeEventListener("blur", blur);
+    };
+  }, []);
   // Pen: redraw the in-progress line whenever a node is added.
   useEffect(() => {
     if (penDraft) requestAnimationFrame(() => showPenPreview(penDraft, penCursorRef.current));
@@ -844,9 +851,30 @@ export function MapCreatorEditor({
         return;
       }
       if (is("edit.cancel")) {
+        // A drag or a resize in progress goes back to where it started.
+        if (cancelGesture()) return;
         cancelDrafts();
         setNodeEdit(null);
+        setPathEdit(null);
+        setAttachPick(null);
         setContextMenu(null);
+        return;
+      }
+      if (is("edit.selectAll")) {
+        e.preventDefault();
+        if (active) setSelectedIds(active.objects.filter((o) => o.kind !== "paint" && o.kind !== "land" && !o.hidden && !o.locked).map((o) => o.id));
+        return;
+      }
+      const nudge = is("edit.nudgeLeft") ? [-1, 0] : is("edit.nudgeRight") ? [1, 0] : is("edit.nudgeUp") ? [0, -1] : is("edit.nudgeDown") ? [0, 1] : null;
+      if (nudge && selectedIds.length && (tool === "select" || tool === "text" || tool === "stamp" || tool === "line")) {
+        e.preventDefault();
+        const step = e.shiftKey ? 10 : 1;
+        nudgeSelection((nudge[0] * step) / project.width, (nudge[1] * step) / project.height);
+        return;
+      }
+      if (is("text.edit") && selectedObj?.kind === "text" && (tool === "select" || tool === "text")) {
+        e.preventDefault();
+        editTextInline(selectedObj.id);
         return;
       }
       // ---- Stamp size & direction (Alt: fine steps) ----
@@ -871,6 +899,11 @@ export function MapCreatorEditor({
         return;
       }
       // ---- Line Tool ----
+      if (is("line.editNodes") && selectedObj?.kind === "text" && selectedObj.curveMode === "path" && (tool === "select" || tool === "text")) {
+        e.preventDefault();
+        setPathEdit((cur) => (cur?.id === selectedObj.id ? null : { id: selectedObj.id, sel: [] }));
+        return;
+      }
       if (is("line.editNodes") && selectedLines.length === 1 && (tool === "select" || tool === "line")) {
         e.preventDefault();
         toggleNodeEdit(selectedLines[0].id);
@@ -919,7 +952,7 @@ export function MapCreatorEditor({
       window.removeEventListener("keyup", onKeyUp);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tool, selectedIds, selectedObjs, undo, redo, spaceHeld, polyDraft, project.width, stampTool, lineTool, penDraft, nodeEdit, keys]);
+  }, [tool, selectedIds, selectedObjs, undo, redo, spaceHeld, polyDraft, project.width, project.height, stampTool, lineTool, penDraft, nodeEdit, keys, active]);
 
   // ---- Shared small helpers (used by keyboard shortcuts, the Edit menu and
   // the toolbars, so all three stay in sync with one implementation) ----
@@ -927,7 +960,7 @@ export function MapCreatorEditor({
     // Aborts an in-flight stroke/marquee gesture without committing it.
     pointerSessionRef.current?.();
     setRegionDraft(null);
-    setLabelDraft(null);
+    finishTextEdit();
     setPolyDraft(null);
     setPenDraft(null);
     setPenTarget(null);
@@ -935,6 +968,8 @@ export function MapCreatorEditor({
   function selectTool(next: Tool) {
     cancelDrafts();
     if (next !== "line" && next !== "select") setNodeEdit(null);
+    if (next !== "text" && next !== "select") setPathEdit(null);
+    setAttachPick(null);
     setTool(next);
     // The Land tool edits land layers: pick one if another layer is active.
     if (next === "land" && active?.role !== "land" && topLand) setActiveLayerId(topLand.id);
@@ -1068,8 +1103,8 @@ export function MapCreatorEditor({
   }
   function cloneWithOffset(o: MMObject): MMObject {
     const nid = crypto.randomUUID();
-    if (o.kind === "stamp" || o.kind === "label")
-      return { ...o, id: nid, x: Math.min(1, o.x + 0.02), y: Math.min(1, o.y + 0.02) };
+    if (o.kind === "stamp") return { ...o, id: nid, x: Math.min(1, o.x + 0.02), y: Math.min(1, o.y + 0.02) };
+    if (o.kind === "text") return { ...o, id: nid, ...shiftText(o, 0.02, 0.02) };
     if (o.kind === "line") return { ...o, id: nid, nodes: shiftNodes(o.nodes, 0.02, 0.02) };
     return {
       ...o,
@@ -1077,20 +1112,26 @@ export function MapCreatorEditor({
       points: o.points.map((p) => ({ x: Math.min(1, p.x + 0.02), y: Math.min(1, p.y + 0.02) })),
     };
   }
-  /** Copies of grouped objects form new groups of their own. */
-  function regroup(clones: MMObject[]): MMObject[] {
+  /** Copies of grouped objects form new groups of their own; copied texts
+   * follow the copy of their stamp (or nothing). */
+  function regroup(clones: MMObject[], originals: MMObject[] = []): MMObject[] {
     const fresh = new Map<string, string>();
-    return clones.map((c) => {
-      if (!c.group) return c;
-      if (!fresh.has(c.group)) fresh.set(c.group, crypto.randomUUID());
-      return { ...c, group: fresh.get(c.group) };
-    });
+    const idMap = new Map(originals.map((o, i) => [o.id, clones[i]?.id]).filter((x): x is [string, string] => !!x[1]));
+    return remapAttachments(
+      clones.map((c) => {
+        if (!c.group) return c;
+        if (!fresh.has(c.group)) fresh.set(c.group, crypto.randomUUID());
+        return { ...c, group: fresh.get(c.group) };
+      }),
+      idMap,
+    );
   }
   function duplicateObjects(ids: string[]) {
     const idSet = new Set(ids);
     const layer = project.layers.find((l) => l.objects.some((o) => idSet.has(o.id)));
     if (!layer || layer.locked) return;
-    const clones = regroup(layer.objects.filter((o) => idSet.has(o.id)).map(cloneWithOffset));
+    const originals = layer.objects.filter((o) => idSet.has(o.id));
+    const clones = regroup(originals.map(cloneWithOffset), originals);
     if (!clones.length) return;
     setProject((p) => mapLayer(p, layer.id, (l) => ({ ...l, objects: [...l.objects, ...clones] })));
     setSelectedIds(clones.map((c) => c.id));
@@ -1104,8 +1145,11 @@ export function MapCreatorEditor({
     const layer =
       active && !active.locked ? active : project.layers.find((l) => l.id === clip.layerId);
     if (!layer || layer.locked) return;
-    // Land shapes only make sense on a land layer.
-    const clones = regroup(clip.objs.filter((o) => o.kind !== "land" || layer.role === "land").map(cloneWithOffset));
+    // Land shapes only make sense on a land layer; old labels become texts.
+    const originals = clip.objs
+      .map((o) => migrateObject(o, project.width, project.height, measureGeorgia))
+      .filter((o): o is MMObject => !!o && (o.kind !== "land" || layer.role === "land"));
+    const clones = regroup(originals.map(cloneWithOffset), originals);
     if (!clones.length) return;
     setProject((p) => mapLayer(p, layer.id, (l) => ({ ...l, objects: [...l.objects, ...clones] })));
     setSelectedIds(clones.map((c) => c.id));
@@ -1142,11 +1186,6 @@ export function MapCreatorEditor({
     });
   }
 
-  function commitColor(v: string) {
-    setColor(v);
-    setRecentColors((r) => pushRecent(r, v));
-  }
-
   const snap = (p: Point): Point =>
     project.snapToGrid
       ? {
@@ -1180,9 +1219,11 @@ export function MapCreatorEditor({
     pending.set(id, updater);
   }
   function onObjectDragEnd(o: MMObject, node: Konva.Node) {
-    if (o.kind === "stamp" || o.kind === "label") {
+    if (restoreIfCancelled(node)) return;
+    if (o.kind === "stamp" || (o.kind === "text" && !(o.curveMode === "path" && o.path))) {
       const x = node.x() / W,
         y = node.y() / H;
+      // Texts following a stamp keep their new place relative to it (followStamps).
       queuePatch(o.id, () => ({ x, y }));
       return;
     }
@@ -1192,14 +1233,18 @@ export function MapCreatorEditor({
       dy = node.y() / H;
     node.position({ x: 0, y: 0 });
     queuePatch(o.id, (cur) =>
-      cur.kind === "stamp" || cur.kind === "label"
+      cur.kind === "stamp"
         ? {}
-        : cur.kind === "line"
-          ? { nodes: shiftNodes(cur.nodes, dx, dy) }
-          : { points: cur.points.map((p) => ({ x: p.x + dx, y: p.y + dy })) },
+        : cur.kind === "text"
+          ? shiftText(cur, dx, dy)
+          : cur.kind === "line"
+            ? { nodes: shiftNodes(cur.nodes, dx, dy) }
+            : { points: cur.points.map((p) => ({ x: p.x + dx, y: p.y + dy })) },
     );
   }
   function onObjectTransformEnd(o: MMObject, node: Konva.Node) {
+    setGestureInfo(null);
+    if (restoreIfCancelled(node)) return;
     const uniform = Math.sqrt(Math.abs(node.scaleX() * node.scaleY())) || 1;
     if (o.kind === "stamp") {
       // The stamp's group is drawn at scale 1: fold the resize into the
@@ -1211,13 +1256,24 @@ export function MapCreatorEditor({
       queuePatch(o.id, (cur) => (cur.kind === "stamp" ? { size: clamp(cur.size * uniform, 0.002, 0.8), rotation, x, y } : {}));
       return;
     }
-    if (o.kind === "label") {
+    if (o.kind === "text" && !(o.curveMode === "path" && o.path)) {
+      // Corners scale the letters; the side handles changed the wrapping width (liveBox).
       const rotation = normalizeAngle(node.rotation()),
         x = node.x() / W,
-        y = node.y() / H;
+        y = node.y() / H,
+        live = node.getAttr("liveBox") as number | null | undefined;
       node.scale({ x: 1, y: 1 });
+      node.setAttr("liveBox", undefined);
       queuePatch(o.id, (cur) =>
-        cur.kind === "label" ? { size: clamp(cur.size * uniform, 0.005, 0.3), rotation, x, y } : {},
+        cur.kind === "text"
+          ? {
+              size: clamp(cur.size * uniform, 0.001, 0.5),
+              rotation,
+              x,
+              y,
+              ...(live !== undefined && live !== null ? { boxWidth: clamp(live * uniform, 0.002, 2) } : cur.boxWidth ? { boxWidth: clamp(cur.boxWidth * uniform, 0.002, 2) } : {}),
+            }
+          : {},
       );
       return;
     }
@@ -1231,7 +1287,13 @@ export function MapCreatorEditor({
     node.rotation(0);
     node.skew({ x: 0, y: 0 });
     queuePatch(o.id, (cur) => {
-      if (cur.kind === "stamp" || cur.kind === "label") return {};
+      if (cur.kind === "stamp") return {};
+      if (cur.kind === "text") {
+        if (!cur.path) return {};
+        const nodes = transformNodes(cur.path.nodes, w, h, (p) => m.point(p)).map(roundNode),
+          mid = pathMiddle(nodes);
+        return { path: { ...cur.path, nodes }, size: clamp(cur.size * uniform, 0.001, 0.5), x: mid.x, y: mid.y };
+      }
       if (cur.kind === "line")
         return {
           nodes: transformNodes(cur.nodes, w, h, (p) => m.point(p)).map(roundNode),
@@ -1252,8 +1314,22 @@ export function MapCreatorEditor({
       id: o.id,
       // Locked objects let clicks pass through to whatever is beneath.
       listening: !o.locked,
-      draggable: tool === "select" && !layer.locked && !o.locked,
+      draggable: (tool === "select" || (tool === "text" && o.kind === "text")) && !layer.locked && !o.locked && textEdit?.id !== o.id,
       onClick: (e: Konva.KonvaEventObject<MouseEvent>) => {
+        // Picking the stamp a text should follow.
+        if (attachPick && o.kind === "stamp") {
+          const textId = attachPick;
+          setAttachPick(null);
+          setProject((p) => applyObjectPatches(p, new Map([[textId, (cur: MMObject) => (cur.kind === "text" ? { attach: attachTo(cur, o.id, o) } : {})]])));
+          setNoticeOk(true);
+          setNotice(t("txAttachedNotice", { stamp: objectLabel(o) }));
+          return;
+        }
+        if (tool === "text" && o.kind === "text") {
+          if (e.evt.shiftKey) toggleSelect(o.id);
+          else selectOnly(o.id);
+          return;
+        }
         // Line tool, Edit Nodes: clicking a line picks it for reshaping.
         if (tool === "line" && lineTool.draw === "edit" && o.kind === "line") {
           selectOnly(o.id);
@@ -1271,20 +1347,49 @@ export function MapCreatorEditor({
       // from pointer-downs: once the first click selects the line, Konva no
       // longer reports the second click (the Transformer takes over).
       onPointerDown: (e: Konva.KonvaEventObject<PointerEvent>) => {
-        if (tool !== "select" || o.kind !== "line" || layer.locked || e.evt.button !== 0) return;
+        if (layer.locked || e.evt.button !== 0) return;
+        const textEditable = o.kind === "text" && (tool === "select" || tool === "text");
+        if (!textEditable && (tool !== "select" || o.kind !== "line")) return;
         const now = performance.now(),
           last = lineClickRef.current;
         lineClickRef.current = { id: o.id, t: now };
         if (last && last.id === o.id && now - last.t < 450) {
           lineClickRef.current = null;
+          // Double-click: a text's letters are typed into, a line's nodes edited.
+          if (o.kind === "text") {
+            e.evt.preventDefault();
+            editTextInline(o.id);
+            return;
+          }
           selectOnly(o.id);
           setNodeEdit({ id: o.id, sel: [] });
         }
       },
       // Dragging an unselected object selects it first, so the drag never
       // moves a different, stale selection along with it.
-      onDragStart: () => {
+      onDragStart: (e: Konva.KonvaEventObject<DragEvent>) => {
         if (!selectedIdSet.has(o.id)) selectOnly(o.id);
+        beginGesture([e.target]);
+        // Alt + drag: copies stay where the originals were.
+        if ((e.evt as unknown as MouseEvent)?.altKey) duplicateInPlace(selectedIdSet.has(o.id) ? selectedIds : [o.id]);
+      },
+      onDragMove: (e: Konva.KonvaEventObject<DragEvent>) => {
+        const n = e.target;
+        if (o.kind === "stamp") moveAttachedTexts(o, n.x() - o.x * W, n.y() - o.y * H);
+        showGestureInfo(t("txGestureMove", { x: Math.round((n.x() / W) * project.width), y: Math.round((n.y() / H) * project.height) }));
+      },
+      onTransform: (e: Konva.KonvaEventObject<Event>) => {
+        const n = e.target as Konva.Node;
+        if (o.kind === "text" && o.curveMode !== "path") {
+          const anchor = transformerRef.current?.getActiveAnchor() ?? "";
+          if (anchor === "middle-left" || anchor === "middle-right") {
+            // Side handles change the wrapping width, never the letters' size.
+            const shaped = shapeText(o.text, o, o.boxWidth ? o.boxWidth / o.size : null);
+            const cur = (n.getAttr("liveBox") as number | null | undefined) ?? o.boxWidth ?? Math.max(0.01, shaped.width * o.size);
+            n.setAttrs({ liveBox: clamp(cur * n.scaleX(), 0.01, 2), scaleX: 1 });
+          }
+          showGestureInfo(t("txGestureTransform", { size: Math.round(o.size * n.scaleY() * project.width), angle: Math.round(normalizeAngle(n.rotation())) }));
+        } else showGestureInfo(t("txGestureAngle", { angle: Math.round(normalizeAngle(n.rotation())) }));
       },
       onDragEnd: (e: Konva.KonvaEventObject<DragEvent>) => onObjectDragEnd(o, e.target),
       onTransformEnd: (e: Konva.KonvaEventObject<Event>) => onObjectTransformEnd(o, e.target),
@@ -1408,8 +1513,24 @@ export function MapCreatorEditor({
     const stage = e.target.getStage(),
       pos = stage?.getPointerPosition();
     if (!stage || !pos) return;
+    if (attachPick && e.target === stage) {
+      setAttachPick(null);
+      return;
+    }
     if (tool === "select") {
       if (e.target === stage) startMarquee(pos, e.evt.pointerId, e.evt.shiftKey);
+      return;
+    }
+    if (tool === "text") {
+      if (e.target !== stage) return;
+      // A click beside the text being typed ends it; otherwise a new text starts here.
+      if (textEdit) {
+        finishTextEdit();
+        return;
+      }
+      if (!active || active.locked) return;
+      e.evt.preventDefault();
+      startTextDraft(snap(toNorm(pos)));
       return;
     }
     if (tool === "line" && lineTool.draw === "edit") {
@@ -1432,12 +1553,6 @@ export function MapCreatorEditor({
       startStamping(pos, e.evt.pointerId);
     } else if (tool === "region") {
       addRegionPoint(snap(p));
-    } else if (tool === "label") {
-      // Suppress the follow-up mousedown's default focus change, which would
-      // otherwise immediately steal focus from the auto-focused text input.
-      e.evt.preventDefault();
-      setLabelDraft(snap(p));
-      setLabelText("");
     }
   }
 
@@ -2314,42 +2429,167 @@ export function MapCreatorEditor({
     // the last node. Konva's dblclick also fires for two quick clicks far
     // apart, so it must not end a line.)
   }
-  function confirmLabel() {
-    if (!labelDraft || !labelText.trim()) return;
-    addObject({
-      id: crypto.randomUUID(),
-      kind: "label",
-      text: labelText.trim().slice(0, 200),
-      x: labelDraft.x,
-      y: labelDraft.y,
-      size: labelSize,
-      color,
-      align: labelAlign,
-      rtl: labelRtl,
-      anchored: true,
-    });
-    setLabelDraft(null);
-    setLabelText("");
-  }
-  /** Inspector edits for the single selected object. Changing a label's
-   * alignment or direction re-anchors it so its text stays exactly where it
-   * is on the map (as design tools do) instead of jumping by its own width. */
+  /** Inspector edits for the single selected object. */
   function patchSelected(patch: MMPatch) {
-    const o = selectedObj;
-    if (!o) return;
-    if (o.kind === "label" && (patch.align !== undefined || patch.rtl !== undefined)) {
-      const next = { ...o, ...patch, anchored: true } as MMLabel,
-        d = labelLayout(next, W).offsetX - labelLayout(o, W).offsetX,
-        r = ((o.rotation ?? 0) * Math.PI) / 180;
-      updateObject(o.id, {
-        ...patch,
-        anchored: true,
-        x: o.x + (d * Math.cos(r)) / W,
-        y: o.y + (d * Math.sin(r)) / H,
-      });
+    if (selectedObj) updateObject(selectedObj.id, patch);
+  }
+
+  // ---- Text Tool ---------------------------------------------------------------------------
+  // Texts are typed on the map (InlineTextEditor) or in the panel; both edit
+  // the text itself. A new text is made by its first letter, and the typing
+  // that follows joins that same undo step.
+
+  /** Patches texts (any fields of MMText); `coalesce` merges a slider drag or typing into one undo step. */
+  function patchTexts(ids: string[], patch: (o: MMText) => Partial<MMText>, coalesce?: string) {
+    setProject((p) => applyObjectPatches(p, new Map(ids.map((id) => [id, (cur: MMObject) => (cur.kind === "text" ? patch(cur) : {})]))), coalesce);
+  }
+  /** Starts typing a new text at a point (map fractions). */
+  function startTextDraft(at: Point) {
+    setSelectedIds([]);
+    setPathEdit(null);
+    const sample = textTool.sample.trim();
+    if (sample) {
+      // A starting text: the object exists at once, ready to be retyped.
+      const o = makeText(textTool, at.x, at.y, sample);
+      addObjectKeyed(o, `text-edit:${o.id}`);
+      setTextEdit({ id: o.id, x: at.x, y: at.y, draft: sample });
       return;
     }
-    updateObject(o.id, patch);
+    setTextEdit({ id: null, x: at.x, y: at.y, draft: "" });
+  }
+  /** Types into an existing text, on the map. */
+  function editTextInline(id: string) {
+    const o = project.layers.flatMap((l) => l.objects).find((x) => x.id === id);
+    if (!o || o.kind !== "text" || o.locked) return;
+    const layer = project.layers.find((l) => l.objects.includes(o));
+    if (!layer || layer.locked) return;
+    setActiveLayerId(layer.id);
+    setSelectedIds([id]);
+    setTextEdit({ id, x: o.x, y: o.y, draft: o.text });
+  }
+  function typeText(value: string) {
+    const cur = textEdit;
+    if (!cur) return;
+    setTextEdit({ ...cur, draft: value });
+    if (cur.id) {
+      const id = cur.id;
+      if (value.length) patchTexts([id], () => ({ text: value }), `text-edit:${id}`);
+      return;
+    }
+    if (!value.trim() || !active || active.locked) return;
+    const o = makeText(textTool, cur.x, cur.y, value);
+    addObjectKeyed(o, `text-edit:${o.id}`);
+    setTextEdit({ ...cur, id: o.id, draft: value });
+  }
+  /** Ends typing: an emptied text is removed; the typing becomes one undo step. */
+  function finishTextEdit() {
+    const cur = textEdit;
+    if (!cur) return;
+    setTextEdit(null);
+    if (cur.id && !cur.draft.trim()) removeObjects([cur.id]);
+    seal();
+  }
+  /** Adds an object to the active layer as part of a coalesced change. */
+  function addObjectKeyed(o: MMObject, coalesce: string) {
+    if (!active || active.locked) return;
+    const layerId = active.id;
+    setProject((p) => mapLayer(p, layerId, (l) => (l.locked || l.objects.length >= MAX_OBJECTS_PER_LAYER ? l : { ...l, objects: [...l.objects, o] })), coalesce);
+    setSelectedIds([o.id]);
+  }
+  /** Moves the selection by (dx, dy) map fractions (arrow keys). */
+  function nudgeSelection(dx: number, dy: number) {
+    const ids = selectedObjs.filter((o) => !o.locked && o.kind !== "paint" && o.kind !== "land").map((o) => o.id);
+    if (!ids.length || selectedLayer?.locked) return;
+    setProject((p) => applyObjectPatches(p, new Map(ids.map((id) => [id, (cur: MMObject) => shiftPatch(cur, dx, dy)]))), `nudge:${ids.join(",")}`);
+  }
+  /** Alt + drag: copies of the dragged objects stay behind. */
+  function duplicateInPlace(ids: string[]) {
+    const idSet = new Set(ids);
+    const layer = project.layers.find((l) => l.objects.some((o) => idSet.has(o.id)));
+    if (!layer || layer.locked) return;
+    const originals = layer.objects.filter((o) => idSet.has(o.id));
+    const copies = regroup(originals.map((o) => ({ ...o, id: crypto.randomUUID() }) as MMObject), originals);
+    // The copies go just under the originals, so the dragged ones stay on top.
+    setProject((p) =>
+      mapLayer(p, layer.id, (l) => {
+        const first = l.objects.findIndex((o) => idSet.has(o.id));
+        const objects = [...l.objects];
+        objects.splice(Math.max(0, first), 0, ...copies);
+        return { ...l, objects };
+      }),
+    );
+  }
+  /** While a stamp is dragged, the texts following it come along (committed on drop). */
+  function moveAttachedTexts(stamp: MMStamp, dxPx: number, dyPx: number) {
+    const stage = stageRef.current;
+    if (!stage) return;
+    for (const l of project.layers)
+      for (const o of l.objects) {
+        if (o.kind !== "text" || o.attach?.to !== stamp.id || selectedIdSet.has(o.id)) continue;
+        const n = findNode(stage, o.id);
+        if (n) n.position({ x: o.x * W + dxPx, y: o.y * H + dyPx });
+      }
+  }
+  // A drag or resize can be called off with Escape: the nodes go back.
+  const gestureRef = useRef<{ cancelled: boolean; saved: Map<Konva.Node, Konva.NodeConfig> } | null>(null);
+  function beginGesture(nodes: Konva.Node[]) {
+    const tr = transformerRef.current;
+    const all = new Set([...nodes, ...(tr?.nodes() ?? [])]);
+    const saved = new Map<Konva.Node, Konva.NodeConfig>();
+    for (const n of all) saved.set(n, { x: n.x(), y: n.y(), rotation: n.rotation(), scaleX: n.scaleX(), scaleY: n.scaleY(), liveBox: n.getAttr("liveBox") });
+    gestureRef.current = { cancelled: false, saved };
+  }
+  function cancelGesture(): boolean {
+    const g = gestureRef.current;
+    if (!g || g.cancelled) return false;
+    const dragging = [...g.saved.keys()].some((n) => n.isDragging());
+    const transforming = transformerRef.current?.isTransforming() ?? false;
+    if (!dragging && !transforming) return false;
+    g.cancelled = true;
+    if (transforming) transformerRef.current?.stopTransform();
+    for (const n of g.saved.keys()) if (n.isDragging()) n.stopDrag();
+    setGestureInfo(null);
+    return true;
+  }
+  /** After a called-off gesture: puts the node back, and says to keep nothing. */
+  function restoreIfCancelled(node: Konva.Node): boolean {
+    const g = gestureRef.current;
+    if (!g?.cancelled) return false;
+    const saved = g.saved.get(node);
+    if (saved) node.setAttrs(saved);
+    node.getLayer()?.batchDraw();
+    queueMicrotask(() => {
+      if (gestureRef.current === g) gestureRef.current = null;
+    });
+    return true;
+  }
+  const gestureFrame = useRef(0);
+  function showGestureInfo(text: string) {
+    const stage = stageRef.current,
+      pos = stage?.getPointerPosition();
+    if (!pos) return;
+    cancelAnimationFrame(gestureFrame.current);
+    gestureFrame.current = requestAnimationFrame(() => setGestureInfo({ x: pos.x, y: pos.y, text }));
+  }
+  /** Every font the visible texts use, loaded (before a print or an export). */
+  async function ensureTextFonts() {
+    const texts = project.layers.filter((l) => l.visible).flatMap((l) => l.objects.filter((o): o is MMText => o.kind === "text" && !o.hidden));
+    if (!texts.length) return;
+    await loadHarfBuzz();
+    // Two rounds: fonts that turn out to lack a letter bring in their fallbacks.
+    for (let round = 0; round < 3; round++) {
+      const files = new Set<string>(),
+        web = new Map<string, string>();
+      for (const o of texts) {
+        const need = neededFiles(o.text, o);
+        need.files.forEach((f) => files.add(f));
+        need.web.forEach((w) => web.set(w, (web.get(w) ?? "") + o.text));
+      }
+      await Promise.all([...[...files].map((f) => loadFile(f)), ...[...web].map(([id, sample]) => loadWebFont(id, sample))]);
+      const pending = texts.some((o) => !shapeText(o.text, o, o.boxWidth ? o.boxWidth / o.size : null).ready);
+      if (!pending) break;
+      await new Promise((r) => setTimeout(r, 120));
+    }
   }
 
   // ---- Handing the finished map off to the print pipeline ----
@@ -2363,12 +2603,21 @@ export function MapCreatorEditor({
    *  - Land layers are rebuilt at full resolution (in the worker) with every
    *    edit included; paint on other layers is re-rendered at full resolution
    *    too (not upscaled from the screen raster), so textures stay crisp. */
-  async function renderMapCanvas(stage: Konva.Stage, scale = 1) {
+  async function renderMapCanvas(stage: Konva.Stage, scale = 1): Promise<HTMLCanvasElement> {
+    const parts = await renderMapParts(stage, scale, () => false);
+    return (parts[0] as Extract<MapPart, { kind: "raster" }>).canvas;
+  }
+  /** The map in parts, bottom to top, for vector exports: pictures of
+   *  everything else, split wherever a `vector` text sits between them, and
+   *  those texts (see export/vectorExport). With no vector texts, one picture. */
+  async function renderMapParts(stage: Konva.Stage, scale: number, vector: (o: MMText) => boolean): Promise<MapPart[]> {
     // The project's own pixel size × scale (W/H are rounded display sizes).
     // Land, paint and stamps are re-rendered at that size, never upscaled.
     const outW = Math.max(1, Math.round(project.width * scale)),
       outH = Math.max(1, Math.round(project.height * scale)),
       ratio = outW / W;
+    // Texts are vector outlines, drawn afresh at the output size — once their fonts are in.
+    await ensureTextFonts();
     // Full-resolution land layers first (async), then the synchronous capture.
     const landImages = new Map<string, HTMLCanvasElement | null>();
     for (const layer of project.layers) {
@@ -2416,18 +2665,73 @@ export function MapCreatorEditor({
       }
     }
     chrome.forEach((n) => n.visible(false));
+    // Visibility changed while splitting a layer (restored afterwards).
+    const shown = new Map<Konva.Node, boolean>();
+    const show = (n: Konva.Node, v: boolean) => {
+      if (!shown.has(n)) shown.set(n, n.visible());
+      n.visible(v && shown.get(n)!);
+    };
     try {
-      const out = document.createElement("canvas");
-      out.width = outW;
-      out.height = outH;
-      const ctx = out.getContext("2d")!;
-      for (const layer of stage.getLayers()) {
-        if (!layer.visible() || layer === overlayLayerRef.current || layer === uiLayerRef.current) continue;
+      const parts: MapPart[] = [];
+      let chunk: HTMLCanvasElement | null = null;
+      const draw = (layer: Konva.Layer) => {
+        if (!chunk) {
+          chunk = document.createElement("canvas");
+          chunk.width = outW;
+          chunk.height = outH;
+        }
+        const ctx = chunk.getContext("2d")!;
         ctx.globalCompositeOperation = layerBlendOf(layer);
         ctx.drawImage(layer.toCanvas({ x: 0, y: 0, width: W, height: H, pixelRatio: ratio }), 0, 0, outW, outH);
+      };
+      const flush = () => {
+        if (chunk) parts.push({ kind: "raster", canvas: chunk });
+        chunk = null;
+      };
+      for (const layer of stage.getLayers()) {
+        if (!layer.visible() || layer === overlayLayerRef.current || layer === uiLayerRef.current) continue;
+        let mapLayer: MMLayer | undefined;
+        for (const [id, n] of konvaLayersRef.current) if (n === layer) mapLayer = project.layers.find((l) => l.id === id);
+        const objects = mapLayer?.objects.filter((o) => !o.hidden) ?? [];
+        const isVector = objects.map((o) => o.kind === "text" && vector(o));
+        if (!mapLayer || !isVector.some(Boolean)) {
+          draw(layer);
+          continue;
+        }
+        // Split the layer at its vector texts: each run of other objects is
+        // its own picture (the layer's land and textures go with the first).
+        const nodes = objects.map((o) => findNode(stage, o.id));
+        const base = layer.getChildren().filter((c) => !nodes.some((n) => n && (n === c || (c instanceof Konva.Container && c.isAncestorOf(n)))));
+        let from = 0,
+          run = 0;
+        const drawRun = (to: number) => {
+          if (from === to && run > 0) return;
+          for (const c of base) show(c, run === 0);
+          nodes.forEach((n, i) => n && show(n, !isVector[i] && i >= from && i < to));
+          draw(layer);
+          run++;
+        };
+        objects.forEach((o, i) => {
+          if (!isVector[i]) return;
+          drawRun(i);
+          flush();
+          parts.push({ kind: "text", o: o as MMText, opacity: layer.opacity() });
+          from = i + 1;
+        });
+        drawRun(objects.length);
+        for (const c of base) show(c, true);
+        nodes.forEach((n) => n && show(n, true));
       }
-      return out;
+      flush();
+      if (!parts.length || parts[0].kind !== "raster") {
+        const blank = document.createElement("canvas");
+        blank.width = outW;
+        blank.height = outH;
+        parts.unshift({ kind: "raster", canvas: blank });
+      }
+      return parts;
     } finally {
+      for (const [n, v] of shown) n.visible(v);
       chrome.forEach((n, i) => n.visible(wasVisible[i]));
       for (const { node, attrs } of swapped.reverse()) node.setAttrs(attrs);
     }
@@ -2436,6 +2740,7 @@ export function MapCreatorEditor({
   async function captureThumbnail(): Promise<Blob | null> {
     const stage = stageRef.current;
     if (!stage || W <= 0) return null;
+    await ensureTextFonts();
     const chrome = [gridGroupRef.current, overlayLayerRef.current, uiLayerRef.current].filter(
       (n): n is Konva.Group | Konva.Layer => !!n,
     );
@@ -2491,7 +2796,7 @@ export function MapCreatorEditor({
   }
 
   /** "Save as image": renders at the chosen size and downloads it. */
-  async function exportImage(format: ImageFormat, size: ExportSize, quality: number) {
+  async function exportImage(format: ImageFormat, size: ExportSize, quality: number, textMode: TextExportMode = "outlines") {
     const stage = stageRef.current;
     if (!stage) throw new Error("noStage");
     // Every signed-in export (cloud map or not) is recorded with the plan's
@@ -2508,9 +2813,27 @@ export function MapCreatorEditor({
       }
     }
     await new Promise((resolve) => requestAnimationFrame(() => setTimeout(resolve, 0)));
+    const title = project.name || "Map";
+    if (format === "svg" || format === "pdf") {
+      // Texts as vectors (sharp at any size), the rest as pictures between them.
+      await ensureTextFonts();
+      const parts = await renderMapParts(stage, size.scale, (o) => isVectorText(o, size.height / size.width));
+      try {
+        const blob =
+          format === "svg"
+            ? await encodeSvg(parts, size.width, size.height, { title, mode: textMode })
+            : await encodeVectorPdf(parts, size.width, size.height, { title, dpi: 300 });
+        downloadBlob(blob, fileName(project.name || "map", IMAGE_FORMATS.find((f) => f.id === format)!.ext));
+        setNoticeOk(true);
+        setNotice(t("exSaved", { w: size.width, h: size.height }));
+      } finally {
+        for (const p of parts) if (p.kind === "raster") p.canvas.width = p.canvas.height = 0;
+      }
+      return;
+    }
     const canvas = await renderMapCanvas(stage, size.scale);
     try {
-      const blob = await encodeMapImage(canvas, format, { quality, dpi: 300, title: project.name || "Map" });
+      const blob = await encodeMapImage(canvas, format, { quality, dpi: 300, title });
       downloadBlob(blob, fileName(project.name || "map", IMAGE_FORMATS.find((f) => f.id === format)!.ext));
       setNoticeOk(true);
       setNotice(t("exSaved", { w: size.width, h: size.height }));
@@ -2530,8 +2853,8 @@ export function MapCreatorEditor({
   /** Human-readable name of an object, for the Objects panel and search. */
   function objectLabel(o: MMObject) {
     switch (o.kind) {
-      case "label":
-        return o.text || t("mmToolLabel");
+      case "text":
+        return textTitle(o) || t("mmToolText");
       case "stamp": {
         const set = setOfAsset(o.asset);
         return set ? setLabel(t, set) : t("mmToolStamp");
@@ -2611,7 +2934,157 @@ export function MapCreatorEditor({
   /** The live preview node's base look (stable, so React never resets the
    * nodes it is given imperatively). */
   const lineDraftBase = useMemo(() => ({ ...lineTool.look, nodes: [] as LineNode[], closed: false }), [lineTool.look]);
-  const floatingPanel = (stampEditing && tool !== "stamp") || (lineEditing && tool !== "line");
+  // ---- Text panel: the tool's look, or the selected texts ----
+  const describeTextError = useCallback(
+    (e: unknown) => (e instanceof ApiError && e.code === "plan_limit_reached" ? t("txStyleLimit", { max: e.body.max }) : errorMessage(t, e)),
+    [t],
+  );
+  const textLib = useTextLibrary(user, describeTextError);
+  const textLibraryStyles = useMemo(() => [...textLib.own, ...textLib.official], [textLib.own, textLib.official]);
+  const selectedTexts = selectedObjs.filter((o): o is MMText => o.kind === "text");
+  const textEditing =
+    selectedTexts.length > 0 && selectedTexts.length === selectedObjs.length && (tool === "select" || tool === "text")
+      ? { count: selectedTexts.length, look: lookOfText(selectedTexts[0]), styleId: selectedTexts[0].styleId ?? null, single: selectedTexts.length === 1 ? selectedTexts[0] : null }
+      : null;
+  const textBase = baseTextLook(textEditing ? textEditing.styleId : textTool.styleId, textLibraryStyles);
+  const singleText = textEditing?.single ?? null;
+  const textShaped = singleText
+    ? shapeText(singleText.text, singleText, singleText.boxWidth ? singleText.boxWidth / singleText.size : null)
+    : tool === "text"
+      ? shapeText(textTool.sample || t("txSampleText"), textTool.look)
+      : null;
+  /** Colours already on the map (for the colour fields). */
+  const mapColors = useMemo(() => {
+    const seen = new Set<string>([project.background.toLowerCase()]);
+    for (const l of project.layers) {
+      if (l.coast) [l.coast.outlineColor, l.coast.shoreColor, l.coast.waveColor].forEach((c) => seen.add(c.toLowerCase()));
+      for (const o of l.objects) {
+        if (seen.size >= 14) break;
+        if (o.kind === "text") seen.add(o.fill.toLowerCase());
+        else if (o.kind === "stamp") seen.add(o.ink.toLowerCase());
+        else if (o.kind === "line") seen.add((o.mode === "color" ? o.stroke.color : o.stamp.ink).toLowerCase());
+      }
+    }
+    return [...seen].filter((c) => /^#[0-9a-f]{6}$/.test(c)).slice(0, 12);
+  }, [project.layers, project.background]);
+  /** A look change for the selected texts (a text switched to "path" gets a gentle curve to follow). */
+  function editSelectedTexts(change: (look: TextLook) => TextLook, key: string, styleId?: string | null) {
+    const ids = selectedTexts.map((o) => o.id),
+      aspect = project.height / project.width;
+    patchTexts(
+      ids,
+      (cur) => {
+        const next = change(lookOfText(cur));
+        const out: Partial<MMText> = { ...next, blend: next.blend && next.blend !== "normal" ? next.blend : undefined, ...(styleId !== undefined ? { styleId } : {}) };
+        if (next.curveMode === "path" && !cur.path) {
+          const shaped = shapeText(cur.text, cur, null);
+          const nodes = defaultTextPath(cur, shaped.ready ? shaped.width : cur.text.length * 0.55, aspect);
+          const mid = pathMiddle(nodes);
+          Object.assign(out, { path: { ...DEFAULT_TEXT_PATH, nodes }, x: mid.x, y: mid.y, rotation: 0 });
+        }
+        return out;
+      },
+      `text-look:${key}:${ids.join(",")}`,
+    );
+    if (selectedTexts[0] && change(lookOfText(selectedTexts[0])).curveMode !== "path") setPathEdit(null);
+  }
+  function editSingleText(patch: Partial<MMText>, key: string) {
+    if (!singleText) return;
+    const extra: Partial<MMText> = patch.path ? pathMiddle(patch.path.nodes) : {};
+    patchTexts([singleText.id], () => ({ ...patch, ...extra }), `text-own:${key}:${singleText.id}`);
+  }
+  const attachedStamp = singleText?.attach ? project.layers.flatMap((l) => l.objects).find((o) => o.id === singleText.attach!.to) : undefined;
+  /** Texts elsewhere made with the selection's style ("Text Style Sync"). */
+  const sameStyle = useMemo(() => {
+    const sid = textEditing?.styleId;
+    if (!sid) return [];
+    const sel = new Set(selectedIds);
+    return project.layers.flatMap((l) => l.objects.filter((o): o is MMText => o.kind === "text" && o.styleId === sid && !sel.has(o.id) && !l.locked && !o.locked));
+  }, [project.layers, textEditing?.styleId, selectedIds]);
+  function syncStyle() {
+    if (!textEditing) return;
+    const look = textEditing.look;
+    patchTexts(
+      sameStyle.map((o) => o.id),
+      (cur) => ({ ...look, blend: look.blend && look.blend !== "normal" ? look.blend : undefined, curveMode: cur.curveMode === "path" ? "path" : look.curveMode === "path" ? cur.curveMode : look.curveMode }),
+    );
+  }
+  /** Copy Style / Paste Style (texts): kept per browser, so it works across maps. */
+  function copyTextStyle(o: MMText) {
+    try {
+      localStorage.setItem("mapmaker-text-style", JSON.stringify(lookOfText(o)));
+    } catch {}
+    setNoticeOk(true);
+    setNotice(t("txStyleCopied"));
+  }
+  function pasteTextStyle(ids: string[]) {
+    let look: TextLook | null = null;
+    try {
+      const v = JSON.parse(localStorage.getItem("mapmaker-text-style") ?? "null");
+      if (validTextLook(v)) look = v as TextLook;
+    } catch {}
+    if (!look) return;
+    const l = look;
+    patchTexts(ids, (cur) => ({ ...l, blend: l.blend && l.blend !== "normal" ? l.blend : undefined, styleId: null, curveMode: cur.curveMode === "path" ? "path" : l.curveMode === "path" ? cur.curveMode : l.curveMode }));
+  }
+  const textActions = singleText
+    ? {
+        sameStyleCount: sameStyle.length,
+        onSyncStyle: syncStyle,
+        onUseForNew: () => setTextTool((st) => ({ ...st, look: lookOfText(singleText), styleId: singleText.styleId ?? null })),
+        onEditInline: () => editTextInline(singleText.id),
+        onEditPath: () => setPathEdit((cur) => (cur?.id === singleText.id ? null : { id: singleText.id, sel: [] })),
+        editingPath: pathEdit?.id === singleText.id,
+        onPickStamp: () => {
+          setAttachPick((cur) => (cur ? null : singleText.id));
+          setNoticeOk(true);
+          setNotice(t("txAttachPickNotice"));
+        },
+        pickingStamp: attachPick === singleText.id,
+        onDetach: () => patchTexts([singleText.id], () => ({ attach: null })),
+        attachedTo: attachedStamp ? objectLabel(attachedStamp) : null,
+      }
+    : textEditing
+      ? {
+          sameStyleCount: sameStyle.length,
+          onSyncStyle: syncStyle,
+          onUseForNew: () => setTextTool((st) => ({ ...st, look: textEditing.look, styleId: textEditing.styleId })),
+          onEditInline: () => {},
+          onEditPath: () => {},
+          editingPath: false,
+          onPickStamp: () => {},
+          pickingStamp: false,
+          onDetach: () => {},
+          attachedTo: null,
+        }
+      : null;
+  /** The text whose path is being reshaped (it must stay selected). */
+  const pathText = pathEdit ? (selectedTexts.find((o) => o.id === pathEdit.id && o.path && o.curveMode === "path") ?? null) : null;
+  /** A selected line can carry a name along it. */
+  function addTextAlongLine(line: MMLine) {
+    const o = textAlongLine(line, textTool.look, t("txAlongLineText"), textTool.styleId);
+    const layer = project.layers.find((l) => l.objects.some((x) => x.id === line.id));
+    if (!layer || layer.locked) return;
+    setProject((p) =>
+      mapLayer(p, layer.id, (l) => {
+        const i = l.objects.findIndex((x) => x.id === line.id);
+        const objects = [...l.objects];
+        objects.splice(i + 1, 0, o);
+        return { ...l, objects };
+      }),
+    );
+    setActiveLayerId(layer.id);
+    setTool("text");
+    setSelectedIds([o.id]);
+    setTextEdit({ id: o.id, x: o.x, y: o.y, draft: o.text });
+  }
+  /** Exactly one text and one stamp selected: the text can follow the stamp. */
+  const attachPair =
+    selectedObjs.length === 2 && selectedObjs.some((o) => o.kind === "text") && selectedObjs.some((o) => o.kind === "stamp")
+      ? { text: selectedObjs.find((o) => o.kind === "text") as MMText, stamp: selectedObjs.find((o) => o.kind === "stamp") as MMStamp }
+      : null;
+
+  const floatingPanel = (stampEditing && tool !== "stamp") || (lineEditing && tool !== "line") || (textEditing && tool !== "text");
   const blendOp = (b?: string): GlobalCompositeOperation => (b && b !== "normal" ? (b as GlobalCompositeOperation) : "source-over");
 
   // ---- Render ----
@@ -2700,6 +3173,12 @@ export function MapCreatorEditor({
                 hint={t("lnKeysDrawHint", { wider: shortcutLabel("line.wider", keys), thinner: shortcutLabel("line.thinner", keys) })}
               />
               <MenuHint label={t("lnKeysEdit")} hint={t("lnKeysEditHint")} />
+              <div className="mm-menu-heading">{t("txMenuHeading")}</div>
+              <MenuHint
+                label={t("txKeysCreate", { text: shortcutLabel("tool.text", keys), select: shortcutLabel("tool.select", keys) })}
+                hint={t("txKeysCreateHint", { finish: shortcutLabel("text.finish", keys), edit: shortcutLabel("text.edit", keys) })}
+              />
+              <MenuHint label={t("txKeysMove")} hint={t("txKeysMoveHint", { all: shortcutLabel("edit.selectAll", keys) })} />
             </div>
           )}
         </div>
@@ -2877,6 +3356,53 @@ export function MapCreatorEditor({
                   role={active.role ?? "custom"}
                   layerName={active.name}
                   what={t("lnTarget")}
+                  note={active.locked ? t("mmTargetLocked") : undefined}
+                  warning={active.locked}
+                />
+              )
+            }
+          />
+        )}
+        {(tool === "text" || textEditing) && (
+          <TextPanel
+            state={textTool}
+            onChange={setTextTool}
+            editing={textEditing}
+            onEditLook={editSelectedTexts}
+            onEditText={editSingleText}
+            onDoneEditing={() => {
+              finishTextEdit();
+              clearSelection();
+              setPathEdit(null);
+            }}
+            baseLook={textBase}
+            shaped={textShaped}
+            actions={textActions}
+            library={{
+              signedIn: !!user,
+              own: textLib.own,
+              official: textLib.official,
+              max: textLib.max,
+              busy: textLib.busy,
+              error: textLib.error,
+              onSave: (name) => void textLib.save(name, textEditing ? textEditing.look : textTool.look),
+              onDelete: (id) => void textLib.remove(id),
+              onLimit: textLib.promptLimit,
+            }}
+            t={t}
+            mapWidthPx={project.width}
+            mapHeightPx={project.height}
+            recentColors={recentColors}
+            onCommitColor={(c) => setRecentColors((r) => pushRecent(r, c))}
+            mapColors={mapColors}
+            floating={tool !== "text"}
+            target={
+              active &&
+              tool === "text" && (
+                <EditTarget
+                  role={active.role ?? "custom"}
+                  layerName={active.name}
+                  what={t("txTarget")}
                   note={active.locked ? t("mmTargetLocked") : undefined}
                   warning={active.locked}
                 />
@@ -3097,40 +3623,55 @@ export function MapCreatorEditor({
                 )}
               </>
             )}
-            {tool === "label" && !labelDraft && (
+            {tool === "text" && (
               <>
-                <ColorControl color={color} recents={recentColors} onChange={commitColor} label={t("mmColor")} recentLabel={t("mmRecents")} />
-                <Slider label={t("mmLabelSize")} defaultValue={TOOL_DEFAULTS.labelSize} value={labelSize} min={0.01} max={0.1} step={0.005} onChange={setLabelSize} />
-                <SelectField label={t("mmLabelAlign")} value={labelAlign} onChange={(v) => setLabelAlign(v as LabelAlign)}>
-                  <option value="start">{t("mmAlignStart")}</option>
-                  <option value="center">{t("mmAlignCenter")}</option>
-                  <option value="end">{t("mmAlignEnd")}</option>
-                </SelectField>
-              </>
-            )}
-            {tool === "label" && labelDraft && (
-              <div className="mm-label-draft">
-                <input
-                  autoFocus
-                  maxLength={200}
-                  placeholder={t("mmLabelPlaceholder")}
-                  value={labelText}
-                  onChange={(e) => {
-                    setLabelText(e.target.value);
-                    setLabelRtl(ARABIC_RANGE.test(e.target.value));
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") confirmLabel();
-                    if (e.key === "Escape") setLabelDraft(null);
-                  }}
+                <Slider
+                  label={t("txSize")}
+                  defaultValue={textEditing ? textBase.size : baseTextLook(textTool.styleId, textLibraryStyles).size}
+                  value={textEditing ? textEditing.look.size : textTool.look.size}
+                  min={0.002}
+                  max={0.25}
+                  step={0.0005}
+                  onChange={(v) => (textEditing ? editSelectedTexts((l) => ({ ...l, size: v }), "size") : setTextTool((st) => ({ ...st, look: { ...st.look, size: v }, styleId: null })))}
+                  format={(v) => `${Math.round(v * project.width)} px`}
                 />
-                <button className="export-button" disabled={!labelText.trim()} onClick={confirmLabel}>
-                  {t("mmAddLabel")}
-                </button>
-                <button className="secondary-button" onClick={() => setLabelDraft(null)}>
-                  {t("mmCancelDraft")}
-                </button>
-              </div>
+                <label className="mm-ln-select mm-tx-quick-style">
+                  <span>{t("txStyle")}</span>
+                  <select
+                    value={(textEditing ? textEditing.styleId : textTool.styleId) ?? ""}
+                    onChange={(e) => {
+                      const s = [...BUILTIN_TEXT_STYLES, ...textLibraryStyles].find((x) => x.id === e.target.value);
+                      if (!s || s.locked) return;
+                      if (textEditing) editSelectedTexts((l) => ({ ...s.look, ...(l.curveMode === "path" ? { curveMode: "path" as const } : {}) }), "style", s.id);
+                      else setTextTool((st) => ({ ...st, look: s.look, styleId: s.id }));
+                    }}
+                  >
+                    <option value="">{t("txStyleCustom")}</option>
+                    {BUILTIN_TEXT_STYLES.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {t(s.labelKey ?? "")}
+                      </option>
+                    ))}
+                    {textLibraryStyles
+                      .filter((s) => !s.locked)
+                      .map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.name}
+                        </option>
+                      ))}
+                  </select>
+                </label>
+                {singleText && !textEdit && (
+                  <button className="secondary-button" onClick={() => editTextInline(singleText.id)}>
+                    {t("txEditInline")}
+                  </button>
+                )}
+                {textEdit && (
+                  <button className="secondary-button" onClick={finishTextEdit}>
+                    {t("txDoneTyping")}
+                  </button>
+                )}
+              </>
             )}
             {tool === "select" && selectedObj && (
               <ObjectQuickBar
@@ -3161,15 +3702,20 @@ export function MapCreatorEditor({
                 ? "grabbing"
                 : spaceHeld
                   ? "grab"
-                  : tool === "select" || (tool === "line" && lineTool.draw === "edit")
-                    ? undefined
-                    : "crosshair",
+                  : attachPick
+                    ? "copy"
+                    : tool === "select" || (tool === "line" && lineTool.draw === "edit")
+                      ? undefined
+                      : tool === "text"
+                        ? "text"
+                        : "crosshair",
             }}
             onPointerDown={startPan}
             onPointerMove={movePan}
             onPointerUp={endPan}
             onPointerCancel={endPan}
           >
+            <div className="mm-stage-box" style={{ width: W, height: H }}>
             <Stage
               ref={stageRef}
               width={W}
@@ -3259,23 +3805,21 @@ export function MapCreatorEditor({
                         return (
                           <StampNode key={o.id} o={o} W={W} H={H} shadow={resolveShadow(o, layer)} op={stampCompositeOp(o, layer)} handlers={handlers} />
                         );
-                      const label = labelLayout(o, W);
+                      // Texts: straight and arc ones turn around their anchor; path texts sit in map space.
+                      const onPath = o.curveMode === "path" && !!o.path;
                       return (
-                        <KonvaText
+                        <MapTextNode
                           key={o.id}
                           {...handlers}
-                          text={o.text}
-                          x={o.x * W}
-                          y={o.y * H}
-                          rotation={o.rotation ?? 0}
-                          fontSize={label.fontSize}
-                          fontFamily={LABEL_FONT}
-                          fill={o.color}
-                          width={label.width}
-                          wrap="none"
-                          align={label.align}
-                          direction={o.rtl ? "rtl" : "ltr"}
-                          offsetX={label.offsetX}
+                          text={o}
+                          W={W}
+                          H={H}
+                          x={onPath ? 0 : o.x * W}
+                          y={onPath ? 0 : o.y * H}
+                          rotation={onPath ? 0 : o.rotation}
+                          opacity={o.opacity}
+                          globalCompositeOperation={blendOp(o.blend)}
+                          editing={textEdit?.id === o.id}
                         />
                       );
                     })}
@@ -3430,16 +3974,86 @@ export function MapCreatorEditor({
                     snap={(p) => snapLinePoint(p, editedLine.id)}
                   />
                 )}
-                {tool === "select" && selectedIds.length > 0 && (
+                {/* The path under a selected text, shown while it's selected. */}
+                {selectedTexts.map((o) =>
+                  o.curveMode === "path" && o.path ? (
+                    <Line
+                      key={`guide-${o.id}`}
+                      points={Array.from(flatten(o.path.reverse ? [...o.path.nodes].reverse() : o.path.nodes, false, W, H, 0.5).xy)}
+                      stroke="#f2a65a"
+                      strokeWidth={1}
+                      dash={[5, 4]}
+                      opacity={0.8}
+                      listening={false}
+                    />
+                  ) : null,
+                )}
+                {pathText && pathEdit && (
+                  <LineNodeEditor
+                    line={{ ...lineTool.look, id: pathText.id, kind: "line", closed: false, nodes: pathText.path!.nodes } as MMLine}
+                    W={W}
+                    H={H}
+                    selected={pathEdit.sel}
+                    onSelect={(sel) => setPathEdit({ id: pathText.id, sel })}
+                    onPreview={(nodes) => {
+                      const n = stageRef.current && findNode(stageRef.current, pathText.id);
+                      if (!n) return;
+                      n.setAttr("text", { ...pathText, path: { ...pathText.path!, nodes } });
+                      n.getLayer()?.batchDraw();
+                    }}
+                    onCommit={(nodes) => {
+                      const rounded = nodes.map(roundNode),
+                        mid = pathMiddle(rounded);
+                      patchTexts([pathText.id], (cur) => (cur.path ? { path: { ...cur.path, nodes: rounded }, x: mid.x, y: mid.y } : {}));
+                    }}
+                    snap={(p) => snapLinePoint(p)}
+                  />
+                )}
+                {(tool === "select" || tool === "text") && selectedIds.length > 0 && (
                   <Transformer
                     ref={transformerRef}
                     rotateEnabled
                     anchorSize={9}
-                    keepRatio={selectedObjs.every((o) => o.kind === "stamp" || o.kind === "label")}
+                    keepRatio={selectedObjs.every((o) => o.kind === "stamp" || o.kind === "text")}
+                    enabledAnchors={
+                      selectedObjs.length === 1 && selectedObjs[0].kind === "text" && selectedObjs[0].curveMode !== "path"
+                        ? ["top-left", "top-right", "bottom-left", "bottom-right", "middle-left", "middle-right"]
+                        : undefined
+                    }
+                    rotationSnaps={shiftDown ? Array.from({ length: 24 }, (_, i) => i * 15) : []}
+                    rotationSnapTolerance={shiftDown ? 7.5 : 0}
+                    onTransformStart={() => beginGesture([])}
+                    onDragStart={() => beginGesture([])}
                   />
                 )}
               </Layer>
             </Stage>
+            {textEdit &&
+              (() => {
+                const o = textEdit.id ? selectedTexts.find((x) => x.id === textEdit.id) : null;
+                const look = o ?? textTool.look;
+                const onPath = !!o && o.curveMode === "path" && !!o.path;
+                return (
+                  <InlineTextEditor
+                    key={textEdit.id ?? "new"}
+                    text={textEdit.draft}
+                    look={look}
+                    x={(o ? o.x : textEdit.x) * W}
+                    y={(o ? o.y : textEdit.y) * H}
+                    rotation={o && !onPath ? o.rotation : 0}
+                    W={W}
+                    onChange={typeText}
+                    onDone={finishTextEdit}
+                    placeholder={t("txTypeHere")}
+                  />
+                );
+              })()}
+            {gestureInfo && (
+              <div className="mm-gesture-info" style={{ left: gestureInfo.x + 16, top: gestureInfo.y + 16 }}>
+                {gestureInfo.text}
+              </div>
+            )}
+            </div>
           </div>
           <div className="mm-status-bar">
             <CloudStatusBar status={sync.status} onSave={sync.saveNow} />
@@ -3520,8 +4134,8 @@ export function MapCreatorEditor({
                         name={
                           o.kind === "stamp"
                             ? "stamp"
-                            : o.kind === "label"
-                              ? "label"
+                            : o.kind === "text"
+                              ? "text"
                               : o.kind === "region"
                                 ? "region"
                                 : o.kind === "line"
@@ -3709,6 +4323,17 @@ export function MapCreatorEditor({
           onClose={lineLib.closeLimitPrompt}
         />
       )}
+      {textLib.limitPrompt && user && (
+        <UpgradeDialog
+          limit="text_styles"
+          planCode={textLib.limitPrompt.plan ?? user.plan.code}
+          max={textLib.limitPrompt.max ?? textLib.max}
+          used={textLib.own.length}
+          title={t("txLimitTitle")}
+          message={t("txLimitText", { plan: t(`acPlan_${textLib.limitPrompt.plan ?? user.plan.code}`), max: textLib.limitPrompt.max ?? textLib.max })}
+          onClose={textLib.closeLimitPrompt}
+        />
+      )}
       {sync.conflict && (
         <ConflictDialog busy={sync.resolving} error={sync.resolveError} onChoose={(c) => void sync.resolveConflict(c)} />
       )}
@@ -3719,6 +4344,39 @@ export function MapCreatorEditor({
           className="mm-edit-menu mm-context-menu"
           style={{ left: contextMenu.x, top: contextMenu.y }}
         >
+          {singleText && (
+            <>
+              <MenuRow label={t("txEditInline")} shortcut={shortcutLabel("text.edit", keys)} icon="text" onClick={() => { editTextInline(singleText.id); setContextMenu(null); }} />
+              {singleText.curveMode === "path" && singleText.path && (
+                <MenuRow label={t("txEditPath")} shortcut={shortcutLabel("line.editNodes", keys)} icon="editNodes" onClick={() => { setPathEdit({ id: singleText.id, sel: [] }); setContextMenu(null); }} />
+              )}
+              {singleText.attach && <MenuRow label={t("txDetach")} onClick={() => { patchTexts([singleText.id], () => ({ attach: null })); setContextMenu(null); }} />}
+              <div className="mm-menu-divider" />
+            </>
+          )}
+          {selectedTexts.length > 0 && selectedTexts.length === selectedObjs.length && (
+            <>
+              {singleText && <MenuRow label={t("txCopyStyle")} onClick={() => { copyTextStyle(singleText); setContextMenu(null); }} />}
+              <MenuRow label={t("txPasteStyle")} onClick={() => { pasteTextStyle(selectedTexts.map((o) => o.id)); setContextMenu(null); }} />
+              <div className="mm-menu-divider" />
+            </>
+          )}
+          {attachPair && (
+            <>
+              <MenuRow
+                label={t("txAttachPair")}
+                icon="stamp"
+                onClick={() => {
+                  patchTexts([attachPair.text.id], (cur) => ({ attach: attachTo(cur, attachPair.stamp.id, attachPair.stamp) }));
+                  setContextMenu(null);
+                }}
+              />
+              <div className="mm-menu-divider" />
+            </>
+          )}
+          {lineActions && singleLine && (
+            <MenuRow label={t("txAlongLine")} icon="text" onClick={() => { addTextAlongLine(singleLine); setContextMenu(null); }} />
+          )}
           {lineActions && (
             <>
               <MenuRow label={t("lnEditNodes")} shortcut={shortcutLabel("line.editNodes", keys)} icon="editNodes" onClick={() => { lineActions.onEditNodes(); setContextMenu(null); }} />

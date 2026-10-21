@@ -71,4 +71,9 @@ class User extends Authenticatable implements MustVerifyEmail
     {
         return $this->hasMany(LineStyle::class, 'owner_id');
     }
+
+    public function textStyles(): HasMany
+    {
+        return $this->hasMany(TextStyle::class, 'owner_id');
+    }
 }

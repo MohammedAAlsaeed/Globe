@@ -11,12 +11,15 @@ export interface Plan {
   commercial_use: boolean;
   /** Line styles the person can save (null = unlimited). */
   max_line_styles: number | null;
+  /** Text styles the person can save (null = unlimited). */
+  max_text_styles: number | null;
 }
 
 export interface Usage {
   maps: number;
   upload_bytes: number;
   line_styles: number;
+  text_styles: number;
 }
 
 export interface User {
@@ -91,6 +94,19 @@ export interface LineStyleRecord {
   tier: number;
   published: boolean;
   /** Official style above the person's plan: listed, not usable. */
+  locked: boolean;
+  sort: number;
+}
+
+/** A saved Text Tool style: the person's own, or official (by admins). */
+export interface TextStyleRecord {
+  id: string;
+  name: string;
+  /** The look (see TextLook); null when the style is locked for the plan. */
+  look: import("../mapmaker/types").TextLook | null;
+  official: boolean;
+  tier: number;
+  published: boolean;
   locked: boolean;
   sort: number;
 }

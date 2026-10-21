@@ -7,13 +7,15 @@
  *   WebP  small with high quality, for the web
  *   TIFF  uncompressed RGB with its DPI, what many print shops ask for
  *   PDF   one page at the map's physical size, ready to send to a printer
+ *         (texts as vector outlines, see ./vectorExport)
+ *   SVG   pictures with the texts as vectors, outlined or editable
  *
  * Everything here except `encodeMapImage` is pure, so it is unit tested.
  */
 
 import { DEFAULT_CANVAS_PIXELS, canvasFits } from "../../../lib/canvasLimits";
 
-export type ImageFormat = "png" | "jpeg" | "webp" | "tiff" | "pdf";
+export type ImageFormat = "png" | "jpeg" | "webp" | "tiff" | "pdf" | "svg";
 
 export const IMAGE_FORMATS: { id: ImageFormat; ext: string; mime: string; lossy: boolean }[] = [
   { id: "png", ext: "png", mime: "image/png", lossy: false },
@@ -21,6 +23,7 @@ export const IMAGE_FORMATS: { id: ImageFormat; ext: string; mime: string; lossy:
   { id: "webp", ext: "webp", mime: "image/webp", lossy: true },
   { id: "tiff", ext: "tif", mime: "image/tiff", lossy: false },
   { id: "pdf", ext: "pdf", mime: "application/pdf", lossy: false },
+  { id: "svg", ext: "svg", mime: "image/svg+xml", lossy: false },
 ];
 
 /** The largest canvas we render on a computer (browsers fail well before 268 MP). */

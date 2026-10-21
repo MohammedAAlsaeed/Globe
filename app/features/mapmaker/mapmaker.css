@@ -2072,8 +2072,11 @@ dialog.mm-export-dialog .mm-export-head p {
 }
 .mm-export-formats {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(6, 1fr);
   gap: 6px;
+}
+.mm-export-formats.mm-export-textmode {
+  grid-template-columns: repeat(2, 1fr);
 }
 .mm-export-formats button,
 .mm-export-sizes button {
@@ -2184,4 +2187,364 @@ dialog.mm-export-dialog .mm-export-actions .export-button {
   .mm-export-formats {
     grid-template-columns: repeat(3, 1fr);
   }
+  .mm-export-formats.mm-export-textmode {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ===========================================================================
+   Text Tool — panel, font picker, inline editor
+   =========================================================================== */
+.mm-text-panel.floating {
+  position: absolute;
+  top: 0;
+  inset-inline-start: 54px;
+  z-index: 6;
+  max-height: calc(100% - 84px);
+  border-bottom: 1px solid var(--mm-border);
+  border-end-end-radius: 10px;
+  box-shadow: 12px 12px 32px rgba(0, 0, 0, 0.35);
+}
+/* The stage and what floats over it (the text being typed, the gesture readout). */
+.mm-stage-box {
+  position: relative;
+  flex: none;
+}
+.mm-tx-inline {
+  position: absolute;
+  z-index: 4;
+  margin: 0;
+  padding: 0 2px;
+  min-width: 2em;
+  border: none;
+  outline: 1px dashed rgba(242, 166, 90, 0.95);
+  outline-offset: 3px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.06);
+  resize: none;
+  overflow: hidden;
+  white-space: pre;
+  box-sizing: content-box;
+  font-kerning: normal;
+  font-feature-settings: "kern", "liga", "calt";
+}
+.mm-tx-inline::placeholder {
+  color: inherit;
+  opacity: 0.45;
+}
+.mm-gesture-info {
+  position: absolute;
+  z-index: 5;
+  padding: 3px 7px;
+  border-radius: 5px;
+  background: rgba(21, 24, 28, 0.88);
+  border: 1px solid var(--mm-border);
+  color: var(--mm-text);
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+/* styles: previews drawn by the text engine on parchment */
+.mm-tx-styles {
+  grid-template-columns: repeat(2, 1fr);
+}
+.mm-tx-style canvas {
+  display: block;
+  border-radius: 4px;
+}
+.mm-tx-sample-canvas {
+  display: block;
+  border-radius: 5px;
+}
+.mm-tx-sample {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px;
+  border-radius: 7px;
+  background: #e9dcc0;
+}
+.mm-tx-sample .mm-bp-subtitle {
+  color: #5b4636;
+}
+.mm-tx-content {
+  width: 100%;
+  min-height: 52px;
+  padding: 7px 8px;
+  border: 1px solid var(--mm-border);
+  border-radius: 7px;
+  background: var(--mm-bg);
+  color: var(--mm-text);
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.5;
+  resize: vertical;
+  box-sizing: border-box;
+}
+.mm-tx-content:focus {
+  outline: none;
+  border-color: var(--mm-accent);
+}
+.mm-tx-choice {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.mm-tx-choice .mm-bp-segment {
+  flex: 1;
+}
+.mm-tx-curves button {
+  flex-direction: column;
+  gap: 2px;
+  font-size: 9.5px;
+  white-space: nowrap;
+  padding-inline: 2px;
+}
+.mm-tx-color-main {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.mm-tx-section-reset {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  align-self: flex-start;
+}
+.mm-tx-toggles {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+.mm-tx-features {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.mm-tx-notes {
+  margin: 0;
+  padding: 6px 8px 6px 22px;
+  border-radius: 7px;
+  border: 1px solid rgba(224, 164, 88, 0.35);
+  background: rgba(224, 164, 88, 0.08);
+  color: var(--mm-text);
+  font-size: 10.5px;
+  line-height: 1.45;
+}
+[dir="rtl"] .mm-tx-notes {
+  padding: 6px 22px 6px 8px;
+}
+.mm-tx-attached {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11px;
+}
+
+/* the font button and picker */
+.mm-shell .mm-tx-font-button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 9px;
+  border: 1px solid var(--mm-border);
+  border-radius: 8px;
+  background: var(--mm-panel-2);
+  color: var(--mm-text);
+  text-align: start;
+}
+.mm-tx-font-button:hover {
+  border-color: var(--mm-muted);
+}
+.mm-tx-font-button-label {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+.mm-tx-font-button-label small {
+  color: var(--mm-muted);
+  font-size: 9.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.mm-tx-font-button-label b {
+  font-size: 12px;
+  line-height: 1.25;
+}
+.mm-tx-reset-font {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  align-self: flex-start;
+}
+.mm-tx-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid var(--mm-border);
+  border-radius: 9px;
+  background: var(--mm-bg);
+}
+.mm-tx-filters {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.mm-tx-list {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  max-height: 320px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+.mm-shell .mm-tx-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: var(--mm-panel);
+  color: var(--mm-text);
+  text-align: start;
+}
+.mm-tx-row:hover {
+  border-color: var(--mm-border);
+}
+.mm-tx-row.selected {
+  border-color: var(--mm-accent);
+  background: rgba(224, 164, 88, 0.1);
+}
+.mm-tx-row-name {
+  font-size: 11px;
+  font-weight: 600;
+  min-width: 0;
+}
+.mm-tx-row-previews {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #efe2c4;
+  flex: none;
+  max-width: 60%;
+  overflow: hidden;
+}
+.mm-tx-follow {
+  justify-content: flex-start;
+}
+.mm-tx-font {
+  display: flex;
+  align-items: stretch;
+  border-radius: 7px;
+  border: 1px solid transparent;
+  background: var(--mm-panel);
+}
+.mm-tx-font:hover {
+  border-color: var(--mm-border);
+}
+.mm-tx-font.selected {
+  border-color: var(--mm-accent);
+  background: rgba(224, 164, 88, 0.1);
+}
+.mm-shell .mm-tx-font-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  padding: 6px 8px;
+  color: #efe2c4;
+  text-align: start;
+}
+.mm-tx-font-main small {
+  color: var(--mm-muted);
+  font-size: 9.5px;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mm-tx-font-previews {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 22px;
+  max-width: 100%;
+  overflow: hidden;
+}
+.mm-tx-fontname {
+  display: block;
+  flex: none;
+}
+.mm-tx-fontname-text {
+  font-size: 15px;
+}
+.mm-shell .mm-tx-fav {
+  padding: 0 9px;
+  color: var(--mm-border);
+  font-size: 14px;
+}
+.mm-shell .mm-tx-fav.on,
+.mm-shell .mm-tx-fav:hover {
+  color: var(--mm-accent);
+}
+.mm-tx-lang-filter {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 8px;
+}
+
+/* colour field: hex, eyedropper, palettes */
+.mm-tx-color {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.mm-tx-color-tools {
+  display: flex;
+  gap: 6px;
+}
+.mm-tx-hex {
+  flex: 1;
+  min-width: 0;
+  padding: 5px 8px;
+  border: 1px solid var(--mm-border);
+  border-radius: 6px;
+  background: var(--mm-bg);
+  color: var(--mm-text);
+  font: inherit;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  direction: ltr;
+}
+.mm-tx-swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.mm-tx-swatches button {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35);
+}
+.mm-tx-swatches button.on {
+  outline: 2px solid var(--mm-accent);
+  outline-offset: 1px;
+}
+.mm-tx-quick-style {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }

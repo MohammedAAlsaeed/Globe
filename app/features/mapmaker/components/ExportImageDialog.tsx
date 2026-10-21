@@ -10,10 +10,11 @@ import { Glyph } from "../glyphs";
 import { Slider } from "./EditorControls";
 import { maxCanvasPixels } from "../../../lib/canvasLimits";
 import { IMAGE_FORMATS, exportSizes, printSizeCm, type ExportSize, type ImageFormat } from "../export/imageFormats";
+import type { TextExportMode } from "../text/exportVector";
 
 type T = (k: string, o?: Record<string, unknown>) => string;
 
-const LABEL: Record<ImageFormat, string> = { png: "PNG", jpeg: "JPEG", webp: "WebP", tiff: "TIFF", pdf: "PDF" };
+const LABEL: Record<ImageFormat, string> = { png: "PNG", jpeg: "JPEG", webp: "WebP", tiff: "TIFF", pdf: "PDF", svg: "SVG" };
 
 const FORMAT_KEY = "mapmaker-export-format";
 function savedFormat(): ImageFormat {
@@ -43,7 +44,7 @@ export function ExportImageDialog({
   /** The plan's largest export (long side, px). */
   maxPx: number;
   /** Renders, encodes and downloads; resolves when done (rejects on failure). */
-  onExport: (format: ImageFormat, size: ExportSize, quality: number) => Promise<void>;
+  onExport: (format: ImageFormat, size: ExportSize, quality: number, textMode: TextExportMode) => Promise<void>;
   /** A locked size was picked: show the plan's limit. */
   onLocked: (size: ExportSize) => void;
   onClose: () => void;
@@ -53,6 +54,7 @@ export function ExportImageDialog({
   const [format, setFormat] = useState<ImageFormat>(savedFormat),
     [scale, setScale] = useState(() => (sizes.find((s) => s.scale === 1 && !s.locked) ?? sizes.filter((s) => !s.locked).at(-1) ?? sizes[0])?.scale ?? 1),
     [quality, setQuality] = useState(0.9),
+    [textMode, setTextMode] = useState<TextExportMode>("outlines"),
     [busy, setBusy] = useState(false),
     [error, setError] = useState(false);
   const size = sizes.find((s) => s.scale === scale) ?? sizes[0],
@@ -75,7 +77,7 @@ export function ExportImageDialog({
       localStorage.setItem(FORMAT_KEY, format);
     } catch {}
     try {
-      await onExport(format, size, quality);
+      await onExport(format, size, quality, textMode);
       dialog.current?.close();
       onClose();
     } catch {
@@ -142,6 +144,20 @@ export function ExportImageDialog({
         <div className="mm-export-quality">
           <Slider label={t("exQuality")} defaultValue={0.9} value={quality} min={0.5} max={1} step={0.01} onChange={setQuality} format={(v) => `${Math.round(v * 100)}%`} />
         </div>
+      )}
+
+      {format === "svg" && (
+        <>
+          <span className="mm-export-label">{t("exTextMode")}</span>
+          <div className="mm-export-formats mm-export-textmode" role="radiogroup" aria-label={t("exTextMode")}>
+            {(["outlines", "editable"] as const).map((m) => (
+              <button key={m} role="radio" aria-checked={textMode === m} className={textMode === m ? "active" : ""} onClick={() => setTextMode(m)} disabled={busy} title={t(`exText_${m}Hint`)}>
+                <b>{t(`exText_${m}`)}</b>
+                <small>{t(`exText_${m}Hint`)}</small>
+              </button>
+            ))}
+          </div>
+        </>
       )}
 
       <p className="mm-export-note">{t(`exNote_${format}`)}</p>

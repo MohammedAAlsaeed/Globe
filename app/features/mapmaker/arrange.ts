@@ -3,7 +3,8 @@
  * by an offset. Pure functions (no React, no Konva), shared by the editor's
  * toolbar, Edit menu, context menu and shortcuts.
  */
-import type { MMObject, MMPatch, MMStamp } from "./types";
+import type { MMObject, MMPatch, MMStamp, MMText } from "./types";
+import { shiftText } from "./text/objects";
 
 export type Rect = { x: number; y: number; width: number; height: number };
 export type AlignMode = "left" | "centerX" | "right" | "top" | "centerY" | "bottom";
@@ -63,8 +64,9 @@ export function distributeDeltas(rects: Map<string, Rect>, axis: "x" | "y"): Map
 }
 
 /** The patch that moves an object by (dx, dy) — fractions of the map. */
-export function shiftPatch(o: MMObject, dx: number, dy: number): MMPatch | Partial<MMStamp> {
-  if (o.kind === "stamp" || o.kind === "label") return { x: o.x + dx, y: o.y + dy };
+export function shiftPatch(o: MMObject, dx: number, dy: number): MMPatch | Partial<MMStamp> | Partial<MMText> {
+  if (o.kind === "stamp") return { x: o.x + dx, y: o.y + dy };
+  if (o.kind === "text") return shiftText(o, dx, dy);
   if (o.kind === "paint" || o.kind === "land") return {};
   if (o.kind === "line") return { nodes: o.nodes.map((n) => ({ ...n, x: n.x + dx, y: n.y + dy })) };
   return { points: o.points.map((p) => ({ x: p.x + dx, y: p.y + dy })) };

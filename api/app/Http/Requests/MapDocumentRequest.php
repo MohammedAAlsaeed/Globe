@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Support\LineRules;
+use App\Support\TextRules;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Validator;
 
@@ -11,10 +12,10 @@ use Illuminate\Validation\Validator;
  * body and re-encoded from objects (not PHP arrays), so it is stored exactly
  * as the editor sent it — an empty `{}` stays an object.
  *
- * Its outline is checked here, plus every Line Tool line (see LineRules —
- * lines are drawn by measuring them, so broken ones are refused up front);
- * the rest is the user's own data, which the editor validates fully when it
- * loads it.
+ * Its outline is checked here, plus every Line Tool line and Text Tool
+ * text (see LineRules, TextRules — both are measured to be drawn, so broken
+ * ones are refused up front); the rest is the user's own data, which the
+ * editor validates fully when it loads it.
  */
 abstract class MapDocumentRequest extends FormRequest
 {
@@ -49,7 +50,8 @@ abstract class MapDocumentRequest extends FormRequest
 
                 return;
             }
-            if (($error = LineRules::documentError($this->input('document'))) !== null) {
+            $document = $this->input('document');
+            if (($error = LineRules::documentError($document) ?? TextRules::documentError($document)) !== null) {
                 $validator->errors()->add('document', $error);
 
                 return;

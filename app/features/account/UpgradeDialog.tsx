@@ -17,7 +17,7 @@ import { useTranslation } from "react-i18next";
 import { plans as plansApi } from "./api";
 import type { Plan } from "./types";
 
-export type LimitKind = "line_styles" | "maps" | "upload_bytes" | "export_px";
+export type LimitKind = "line_styles" | "text_styles" | "maps" | "upload_bytes" | "export_px";
 
 const UPGRADE_URL = (process.env.NEXT_PUBLIC_UPGRADE_URL ?? "").trim();
 
@@ -92,6 +92,9 @@ export function UpgradeDialog({
   const features = (p: Plan) => {
     const all: { key: LimitKind | "commercial"; text: string }[] = [
       { key: "line_styles", text: p.max_line_styles === null ? t("acFeatLineStylesUnlimited") : t("acFeatLineStyles", { count: p.max_line_styles }) },
+      ...(p.max_text_styles !== undefined
+        ? [{ key: "text_styles" as const, text: p.max_text_styles === null ? t("acFeatTextStylesUnlimited") : t("acFeatTextStyles", { count: p.max_text_styles }) }]
+        : []),
       { key: "maps", text: p.max_maps === null ? t("acFeatMapsUnlimited") : t("acFeatMaps", { count: p.max_maps }) },
       { key: "export_px", text: t("acFeatExport", { px: p.max_export_px.toLocaleString() }) },
       { key: "upload_bytes", text: t("acFeatStorage", { size: megabytes(p.upload_quota_bytes, t) }) },

@@ -33,9 +33,11 @@ export type ShortcutContext =
   /** The Line tool, or lines selected. */
   | "line"
   /** The Stamp tool, or stamps selected. */
-  | "stamp";
+  | "stamp"
+  /** The Text tool, or texts selected (never while typing: typed keys are text). */
+  | "text";
 
-export type ShortcutGroup = "tools" | "edit" | "view" | "line" | "paint" | "stamp";
+export type ShortcutGroup = "tools" | "edit" | "view" | "line" | "paint" | "stamp" | "text";
 
 export interface ShortcutDef {
   id: string;
@@ -64,13 +66,13 @@ const tool = (name: string, labelKey: string, keys: string[]): ShortcutDef => ({
 /** The editor's shortcuts, in the order a cheat sheet would list them. */
 export const SHORTCUTS = [
   // ---- tools: a letter, and the tool's number on the rail ----
-  tool("select", "mmToolSelect", ["Digit1", "Numpad1"]),
+  tool("select", "mmToolSelect", ["KeyV", "Digit1", "Numpad1"]),
   tool("brush", "mmToolBrush", ["KeyB", "Digit2", "Numpad2"]),
   tool("land", "mmToolLand", ["KeyL", "Digit3", "Numpad3"]),
   tool("stamp", "mmToolStamp", ["Digit4", "Numpad4"]),
   tool("line", "mmToolLine", ["KeyN", "Digit5", "Numpad5"]),
   tool("region", "mmToolRegion", ["Digit6", "Numpad6"]),
-  tool("label", "mmToolLabel", ["Digit7", "Numpad7"]),
+  tool("text", "mmToolText", ["KeyT", "Digit7", "Numpad7"]),
 
   // ---- editing ----
   { id: "edit.undo", group: "edit", labelKey: "undo", contexts: ["global"], keys: ["Mod+KeyZ"], customizable: true },
@@ -85,6 +87,12 @@ export const SHORTCUTS = [
   { id: "arrange.back", group: "edit", labelKey: "mmSendToBack", contexts: ["global"], keys: ["Mod+BracketLeft"], customizable: true },
   { id: "edit.delete", group: "edit", labelKey: "mmDeleteObject", contexts: ["global"], keys: ["Delete", "Backspace"], customizable: false },
   { id: "edit.cancel", group: "edit", labelKey: "mmCancelDraft", contexts: ["global"], keys: ["Escape"], customizable: false },
+  { id: "edit.selectAll", group: "edit", labelKey: "kbSelectAll", contexts: ["global"], keys: ["Mod+KeyA"], customizable: true },
+  // Moving the selection: one map pixel, ten with Shift.
+  { id: "edit.nudgeLeft", group: "edit", labelKey: "kbNudgeLeft", contexts: ["global"], keys: ["ArrowLeft"], allow: ["Shift"], customizable: false },
+  { id: "edit.nudgeRight", group: "edit", labelKey: "kbNudgeRight", contexts: ["global"], keys: ["ArrowRight"], allow: ["Shift"], customizable: false },
+  { id: "edit.nudgeUp", group: "edit", labelKey: "kbNudgeUp", contexts: ["global"], keys: ["ArrowUp"], allow: ["Shift"], customizable: false },
+  { id: "edit.nudgeDown", group: "edit", labelKey: "kbNudgeDown", contexts: ["global"], keys: ["ArrowDown"], allow: ["Shift"], customizable: false },
 
   // ---- view ----
   { id: "view.pan", group: "view", labelKey: "mmPan", contexts: ["global"], keys: ["Space"], customizable: false },
@@ -104,6 +112,10 @@ export const SHORTCUTS = [
   { id: "paint.bigger", group: "paint", labelKey: "kbPaintBigger", contexts: ["brush", "land"], keys: ["BracketRight"], customizable: true },
   { id: "paint.smaller", group: "paint", labelKey: "kbPaintSmaller", contexts: ["brush", "land"], keys: ["BracketLeft"], customizable: true },
   { id: "paint.finishShape", group: "paint", labelKey: "kbPaintFinishShape", contexts: ["brush", "land"], keys: ["Enter"], customizable: false },
+
+  // ---- Text Tool (T selects it; typing is never taken for shortcuts) ----
+  { id: "text.edit", group: "text", labelKey: "kbTextEdit", contexts: ["text"], keys: ["Enter", "F2"], customizable: false },
+  { id: "text.finish", group: "text", labelKey: "kbTextFinish", contexts: ["text"], keys: ["Mod+Enter"], customizable: false },
 
   // ---- Stamps (Alt: fine steps) ----
   { id: "stamp.bigger", group: "stamp", labelKey: "kbStampBigger", contexts: ["stamp"], keys: ["KeyW", "BracketRight"], allow: ["Alt"], customizable: true },
@@ -129,7 +141,7 @@ type Mod = (typeof MODS)[number];
 export function parseBinding(binding: string): { mods: Set<Mod>; code: string } | null {
   const parts = binding.split("+"),
     code = parts.pop() ?? "";
-  if (!/^(Key[A-Z]|Digit\d|Numpad(\d|Add|Subtract)|F\d{1,2}|BracketLeft|BracketRight|Equal|Minus|Comma|Period|Slash|Semicolon|Quote|Backquote|Backslash|Delete|Backspace|Enter|Escape|Space|Tab)$/.test(code)) return null;
+  if (!/^(Key[A-Z]|Digit\d|Numpad(\d|Add|Subtract)|F\d{1,2}|BracketLeft|BracketRight|Equal|Minus|Comma|Period|Slash|Semicolon|Quote|Backquote|Backslash|Delete|Backspace|Enter|Escape|Space|Tab|ArrowLeft|ArrowRight|ArrowUp|ArrowDown)$/.test(code)) return null;
   const mods = new Set<Mod>();
   for (const p of parts) {
     if (!MODS.includes(p as Mod) || mods.has(p as Mod)) return null;
@@ -224,6 +236,10 @@ const CODE_LABEL: Record<string, string> = {
   Backspace: "⌫",
   Enter: "Enter",
   Escape: "Esc",
+  ArrowLeft: "←",
+  ArrowRight: "→",
+  ArrowUp: "↑",
+  ArrowDown: "↓",
   Space: "Space",
   Tab: "Tab",
 };
