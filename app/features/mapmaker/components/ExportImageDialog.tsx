@@ -7,7 +7,7 @@
  */
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Glyph } from "../glyphs";
-import { Slider } from "./EditorControls";
+import { Slider, Toggle } from "./EditorControls";
 import {
   IMAGE_FORMATS,
   exportSizes,
@@ -62,6 +62,7 @@ export function ExportImageDialog({
     size: ExportSize,
     quality: number,
     textMode: TextExportMode,
+    embedFonts: boolean,
   ) => Promise<void>;
   /** A locked size was picked: show the plan's limit. */
   onLocked: (size: ExportSize) => void;
@@ -83,6 +84,7 @@ export function ExportImageDialog({
     ),
     [quality, setQuality] = useState(0.9),
     [textMode, setTextMode] = useState<TextExportMode>("outlines"),
+    [embedFonts, setEmbedFonts] = useState(true),
     [busy, setBusy] = useState(false),
     [error, setError] = useState(false);
   const size = sizes.find((s) => s.scale === scale) ?? sizes[0],
@@ -105,7 +107,7 @@ export function ExportImageDialog({
       localStorage.setItem(FORMAT_KEY, format);
     } catch {}
     try {
-      await onExport(format, size, quality, textMode);
+      await onExport(format, size, quality, textMode, embedFonts);
       dialog.current?.close();
       onClose();
     } catch {
@@ -231,6 +233,18 @@ export function ExportImageDialog({
               </button>
             ))}
           </div>
+          {textMode === "editable" && (
+            <div className="mm-export-embed">
+              <Toggle
+                label={t("exEmbedFonts")}
+                checked={embedFonts}
+                onChange={setEmbedFonts}
+              />
+              <small>
+                {t(embedFonts ? "exEmbedFontsOn" : "exEmbedFontsOff")}
+              </small>
+            </div>
+          )}
         </>
       )}
 

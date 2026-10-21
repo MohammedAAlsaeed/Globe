@@ -10,6 +10,21 @@ use Illuminate\Http\Resources\Json\JsonResource;
 /** @mixin TextStyle */
 class TextStyleResource extends JsonResource
 {
+    /**
+     * The look as the editor wrote it: requests turn "" into null and JSON
+     * arrays can't tell an empty object from an empty list.
+     */
+    public static function present(?array $look): ?array
+    {
+        if ($look === null) {
+            return null;
+        }
+        $look['lang'] = $look['lang'] ?? '';
+        $look['features'] = (object) ($look['features'] ?? []);
+
+        return $look;
+    }
+
     public function toArray(Request $request): array
     {
         $locked = ! app(Entitlements::class)->canUseTextStyle($request->user(), $this->resource);
@@ -18,7 +33,7 @@ class TextStyleResource extends JsonResource
             'id' => $this->id,
             'name' => $this->name,
             // A locked style is listed (to show what a plan includes) without its look.
-            'look' => $locked ? null : $this->look,
+            'look' => $locked ? null : self::present($this->look),
             'official' => $this->isOfficial(),
             'tier' => $this->tier,
             'published' => $this->published,

@@ -24,7 +24,7 @@ export const printingEn = {
   exNote_tiff:
     "Uncompressed, the format many print shops ask for. Files are large.",
   exNote_pdf:
-    "One page at the map's printed size (300 DPI), to send straight to a printer. Texts are vector outlines: sharp at any size, the same in every viewer.",
+    "One page at the map's printed size (300 DPI), to send straight to a printer. Texts are vector outlines — sharp at any size, the same in every viewer — and can still be selected and searched.",
   exFormat_svg: "Vector texts",
   exNote_svg:
     "For Illustrator, Inkscape and the web: the map as pictures, with every text as a vector on top of (or under) them in its place.",
@@ -33,7 +33,12 @@ export const printingEn = {
   exText_outlinesHint: "Look exactly the same everywhere, without the fonts.",
   exText_editable: "Editable text",
   exText_editableHint:
-    "Straight texts stay real text you can edit and search; they need the same fonts installed. Curved texts stay outlines.",
+    "Straight texts stay real text you can edit and search. Curved texts stay outlines.",
+  exEmbedFonts: "Fonts inside the file",
+  exEmbedFontsOn:
+    "Only the letters used, so the file stays small and looks the same everywhere.",
+  exEmbedFontsOff:
+    "A smaller file, but the fonts must be installed wherever it's opened.",
   exSaveAs: "Save {{format}}",
   exSaving: "Rendering…",
   exSaved: "Saved — {{w}} × {{h}} px.",
@@ -150,7 +155,7 @@ export const printingAr: typeof printingEn = {
   exNote_tiff:
     "بلا ضغط، وهي الصيغة التي تطلبها كثير من المطابع. الملفات كبيرة.",
   exNote_pdf:
-    "صفحة واحدة بمقاس الخريطة المطبوع (300 نقطة/بوصة)، لإرسالها مباشرة إلى الطابعة. النصوص فيها متجهية: حادة بأي مقاس، ومتطابقة في كل برنامج.",
+    "صفحة واحدة بمقاس الخريطة المطبوع (300 نقطة/بوصة)، لإرسالها مباشرة إلى الطابعة. النصوص فيها متجهية — حادة بأي مقاس ومتطابقة في كل برنامج — ويمكن تحديدها والبحث فيها.",
   exFormat_svg: "نصوص متجهية",
   exNote_svg:
     "لـ Illustrator وInkscape والويب: الخريطة كصور، وكل نص فيها متجهي فوقها (أو تحتها) في موضعه.",
@@ -159,7 +164,11 @@ export const printingAr: typeof printingEn = {
   exText_outlinesHint: "تبدو متطابقة في كل مكان، دون الحاجة إلى الخطوط.",
   exText_editable: "نص قابل للتحرير",
   exText_editableHint:
-    "النصوص المستقيمة تبقى نصًا حقيقيًا يمكن تحريره والبحث فيه، ويلزم تثبيت الخطوط نفسها. النصوص المنحنية تبقى مسارات.",
+    "النصوص المستقيمة تبقى نصًا حقيقيًا يمكن تحريره والبحث فيه. النصوص المنحنية تبقى مسارات.",
+  exEmbedFonts: "الخطوط داخل الملف",
+  exEmbedFontsOn:
+    "الحروف المستخدمة فقط، فيبقى الملف صغيرًا ويظهر متطابقًا في كل مكان.",
+  exEmbedFontsOff: "ملف أصغر، لكن يلزم تثبيت الخطوط حيثما يُفتح.",
   exSaveAs: "حفظ {{format}}",
   exSaving: "جارٍ التجهيز…",
   exSaved: "تم الحفظ — {{w}} × {{h}} بكسل.",

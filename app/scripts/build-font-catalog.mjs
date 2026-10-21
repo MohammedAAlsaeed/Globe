@@ -8,24 +8,41 @@
  *   public/fonts/previews.json
  *       each family's name drawn in its own letters (SVG paths), so the
  *       font picker shows every font without downloading them
+ *   public/wasm/harfbuzz-subset.wasm
+ *       HarfBuzz's subsetter (from harfbuzzjs), for fonts embedded in
+ *       exports (features/mapmaker/text/subset.ts)
  *
  * Run after adding or updating a font in ./features/mapmaker/text/fonts.ts:
  *   npm run fonts:catalog
  */
-import { readFileSync, statSync, writeFileSync } from "node:fs";
+import {
+  copyFileSync,
+  mkdirSync,
+  readFileSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import * as hb from "harfbuzzjs";
 import { FONTS } from "../features/mapmaker/text/fonts.ts";
 
-const root = new URL("..", import.meta.url).pathname;
+const root = fileURLToPath(new URL("..", import.meta.url));
 const pub = join(root, "public");
 
 const range = (a, b) => Array.from({ length: b - a + 1 }, (_, i) => a + i);
 /** Letters a font must have to count as covering a script (95% or more). */
 const SETS = {
   latin: [...range(0x41, 0x5a), ...range(0x61, 0x7a)],
-  latinExt: [0xc0, 0xc1, 0xc2, 0xc7, 0xc8, 0xc9, 0xd1, 0xd6, 0xdc, 0xdf, 0xe0, 0xe1, 0xe7, 0xe8, 0xe9, 0xea, 0xed, 0xf1, 0xf3, 0xf6, 0xfa, 0xfc],
-  greek: [...range(0x391, 0x3a1), ...range(0x3a3, 0x3a9), ...range(0x3b1, 0x3c9)],
+  latinExt: [
+    0xc0, 0xc1, 0xc2, 0xc7, 0xc8, 0xc9, 0xd1, 0xd6, 0xdc, 0xdf, 0xe0, 0xe1,
+    0xe7, 0xe8, 0xe9, 0xea, 0xed, 0xf1, 0xf3, 0xf6, 0xfa, 0xfc,
+  ],
+  greek: [
+    ...range(0x391, 0x3a1),
+    ...range(0x3a3, 0x3a9),
+    ...range(0x3b1, 0x3c9),
+  ],
   cyrillic: range(0x410, 0x44f),
   arabic: [...range(0x621, 0x63a), ...range(0x641, 0x64a)],
   arabicMarks: range(0x64b, 0x652),
@@ -37,30 +54,68 @@ const SETS = {
   arabicDigits: range(0x660, 0x669),
   persianDigits: range(0x6f0, 0x6f9),
 };
-const FEATURES = ["liga", "dlig", "calt", "kern", "smcp", "c2sc", "onum", "lnum", "pnum", "tnum", "swsh", "salt", "ss01", "ss02", "ss03", "ss04", "ss05", "frac", "hlig", "cswh"];
+const FEATURES = [
+  "liga",
+  "dlig",
+  "calt",
+  "kern",
+  "smcp",
+  "c2sc",
+  "onum",
+  "lnum",
+  "pnum",
+  "tnum",
+  "swsh",
+  "salt",
+  "ss01",
+  "ss02",
+  "ss03",
+  "ss04",
+  "ss05",
+  "frac",
+  "hlig",
+  "cswh",
+];
 
 function analyse(path) {
   const bytes = readFileSync(join(pub, path));
-  const blob = new hb.Blob(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength));
+  const blob = new hb.Blob(
+    bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength),
+  );
   const face = new hb.Face(blob, 0);
   const font = new hb.Font(face);
   const unicodes = new Set(face.collectUnicodes());
   const cover = {};
-  for (const [k, set] of Object.entries(SETS)) cover[k] = Math.round((set.filter((u) => unicodes.has(u)).length / set.length) * 100) / 100;
+  for (const [k, set] of Object.entries(SETS))
+    cover[k] =
+      Math.round(
+        (set.filter((u) => unicodes.has(u)).length / set.length) * 100,
+      ) / 100;
   const ext = font.hExtents();
-  const feats = new Set([...face.getTableFeatureTags("GSUB"), ...face.getTableFeatureTags("GPOS")]);
+  const feats = new Set([
+    ...face.getTableFeatureTags("GSUB"),
+    ...face.getTableFeatureTags("GPOS"),
+  ]);
   const axes = face.getAxisInfos();
   return {
     face,
     font,
     info: {
       bytes: statSync(join(pub, path)).size,
-      version: (face.getName(5, "en") || "").replace(/^Version\s*/i, "").split(";")[0].trim(),
+      version: (face.getName(5, "en") || "")
+        .replace(/^Version\s*/i, "")
+        .split(";")[0]
+        .trim(),
       upem: face.upem,
       ascender: ext.ascender,
       descender: ext.descender,
       lineGap: ext.lineGap,
-      axes: Object.fromEntries(Object.entries(axes).map(([tag, a]) => [tag, [a.min, a.default, a.max]])),
+      axes: Object.fromEntries(
+        Object.entries(axes).map(([tag, a]) => [
+          tag,
+          [a.min, a.default, a.max],
+        ]),
+      ),
       features: FEATURES.filter((f) => feats.has(f)),
       cover,
       glyphs: unicodes.size,
@@ -81,13 +136,15 @@ function preview(font, upem, text) {
     const cmds = font.glyphToJson(g.codepoint);
     const ox = x + (g.xOffset ?? 0),
       oy = g.yOffset ?? 0;
-    const P = (px, py) => `${Math.round((ox + px) * k)} ${Math.round(-(oy + py) * k)}`;
+    const P = (px, py) =>
+      `${Math.round((ox + px) * k)} ${Math.round(-(oy + py) * k)}`;
     for (const c of cmds) {
       const v = c.values;
       if (c.type === "M") parts.push(`M${P(v[0], v[1])}`);
       else if (c.type === "L") parts.push(`L${P(v[0], v[1])}`);
       else if (c.type === "Q") parts.push(`Q${P(v[0], v[1])} ${P(v[2], v[3])}`);
-      else if (c.type === "C") parts.push(`C${P(v[0], v[1])} ${P(v[2], v[3])} ${P(v[4], v[5])}`);
+      else if (c.type === "C")
+        parts.push(`C${P(v[0], v[1])} ${P(v[2], v[3])} ${P(v[4], v[5])}`);
       else if (c.type === "Z") parts.push("Z");
     }
     x += g.xAdvance ?? 0;
@@ -111,8 +168,18 @@ for (const def of FONTS) {
       const arabic = info.cover.arabic >= 0.95;
       previews[def.id] = {
         ...(latin ? { latin: preview(font, face.upem, def.family) } : {}),
-        ...(arabic && def.familyAr ? { arabic: preview(font, face.upem, def.familyAr) } : {}),
-        ...(!latin && !arabic ? { other: preview(font, face.upem, def.id === "noto-serif-hebrew" ? "עברית" : "देवनागरी") } : {}),
+        ...(arabic && def.familyAr
+          ? { arabic: preview(font, face.upem, def.familyAr) }
+          : {}),
+        ...(!latin && !arabic
+          ? {
+              other: preview(
+                font,
+                face.upem,
+                def.id === "noto-serif-hebrew" ? "עברית" : "देवनागरी",
+              ),
+            }
+          : {}),
       };
     }
   }
@@ -169,5 +236,13 @@ export const FONT_INFO: Record<string, FontInfo> = ${JSON.stringify(fonts, null,
 `,
 );
 writeFileSync(join(pub, "fonts/previews.json"), JSON.stringify(previews));
-console.log(`${Object.keys(files).length} files, ${Object.keys(fonts).length} fonts`);
-for (const [id, f] of Object.entries(fonts)) console.log(id.padEnd(24), f.scripts.join(","), "|", f.languages.join(","));
+mkdirSync(join(pub, "wasm"), { recursive: true });
+copyFileSync(
+  join(root, "node_modules/harfbuzzjs/dist/harfbuzz-subset.wasm"),
+  join(pub, "wasm/harfbuzz-subset.wasm"),
+);
+console.log(
+  `${Object.keys(files).length} files, ${Object.keys(fonts).length} fonts`,
+);
+for (const [id, f] of Object.entries(fonts))
+  console.log(id.padEnd(24), f.scripts.join(","), "|", f.languages.join(","));

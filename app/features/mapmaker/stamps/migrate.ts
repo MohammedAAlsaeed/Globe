@@ -171,6 +171,12 @@ export function migrateObject(
       lang: o.lang ?? "",
       features: Array.isArray(o.features) ? {} : o.features,
     };
+  // An empty line name, the same way.
+  if (o.kind === "line" && o.name === null) {
+    const { name: _name, ...rest } = o;
+    void _name;
+    return rest;
+  }
   return o;
 }
 
@@ -183,7 +189,8 @@ export function migrateProject(
     o.kind === "icon" ||
     o.kind === "path" ||
     o.kind === "label" ||
-    (o.kind === "text" && serverShaped(o));
+    (o.kind === "text" && serverShaped(o)) ||
+    (o.kind === "line" && o.name === null);
   if (!p.layers.some((l) => (l.objects as Legacy[]).some(legacy))) return p;
   return {
     ...p,

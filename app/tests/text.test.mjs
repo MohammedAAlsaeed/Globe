@@ -5,6 +5,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import engine from "../features/mapmaker/text/engine.ts";
 import { validLook, validText } from "../features/mapmaker/text/validate.ts";
 import {
@@ -23,10 +24,24 @@ import {
 } from "../features/mapmaker/stamps/migrate.ts";
 import { historyReducer } from "../features/mapmaker/hooks/useHistory.ts";
 import { textEn, textAr } from "../lib/locales/text.ts";
-import { parseColor } from "../features/mapmaker/export/vectorExport.ts";
+import {
+  encodeVectorPdf,
+  parseColor,
+} from "../features/mapmaker/export/vectorExport.ts";
+import { unzlibSync } from "fflate";
 
 const {
   textToSvg,
+  faceRuns,
+  svgFontFaces,
+  subsetFont,
+  setSubsetSource,
+  harfbuzz,
+  parseFontFaces,
+  faceFor,
+  setWebFetchers,
+  loadWebOutlines,
+  webGlyphOps,
   isVectorText,
   setFontFetcher,
   loadHarfBuzz,
@@ -46,7 +61,17 @@ const {
   profileSlot,
 } = engine;
 
-const pub = new URL("../public", import.meta.url).pathname;
+const pub = fileURLToPath(new URL("../public", import.meta.url));
+setSubsetSource(async () =>
+  readFileSync(
+    fileURLToPath(
+      new URL(
+        "../node_modules/harfbuzzjs/dist/harfbuzz-subset.wasm",
+        import.meta.url,
+      ),
+    ),
+  ),
+);
 setFontFetcher(async (p) => {
   const b = readFileSync(join(pub, p));
   return b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength);
@@ -278,7 +303,7 @@ test("on a straight path, the warp is only a move; a reversed path flips the rea
     [x2, y2] = pc.curve.map(1, -0.3);
   assert.ok(Math.abs(x2 - x1 - 1) < 1e-6 && Math.abs(y2 - y1 + 0.3) < 1e-6);
   // The middle of the text sits on the middle of the path (in em: 0.5 / size).
-  assert.ok(Math.abs(x1 - 0.5 / o.size - (s.left + s.width / 2) * 0) < s.width);
+  assert.ok(Math.abs(x1 - 0.5 / o.size) < s.width);
   const rev = pathCurve({ ...o, path: { ...o.path, reverse: true } }, s, 0.5);
   assert.ok(
     rev.curve.map(1, 0)[0] < rev.curve.map(0, 0)[0],
@@ -514,10 +539,14 @@ test("vector export: texts as outlines in place, or as real editable text", asyn
   assert.match(out.body, /stroke-linejoin/);
   assert.doesNotMatch(out.body, /<text/);
   const editable = textToSvg(o, 2000, 1500, "editable", "t1");
+  // a <text> a line, its outline from the same text
   assert.match(
     editable.body,
-    /<text [^>]*paint-order="stroke"[^>]*><tspan[^>]*>Mare Nostrum بحر الروم<\/tspan>/,
+    /<text [^>]*direction="ltr"[^>]*paint-order="stroke"[^>]*>Mare Nostrum بحر الروم<\/text>/,
   );
+  // the letters as shaped: capitals stay capitals
+  const caps = textToSvg({ ...o, caps: true }, 2000, 1500, "editable", "t3");
+  assert.match(caps.body, />MARE NOSTRUM بحر الروم<\/text>/);
   // curved texts stay outlines even when editable text is asked for
   const curved = textToSvg(
     { ...o, curveMode: "arc", curve: 0.5 },
@@ -547,4 +576,174 @@ test("texts saved on the server come back as the editor saved them", () => {
   const [back] = migrateProject(project).layers[0].objects;
   assert.equal(back.lang, "");
   assert.deepEqual(back.features, {});
+  // an emptied line name, the same way
+  const line = { id: "ln", kind: "line", name: null, closed: false };
+  assert.ok(
+    !(
+      "name" in
+      migrateProject({ ...project, layers: [{ id: "l", objects: [line] }] })
+        .layers[0].objects[0]
+    ),
+  );
+});
+
+test("a line is cut into runs by the font that draws them, with their letters", async () => {
+  const o = text("Kingdom مملكة الأندلس", { profile: "royal-kingdom" });
+  const s = await shaped(o.text, o);
+  const runs = faceRuns(s.lines[0]);
+  const byFont = Object.fromEntries(
+    runs.map((r) => [r.face.fontId, r.text.trim()]),
+  );
+  const latin = profileSlot(
+    FONT_PROFILES.find((p) => p.id === "royal-kingdom"),
+    "latin",
+  ).font;
+  const arabic = profileSlot(
+    FONT_PROFILES.find((p) => p.id === "royal-kingdom"),
+    "arabic",
+  ).font;
+  assert.equal(byFont[latin], "Kingdom");
+  assert.equal(byFont[arabic], "مملكة الأندلس");
+  // left to right as drawn: Latin first in this line
+  assert.ok(runs[0].x0 <= runs[runs.length - 1].x0);
+});
+
+test("fonts embedded in exports are cut down and still join Arabic", async () => {
+  const word = "مملكة الأندلس";
+  const full = readFileSync(join(pub, "fonts/amiri/Amiri-Regular.ttf"));
+  const cut = await subsetFont(
+    full,
+    [...word].map((c) => c.codePointAt(0)),
+  );
+  assert.ok(cut && cut.length < full.length / 5, `${cut?.length}`);
+  await loadHarfBuzz();
+  const hb = harfbuzz();
+  const shapeWith = (bytes) => {
+    const font = new hb.Font(new hb.Face(new hb.Blob(bytes), 0));
+    const buf = new hb.Buffer();
+    buf.addText(word);
+    buf.guessSegmentProperties();
+    hb.shape(font, buf);
+    return buf.getGlyphInfosAndPositions().map((g) => g.x_advance);
+  };
+  // the same joined forms, so the same advances
+  assert.deepEqual(shapeWith(cut), shapeWith(full));
+
+  const o = text(word + " Andalus");
+  await shaped(o.text, o);
+  for (let i = 0; i < 20 && !isVectorText(o, 0.75); i++)
+    await new Promise((r) => setTimeout(r, 20));
+  const css = await svgFontFaces([o], 0.75);
+  assert.match(
+    css,
+    /@font-face\{font-family:"mm-[\w-]+";src:url\(data:font\/ttf;base64,/,
+  );
+  const svg = textToSvg(o, 2000, 1500, "editable", "t1", true);
+  assert.match(svg.body, /font-family="'mm-/);
+});
+
+test("letters the browser draws get their outlines from the web font's slices", async () => {
+  const css = `/* [12] */
+@font-face {
+  font-family: 'Noto Serif JP';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url(https://fonts.gstatic.com/s/test/slice12.woff2) format('woff2');
+  unicode-range: U+48, U+4d, U+61-7a, U+20;
+}
+@font-face {
+  font-family: 'Noto Serif JP';
+  font-weight: 400;
+  src: url(https://fonts.gstatic.com/s/test/other.woff2) format('woff2');
+  unicode-range: U+4e??;
+}`;
+  const faces = parseFontFaces(css);
+  assert.equal(faces.length, 2);
+  assert.deepEqual(faces[0].weight, [400, 700]);
+  assert.deepEqual(faces[1].ranges, [[0x4e00, 0x4eff]]);
+  assert.equal(faceFor(faces, 0x61, 700, false), faces[0]);
+  assert.equal(faceFor(faces, 0x4e2d, 400, false), faces[1]);
+  assert.equal(faceFor(faces, 0x30, 400, false), null);
+
+  const fixture = readFileSync(
+    fileURLToPath(new URL("./fixtures/latin-slice.woff2", import.meta.url)),
+  );
+  const fetched = [];
+  setWebFetchers(
+    async () => css,
+    async (url) => {
+      fetched.push(url);
+      return fixture.buffer.slice(
+        fixture.byteOffset,
+        fixture.byteOffset + fixture.byteLength,
+      );
+    },
+  );
+  const g = {
+    text: "H",
+    css: '400 100px "Noto Serif JP", serif',
+    m: [0.01, 0, 0, 0.01, 2, 0],
+  };
+  assert.equal(webGlyphOps(g), null);
+  await loadWebOutlines([g]);
+  assert.deepEqual(fetched, ["https://fonts.gstatic.com/s/test/slice12.woff2"]);
+  const ops = webGlyphOps(g);
+  assert.ok(ops && ops.length > 10);
+  // an "H": on the baseline (y ≤ 0, up to about cap height), right of x = 2 em
+  const ys = [],
+    xs = [];
+  for (let i = 0; i < ops.length; ) {
+    const n = ops[i] === 4 ? 0 : ops[i] === 2 ? 2 : ops[i] === 3 ? 3 : 1;
+    for (let p = 0; p < n; p++) {
+      xs.push(ops[i + 1 + p * 2]);
+      ys.push(ops[i + 2 + p * 2]);
+    }
+    i += 1 + n * 2;
+  }
+  assert.ok(Math.min(...xs) >= 2 && Math.max(...xs) < 3);
+  assert.ok(Math.max(...ys) <= 0.001 && Math.min(...ys) > -1);
+});
+
+test("PDF: words stay selectable, and a faded fill's outline is cut out", async () => {
+  const base = text("مملكة الأندلس Andalus");
+  const o = {
+    ...base,
+    fillOpacity: 0.4,
+    outline: { ...base.outline, enabled: true, width: 0.06, opacity: 1 },
+  };
+  await shaped(o.text, o);
+  for (let i = 0; i < 20 && !isVectorText(o, 0.75); i++)
+    await new Promise((r) => setTimeout(r, 20));
+  const blob = await encodeVectorPdf(
+    [{ kind: "text", o, opacity: 1 }],
+    2000,
+    1500,
+    {
+      title: "Test",
+      dpi: 300,
+    },
+  );
+  const bytes = new Uint8Array(await blob.arrayBuffer());
+  const latin1 = new TextDecoder("latin1").decode(bytes);
+  let content = "";
+  for (const m of latin1.matchAll(/stream\r?\n/g)) {
+    const start = m.index + m[0].length,
+      end = latin1.indexOf("endstream", start);
+    try {
+      content += new TextDecoder("latin1").decode(
+        unzlibSync(bytes.subarray(start, end)),
+      );
+    } catch {
+      // not a compressed stream
+    }
+  }
+  assert.match(content, /3 Tr/, "invisible text");
+  assert.match(
+    latin1 + content,
+    /\/SMask/,
+    "outline cut out under the faded fill",
+  );
+  // the text map reads the Arabic letters back
+  assert.match(content, /<0645>/);
 });

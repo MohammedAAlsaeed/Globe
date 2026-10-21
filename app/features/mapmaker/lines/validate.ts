@@ -131,6 +131,7 @@ export function validLine(o: Record<string, unknown>) {
     validNodes(o.nodes, o.closed as boolean) &&
     validLook(o) &&
     (o.name === undefined ||
+      o.name === null ||
       (typeof o.name === "string" && o.name.length <= 80)) &&
     (o.styleId === undefined ||
       o.styleId === null ||
