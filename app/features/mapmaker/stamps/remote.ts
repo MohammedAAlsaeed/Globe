@@ -12,13 +12,32 @@
  */
 import { library } from "../../account/api";
 import type { Asset, AssetPack } from "../../account/types";
-import { registerRemoteSets, stampAsset, type StampAsset, type StampCategory, type StampSet } from "./catalog";
+import {
+  registerRemoteSets,
+  stampAsset,
+  type StampAsset,
+  type StampCategory,
+  type StampSet,
+} from "./catalog";
 
-const CATEGORIES: StampCategory[] = ["terrain", "vegetation", "settlements", "water", "symbols"];
+const CATEGORIES: StampCategory[] = [
+  "terrain",
+  "vegetation",
+  "settlements",
+  "water",
+  "symbols",
+];
 export const uploadedKey = (assetId: string) => `u:${assetId}`;
 
 /** Defaults for uploaded pictures: as drawn (no recolor), no added shadow. */
-function imageSet(id: string, pack: string, name: string, category: StampCategory, assetKeys: string[], extra: Partial<StampSet> = {}): StampSet {
+function imageSet(
+  id: string,
+  pack: string,
+  name: string,
+  category: StampCategory,
+  assetKeys: string[],
+  extra: Partial<StampSet> = {},
+): StampSet {
   return {
     id,
     pack,
@@ -59,9 +78,16 @@ export function packSets(pack: AssetPack, assets: Asset[]) {
         ? (CATEGORIES.find((c) => c === list[0].category) ?? "library")
         : "custom";
     return {
-      set: imageSet(id, pack.id, list[0].name, category, list.map((a) => uploadedKey(a.id)), {
-        tags: [...new Set(list.flatMap((a) => a.tags)), pack.name],
-      }),
+      set: imageSet(
+        id,
+        pack.id,
+        list[0].name,
+        category,
+        list.map((a) => uploadedKey(a.id)),
+        {
+          tags: [...new Set(list.flatMap((a) => a.tags)), pack.name],
+        },
+      ),
       assets: list.map((a) => imageAsset(a, id)),
     };
   });
@@ -78,8 +104,31 @@ export function loadLibrary(): Promise<void> {
           if (pack.locked) {
             // Above the plan: one preview card, not placeable.
             const id = `p:${pack.id}`,
-              cover: StampAsset[] = pack.cover_url ? [{ key: `c:${pack.id}`, set: id, kind: "image", url: pack.cover_url, w: 1, h: 1 }] : [];
-            return [{ set: imageSet(id, pack.id, pack.name, "library", cover.map((c) => c.key), { locked: true }), assets: cover }];
+              cover: StampAsset[] = pack.cover_url
+                ? [
+                    {
+                      key: `c:${pack.id}`,
+                      set: id,
+                      kind: "image",
+                      url: pack.cover_url,
+                      w: 1,
+                      h: 1,
+                    },
+                  ]
+                : [];
+            return [
+              {
+                set: imageSet(
+                  id,
+                  pack.id,
+                  pack.name,
+                  "library",
+                  cover.map((c) => c.key),
+                  { locked: true },
+                ),
+                assets: cover,
+              },
+            ];
           }
           return packSets(pack, await library.assets(pack.id).catch(() => []));
         }),
@@ -110,7 +159,12 @@ export async function resolvePlaced(keys: string[]) {
     registerRemoteSets(
       found.map((a) => {
         const id = `h:${a.id}`;
-        return { set: imageSet(id, a.pack_id, a.name, "custom", [uploadedKey(a.id)], { hidden: true }), assets: [imageAsset(a, id)] };
+        return {
+          set: imageSet(id, a.pack_id, a.name, "custom", [uploadedKey(a.id)], {
+            hidden: true,
+          }),
+          assets: [imageAsset(a, id)],
+        };
       }),
     );
   }

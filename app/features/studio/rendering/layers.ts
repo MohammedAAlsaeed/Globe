@@ -18,11 +18,12 @@ export const BIOME_FILL: Record<Biome, string> = {
   grass: "#6f8f52",
   swamp: "#556b4f",
 };
-export const PATH_STYLE: Record<PathKind, { color: string; dash?: number[] }> = {
-  river: { color: "#3d6a8a" },
-  road: { color: "#7a5c3a", dash: [2.2, 1.6] },
-  border: { color: "#8a3d3d", dash: [0.8, 1.4] },
-};
+export const PATH_STYLE: Record<PathKind, { color: string; dash?: number[] }> =
+  {
+    river: { color: "#3d6a8a" },
+    road: { color: "#7a5c3a", dash: [2.2, 1.6] },
+    border: { color: "#8a3d3d", dash: [0.8, 1.4] },
+  };
 const LABEL_FONT = '"Georgia", "Times New Roman", serif';
 function drawIcon(ctx: Context, o: IconObject, width: number, height: number) {
   const def = ICONS[o.icon];

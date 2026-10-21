@@ -6,10 +6,12 @@ export const linesEn = {
   lnDrawFree: "Free draw",
   lnDrawPen: "Pen",
   lnDrawEdit: "Edit nodes",
-  lnHintFree: "Drag to draw a line · it becomes smooth, editable nodes · end where you began to close it · Shift: straight",
+  lnHintFree:
+    "Drag to draw a line · it becomes smooth, editable nodes · end where you began to close it · Shift: straight",
   lnHintPen:
     "Click to place nodes · drag to curve · Shift: angle steps · click the first node to close · Enter, double-click, right-click or click the last node to finish · Backspace removes the last node · start on a line's end to continue it",
-  lnHintEdit: "Click a line, then drag its nodes · click the path to add a node · double-click a node: corner ⇄ smooth · Alt-drag a handle: sharp corner · Delete removes nodes",
+  lnHintEdit:
+    "Click a line, then drag its nodes · click the path to add a node · double-click a node: corner ⇄ smooth · Alt-drag a handle: sharp corner · Delete removes nodes",
   lnPickLine: "Click a line to edit its nodes",
   lnFinish: "Finish line",
   lnFinishClosed: "Close line",
@@ -20,7 +22,8 @@ export const linesEn = {
   lnEditNodes: "Edit nodes",
   lnEditNodesHint: "Move, add and remove the line's nodes ({{key}})",
   lnReverse: "Reverse",
-  lnReverseHint: "Draw the line the other way (which end is the start, which side its pieces face)",
+  lnReverseHint:
+    "Draw the line the other way (which end is the start, which side its pieces face)",
   lnClosed: "Closed",
   lnClosePath: "Close the line",
   lnOpenPath: "Open the line",
@@ -36,7 +39,8 @@ export const linesEn = {
   lnStyleDelete: "Delete style",
   lnStyleLocked: "Included with a paid plan",
   lnStyleCount: "{{count}} of {{max}} styles",
-  lnStyleLimit: "Your plan saves up to {{max}} line styles. Delete one, or upgrade your plan.",
+  lnStyleLimit:
+    "Your plan saves up to {{max}} line styles. Delete one, or upgrade your plan.",
   lnStyleLimitReached: "limit reached",
   lnStyleUpgrade: "Upgrade",
   lnLimitTitle: "Your style shelf is full",
@@ -101,7 +105,8 @@ export const linesEn = {
   lnCatStamps: "Stamps",
   lnCatLibrary: "Library",
   lnCatCustom: "My line art",
-  lnNoUploads: "No line art of your own yet. Upload a picture of one piece of wall or fence.",
+  lnNoUploads:
+    "No line art of your own yet. Upload a picture of one piece of wall or fence.",
   lnStampLayout: "Pieces",
   lnStampSize: "Size",
   lnSpacing: "Spacing",
@@ -112,8 +117,10 @@ export const linesEn = {
   lnCorners: "Corners",
   lnCornersSplit: "Corner pieces",
   lnCornersContinuous: "Continuous",
-  lnCornersSplitHint: "Each straight run is fitted on its own, with a post or tower on every sharp corner.",
-  lnCornersContinuousHint: "One run of pieces along the whole line, bending round corners.",
+  lnCornersSplitHint:
+    "Each straight run is fitted on its own, with a post or tower on every sharp corner.",
+  lnCornersContinuousHint:
+    "One run of pieces along the whole line, bending round corners.",
   lnCaps: "End pieces",
   lnAnchorCenter: "On the line",
   lnAnchorBase: "Standing on it",
@@ -121,7 +128,8 @@ export const linesEn = {
   lnReshuffleHint: "A new random order of variants, sizes and turns",
   // ---- uploads
   lnUpload: "Upload line art",
-  lnUploadHint: "One picture of a piece lying left to right (several = variants). PNG, WebP or JPEG.",
+  lnUploadHint:
+    "One picture of a piece lying left to right (several = variants). PNG, WebP or JPEG.",
   lnUploadSignIn: "Sign in to upload your own line art.",
   lnAddStart: "+ Start piece",
   lnAddEnd: "+ End piece",
@@ -134,13 +142,17 @@ export const linesEn = {
   lnDrawingHint: "Snap to Grid (status bar) also snaps nodes to the tiles.",
   lnResetStroke: "Reset stroke",
   lnResetStrokeHint: "This stroke's settings back to the line's style",
-  lnResetAllHint: "Every setting back to the line's style (the line itself is kept)",
+  lnResetAllHint:
+    "Every setting back to the line's style (the line itself is kept)",
   // ---- Edit menu
   lnMenuHeading: "Line tool",
-  lnKeysDraw: "{{line}} line · {{free}} free draw · {{pen}} pen · {{nodes}} edit nodes",
-  lnKeysDrawHint: "Enter / double-click / right-click finish · Backspace last node · Shift angle · {{wider}} {{thinner}} width",
+  lnKeysDraw:
+    "{{line}} line · {{free}} free draw · {{pen}} pen · {{nodes}} edit nodes",
+  lnKeysDrawHint:
+    "Enter / double-click / right-click finish · Backspace last node · Shift angle · {{wider}} {{thinner}} width",
   lnKeysEdit: "Edit nodes",
-  lnKeysEditHint: "Drag nodes & handles · click path adds · Delete removes · double-click corner ⇄ smooth",
+  lnKeysEditHint:
+    "Drag nodes & handles · click path adds · Delete removes · double-click corner ⇄ smooth",
   // ---- built-in line art
   ln_stoneWall: "Stone wall",
   ln_castleWall: "Castle wall",
@@ -165,10 +177,12 @@ export const linesAr: typeof linesEn = {
   lnDrawFree: "رسم حر",
   lnDrawPen: "القلم",
   lnDrawEdit: "تعديل النقاط",
-  lnHintFree: "اسحب لرسم خط · يتحول إلى نقاط ناعمة قابلة للتعديل · انتهِ حيث بدأت لإغلاقه · Shift: خط مستقيم",
+  lnHintFree:
+    "اسحب لرسم خط · يتحول إلى نقاط ناعمة قابلة للتعديل · انتهِ حيث بدأت لإغلاقه · Shift: خط مستقيم",
   lnHintPen:
     "انقر لوضع النقاط · اسحب للانحناء · Shift: زوايا ثابتة · انقر النقطة الأولى للإغلاق · Enter أو النقر المزدوج أو الزر الأيمن أو النقر على آخر نقطة للإنهاء · Backspace يحذف آخر نقطة · ابدأ من طرف خط لمواصلته",
-  lnHintEdit: "انقر خطًا ثم اسحب نقاطه · انقر على المسار لإضافة نقطة · نقر مزدوج على نقطة: زاوية ⇄ ناعمة · Alt مع سحب المقبض: زاوية حادة · Delete يحذف النقاط",
+  lnHintEdit:
+    "انقر خطًا ثم اسحب نقاطه · انقر على المسار لإضافة نقطة · نقر مزدوج على نقطة: زاوية ⇄ ناعمة · Alt مع سحب المقبض: زاوية حادة · Delete يحذف النقاط",
   lnPickLine: "انقر خطًا لتعديل نقاطه",
   lnFinish: "إنهاء الخط",
   lnFinishClosed: "إغلاق الخط",
@@ -179,7 +193,8 @@ export const linesAr: typeof linesEn = {
   lnEditNodes: "تعديل النقاط",
   lnEditNodesHint: "تحريك نقاط الخط وإضافتها وحذفها ({{key}})",
   lnReverse: "عكس الاتجاه",
-  lnReverseHint: "يرسم الخط بالاتجاه المعاكس (أي طرف هو البداية، وإلى أي جهة تتجه قطعه)",
+  lnReverseHint:
+    "يرسم الخط بالاتجاه المعاكس (أي طرف هو البداية، وإلى أي جهة تتجه قطعه)",
   lnClosed: "مغلق",
   lnClosePath: "إغلاق الخط",
   lnOpenPath: "فتح الخط",
@@ -268,15 +283,18 @@ export const linesAr: typeof linesEn = {
   lnCorners: "الزوايا",
   lnCornersSplit: "قطع للزوايا",
   lnCornersContinuous: "متصل",
-  lnCornersSplitHint: "كل امتداد مستقيم يُوزَّع وحده، مع عمود أو برج عند كل زاوية حادة.",
-  lnCornersContinuousHint: "سلسلة واحدة من القطع على طول الخط تلتف حول الزوايا.",
+  lnCornersSplitHint:
+    "كل امتداد مستقيم يُوزَّع وحده، مع عمود أو برج عند كل زاوية حادة.",
+  lnCornersContinuousHint:
+    "سلسلة واحدة من القطع على طول الخط تلتف حول الزوايا.",
   lnCaps: "قطع الأطراف",
   lnAnchorCenter: "على الخط",
   lnAnchorBase: "قائمة عليه",
   lnReshuffle: "إعادة الخلط",
   lnReshuffleHint: "ترتيب عشوائي جديد للأشكال والأحجام والدوران",
   lnUpload: "رفع رسومات خط",
-  lnUploadHint: "صورة لقطعة ممتدة من اليسار إلى اليمين (عدة صور = أشكال متنوعة). PNG أو WebP أو JPEG.",
+  lnUploadHint:
+    "صورة لقطعة ممتدة من اليسار إلى اليمين (عدة صور = أشكال متنوعة). PNG أو WebP أو JPEG.",
   lnUploadSignIn: "سجّل الدخول لرفع رسومات خطوطك.",
   lnAddStart: "+ قطعة البداية",
   lnAddEnd: "+ قطعة النهاية",
@@ -285,15 +303,19 @@ export const linesAr: typeof linesEn = {
   lnSmoothing: "التنعيم",
   lnAngleStep: "زوايا Shift",
   lnSnapEnds: "الالتقاط بأطراف الخطوط",
-  lnDrawingHint: "الالتقاط بالشبكة (في شريط الحالة) يلتقط النقاط بالمربعات أيضًا.",
+  lnDrawingHint:
+    "الالتقاط بالشبكة (في شريط الحالة) يلتقط النقاط بالمربعات أيضًا.",
   lnResetStroke: "إعادة الخط",
   lnResetStrokeHint: "إعدادات هذا النوع تعود إلى نمط الخط",
   lnResetAllHint: "كل الإعدادات تعود إلى نمط الخط (الخط نفسه يبقى)",
   lnMenuHeading: "أداة الخط",
-  lnKeysDraw: "{{line}} الخط · {{free}} رسم حر · {{pen}} القلم · {{nodes}} تعديل النقاط",
-  lnKeysDrawHint: "Enter / نقر مزدوج / الزر الأيمن للإنهاء · Backspace آخر نقطة · Shift الزاوية · {{wider}} {{thinner}} السُّمك",
+  lnKeysDraw:
+    "{{line}} الخط · {{free}} رسم حر · {{pen}} القلم · {{nodes}} تعديل النقاط",
+  lnKeysDrawHint:
+    "Enter / نقر مزدوج / الزر الأيمن للإنهاء · Backspace آخر نقطة · Shift الزاوية · {{wider}} {{thinner}} السُّمك",
   lnKeysEdit: "تعديل النقاط",
-  lnKeysEditHint: "اسحب النقاط والمقابض · انقر المسار للإضافة · Delete للحذف · نقر مزدوج زاوية ⇄ ناعمة",
+  lnKeysEditHint:
+    "اسحب النقاط والمقابض · انقر المسار للإضافة · Delete للحذف · نقر مزدوج زاوية ⇄ ناعمة",
   ln_stoneWall: "جدار حجري",
   ln_castleWall: "سور قلعة",
   ln_palisade: "سياج أوتاد",

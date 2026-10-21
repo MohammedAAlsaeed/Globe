@@ -8,19 +8,32 @@
  * hundred pines at the same zoom shares one small canvas.
  */
 import { fillSource } from "../brush/engine";
-import { filterHex, filterRgb, hasFilters, hexToRgb, rgbToHex } from "../brush/textures";
+import {
+  filterHex,
+  filterRgb,
+  hasFilters,
+  hexToRgb,
+  rgbToHex,
+} from "../brush/textures";
 import type { MMLayer, MMStamp, ShadowSettings } from "../types";
 import type { ArtPart, VectorArt } from "./art";
 import { setOfAsset, stampAsset, type StampAsset } from "./catalog";
 import { stampCenter, stampExtent } from "./geometry";
 
 /** What decides a stamp's pixels (not where or how big it is placed). */
-export type StampColors = Pick<MMStamp, "asset" | "ink" | "fill" | "hue" | "saturation" | "brightness" | "contrast">;
+export type StampColors = Pick<
+  MMStamp,
+  "asset" | "ink" | "fill" | "hue" | "saturation" | "brightness" | "contrast"
+>;
 
 const mix = (a: string, b: string, t: number) => {
   const x = hexToRgb(a),
     y = hexToRgb(b);
-  return rgbToHex([x[0] + (y[0] - x[0]) * t, x[1] + (y[1] - x[1]) * t, x[2] + (y[2] - x[2]) * t]);
+  return rgbToHex([
+    x[0] + (y[0] - x[0]) * t,
+    x[1] + (y[1] - x[1]) * t,
+    x[2] + (y[2] - x[2]) * t,
+  ]);
 };
 /** The paint for each part role, from the stamp's two (filtered) colors. */
 function palette(ink: string, fill: string | null) {
@@ -41,7 +54,13 @@ const path2d = (d: string) => {
 };
 
 /** Draws vector art scaled to `scale` px per art unit, at the origin. */
-export function drawArt(ctx: CanvasRenderingContext2D, art: VectorArt, ink: string, fill: string | null, scale: number) {
+export function drawArt(
+  ctx: CanvasRenderingContext2D,
+  art: VectorArt,
+  ink: string,
+  fill: string | null,
+  scale: number,
+) {
   const colors = palette(ink, fill);
   ctx.save();
   ctx.scale(scale, scale);
@@ -63,11 +82,18 @@ export function drawArt(ctx: CanvasRenderingContext2D, art: VectorArt, ink: stri
 }
 
 // ---- uploaded images: loaded once, then filtered on demand -----------------------
-type ImageEntry = { img: HTMLImageElement | null; failed: boolean; waiters: Set<() => void> };
+type ImageEntry = {
+  img: HTMLImageElement | null;
+  failed: boolean;
+  waiters: Set<() => void>;
+};
 const images = new Map<string, ImageEntry>();
 /** The loaded image of an uploaded asset (null while loading; `onLoad` is
  * called once it arrives). */
-function imageOf(a: Extract<StampAsset, { kind: "image" }>, onLoad?: () => void) {
+function imageOf(
+  a: Extract<StampAsset, { kind: "image" }>,
+  onLoad?: () => void,
+) {
   let e = images.get(a.key);
   if (!e) {
     const entry: ImageEntry = { img: null, failed: false, waiters: new Set() };
@@ -93,7 +119,8 @@ function imageOf(a: Extract<StampAsset, { kind: "image" }>, onLoad?: () => void)
 // ---- rasters ----------------------------------------------------------------------
 const MAX_RASTERS = 600;
 const rasters = new Map<string, HTMLCanvasElement>();
-const bucket = (px: number) => Math.min(8192, Math.max(16, 2 ** Math.ceil(Math.log2(Math.max(1, px)))));
+const bucket = (px: number) =>
+  Math.min(8192, Math.max(16, 2 ** Math.ceil(Math.log2(Math.max(1, px)))));
 
 function remember(key: string, c: HTMLCanvasElement) {
   rasters.set(key, c);
@@ -105,10 +132,19 @@ function remember(key: string, c: HTMLCanvasElement) {
  * The stamp's picture, at least `px` wide (null while an uploaded image is
  * still loading — `onReady` is then called once it can be drawn).
  */
-export function stampRaster(o: StampColors, px: number, onReady?: () => void): HTMLCanvasElement | null {
+export function stampRaster(
+  o: StampColors,
+  px: number,
+  onReady?: () => void,
+): HTMLCanvasElement | null {
   const asset = stampAsset(o.asset);
   if (!asset) return null;
-  const f = { hue: o.hue, saturation: o.saturation, brightness: o.brightness, contrast: o.contrast };
+  const f = {
+    hue: o.hue,
+    saturation: o.saturation,
+    brightness: o.brightness,
+    contrast: o.contrast,
+  };
   if (asset.kind === "image") {
     const img = imageOf(asset, onReady);
     if (!img) return null;
@@ -129,12 +165,21 @@ export function stampRaster(o: StampColors, px: number, onReady?: () => void): H
     c = document.createElement("canvas");
   c.width = w;
   c.height = Math.max(1, Math.round((w * art.h) / art.w));
-  drawArt(c.getContext("2d")!, art, filterHex(o.ink, f), o.fill && filterHex(o.fill, f), w / art.w);
+  drawArt(
+    c.getContext("2d")!,
+    art,
+    filterHex(o.ink, f),
+    o.fill && filterHex(o.fill, f),
+    w / art.w,
+  );
   return remember(key, c);
 }
 
 /** An uploaded image with the color filters applied (at most 2048 px). */
-function filteredImage(img: HTMLImageElement, f: { hue: number; saturation: number; brightness: number; contrast: number }) {
+function filteredImage(
+  img: HTMLImageElement,
+  f: { hue: number; saturation: number; brightness: number; contrast: number },
+) {
   const k = Math.min(1, 2048 / Math.max(img.naturalWidth, img.naturalHeight)),
     c = document.createElement("canvas");
   c.width = Math.max(1, Math.round(img.naturalWidth * k));
@@ -160,14 +205,23 @@ function filteredImage(img: HTMLImageElement, f: { hue: number; saturation: numb
 }
 
 // ---- clip masks and blending ---------------------------------------------------------
-const clipped = new WeakMap<MMStamp, { key: string; canvas: HTMLCanvasElement }>();
+const clipped = new WeakMap<
+  MMStamp,
+  { key: string; canvas: HTMLCanvasElement }
+>();
 /**
  * What a stamp draws: its picture, or — clip "texture" — its shape filled
  * with the texture, the picture's lines and shading multiplied on top. The
  * texture is anchored to the map (W × H = the map in stage px), so stamps
  * side by side share one continuous surface.
  */
-export function stampPicture(o: MMStamp, px: number, W: number, H: number, onReady?: () => void): HTMLCanvasElement | null {
+export function stampPicture(
+  o: MMStamp,
+  px: number,
+  W: number,
+  H: number,
+  onReady?: () => void,
+): HTMLCanvasElement | null {
   const base = stampRaster(o, px, onReady);
   if (!base || o.clip !== "texture" || !o.clipSource) return base;
   const key = `${base.width}|${W}|${H}`,
@@ -196,7 +250,10 @@ export function stampPicture(o: MMStamp, px: number, W: number, H: number, onRea
 
 /** How a stamp is composited in its layer: an eraser cuts, otherwise its
  * blend mode — unless the layer blends as a whole. */
-export function stampCompositeOp(o: Pick<MMStamp, "clip" | "blend">, layer: Pick<MMLayer, "blend">): GlobalCompositeOperation | undefined {
+export function stampCompositeOp(
+  o: Pick<MMStamp, "clip" | "blend">,
+  layer: Pick<MMLayer, "blend">,
+): GlobalCompositeOperation | undefined {
   if (o.clip === "erase") return "destination-out";
   if (layer.blend && layer.blend !== "normal") return undefined;
   return o.blend && o.blend !== "normal" ? o.blend : undefined;
@@ -207,14 +264,31 @@ export { stampAspect } from "./geometry";
 // ---- thumbnails ----------------------------------------------------------------------
 const thumbs = new Map<string, string>();
 /** A small PNG data URL of an asset in its set's colors, for the catalog. */
-export function stampThumb(assetKey: string, ink?: string, fill?: string | null, onReady?: () => void) {
+export function stampThumb(
+  assetKey: string,
+  ink?: string,
+  fill?: string | null,
+  onReady?: () => void,
+) {
   const set = setOfAsset(assetKey),
     i = ink ?? set?.ink ?? "#3a2e22",
     f = fill === undefined ? (set?.fill ?? null) : fill,
     key = `${assetKey}|${i}|${f}`;
   const hit = thumbs.get(key);
   if (hit) return hit;
-  const r = stampRaster({ asset: assetKey, ink: i, fill: f, hue: 0, saturation: 0, brightness: 0, contrast: 0 }, 128, onReady);
+  const r = stampRaster(
+    {
+      asset: assetKey,
+      ink: i,
+      fill: f,
+      hue: 0,
+      saturation: 0,
+      brightness: 0,
+      contrast: 0,
+    },
+    128,
+    onReady,
+  );
   if (!r) return null;
   const url = r.toDataURL("image/png");
   thumbs.set(key, url);
@@ -231,7 +305,10 @@ export const DEFAULT_SHADOW: ShadowSettings = {
   distance: 0.05,
 };
 /** The shadow a stamp actually gets (null: none). */
-export function resolveShadow(o: Pick<MMStamp, "asset" | "shadow" | "customShadow">, layer: Pick<MMLayer, "stampShadow">): ShadowSettings | null {
+export function resolveShadow(
+  o: Pick<MMStamp, "asset" | "shadow" | "customShadow">,
+  layer: Pick<MMLayer, "stampShadow">,
+): ShadowSettings | null {
   switch (o.shadow) {
     case "none":
       return null;

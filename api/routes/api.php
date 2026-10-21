@@ -10,6 +10,7 @@ use App\Http\Controllers\Api\V1\MapController;
 use App\Http\Controllers\Api\V1\MapExportController;
 use App\Http\Controllers\Api\V1\MapThumbnailController;
 use App\Http\Controllers\Api\V1\PlanController;
+use App\Http\Controllers\Api\V1\TextStyleController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -68,4 +69,9 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
     Route::post('line-styles', [LineStyleController::class, 'store']);
     Route::patch('line-styles/{lineStyle}', [LineStyleController::class, 'update']);
     Route::delete('line-styles/{lineStyle}', [LineStyleController::class, 'destroy']);
+
+    Route::get('text-styles', [TextStyleController::class, 'index']);
+    Route::post('text-styles', [TextStyleController::class, 'store']);
+    Route::patch('text-styles/{textStyle}', [TextStyleController::class, 'update']);
+    Route::delete('text-styles/{textStyle}', [TextStyleController::class, 'destroy']);
 });

@@ -22,13 +22,17 @@ export function LayerStampSettings({
   t: T;
 }) {
   const shadow = layer.stampShadow ?? DEFAULT_SHADOW,
-    setShadow = (p: Partial<ShadowSettings>) => onChange({ stampShadow: { ...shadow, ...p } });
+    setShadow = (p: Partial<ShadowSettings>) =>
+      onChange({ stampShadow: { ...shadow, ...p } });
   return (
     <div className="mm-layer-stamps">
       <Section title={t("stLayerEffects")}>
         <label className="mm-bp-select-row">
           <span>{t("mmBlendMode")}</span>
-          <select value={layer.blend ?? "normal"} onChange={(e) => onChange({ blend: e.target.value as BlendMode })}>
+          <select
+            value={layer.blend ?? "normal"}
+            onChange={(e) => onChange({ blend: e.target.value as BlendMode })}
+          >
             {BLEND_MODES.map((b) => (
               <option key={b} value={b}>
                 {t(`mmBlend_${b}`)}
@@ -40,12 +44,54 @@ export function LayerStampSettings({
         <p className="mm-bp-hint">{t("stLayerShadowHint")}</p>
         <div className="mm-st-color-row">
           <span>{t("stShadowColor")}</span>
-          <ColorControl color={shadow.color} recents={[]} onChange={(c) => setShadow({ color: c })} label={t("stShadowColor")} recentLabel="" />
+          <ColorControl
+            color={shadow.color}
+            recents={[]}
+            onChange={(c) => setShadow({ color: c })}
+            label={t("stShadowColor")}
+            recentLabel=""
+          />
         </div>
-        <Slider label={t("stOpacity")} defaultValue={DEFAULT_SHADOW.opacity} value={shadow.opacity} min={0} max={1} step={0.01} onChange={(v) => setShadow({ opacity: v })} format={pct} />
-        <Slider label={t("stShadowBlur")} defaultValue={DEFAULT_SHADOW.blur} value={shadow.blur} min={0} max={0.5} step={0.01} onChange={(v) => setShadow({ blur: v })} format={pct} />
-        <Slider label={t("stShadowDistance")} defaultValue={DEFAULT_SHADOW.distance} value={shadow.distance} min={0} max={0.5} step={0.01} onChange={(v) => setShadow({ distance: v })} format={pct} />
-        <Slider label={t("stShadowAngle")} defaultValue={DEFAULT_SHADOW.angle} value={shadow.angle} min={0} max={359} step={1} onChange={(v) => setShadow({ angle: v })} format={(v) => `${v}°`} />
+        <Slider
+          label={t("stOpacity")}
+          defaultValue={DEFAULT_SHADOW.opacity}
+          value={shadow.opacity}
+          min={0}
+          max={1}
+          step={0.01}
+          onChange={(v) => setShadow({ opacity: v })}
+          format={pct}
+        />
+        <Slider
+          label={t("stShadowBlur")}
+          defaultValue={DEFAULT_SHADOW.blur}
+          value={shadow.blur}
+          min={0}
+          max={0.5}
+          step={0.01}
+          onChange={(v) => setShadow({ blur: v })}
+          format={pct}
+        />
+        <Slider
+          label={t("stShadowDistance")}
+          defaultValue={DEFAULT_SHADOW.distance}
+          value={shadow.distance}
+          min={0}
+          max={0.5}
+          step={0.01}
+          onChange={(v) => setShadow({ distance: v })}
+          format={pct}
+        />
+        <Slider
+          label={t("stShadowAngle")}
+          defaultValue={DEFAULT_SHADOW.angle}
+          value={shadow.angle}
+          min={0}
+          max={359}
+          step={1}
+          onChange={(v) => setShadow({ angle: v })}
+          format={(v) => `${v}°`}
+        />
       </Section>
     </div>
   );

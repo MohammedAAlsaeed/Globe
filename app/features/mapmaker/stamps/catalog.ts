@@ -18,7 +18,14 @@ import type { VectorArt } from "./art";
 
 /** `library`: official server packs not filed elsewhere (and locked packs);
  * `custom`: the person's own uploads. */
-export type StampCategory = "terrain" | "vegetation" | "settlements" | "water" | "symbols" | "library" | "custom";
+export type StampCategory =
+  | "terrain"
+  | "vegetation"
+  | "settlements"
+  | "water"
+  | "symbols"
+  | "library"
+  | "custom";
 export const STAMP_CATEGORIES: { key: StampCategory; labelKey: string }[] = [
   { key: "terrain", labelKey: "stCatTerrain" },
   { key: "vegetation", labelKey: "stCatVegetation" },
@@ -31,7 +38,14 @@ export const STAMP_CATEGORIES: { key: StampCategory; labelKey: string }[] = [
 
 export type StampAsset =
   | { key: string; set: string; kind: "vector"; art: () => VectorArt }
-  | { key: string; set: string; kind: "image"; url: string; w: number; h: number };
+  | {
+      key: string;
+      set: string;
+      kind: "image";
+      url: string;
+      w: number;
+      h: number;
+    };
 
 export interface StampSet {
   id: string;
@@ -58,7 +72,8 @@ export interface StampSet {
   hidden?: boolean;
 }
 
-export const builtinKey = (set: string, variant: number) => `b:${set}:${variant}`;
+export const builtinKey = (set: string, variant: number) =>
+  `b:${set}:${variant}`;
 
 const sets = new Map<string, StampSet>();
 const assets = new Map<string, StampAsset>();
@@ -70,7 +85,12 @@ function addBuiltin(b: BuiltinSet, hidden = false) {
   for (let v = 0; v < b.variants; v++) {
     const key = builtinKey(b.id, v);
     let art: VectorArt | null = null;
-    assets.set(key, { key, set: b.id, kind: "vector", art: () => (art ??= b.draw(v)) });
+    assets.set(key, {
+      key,
+      set: b.id,
+      kind: "vector",
+      art: () => (art ??= b.draw(v)),
+    });
     keys.push(key);
   }
   sets.set(b.id, {
@@ -108,12 +128,16 @@ const BUILTIN_PACKS = new Set(["atelier", "classic", "lines"]);
  * listed before (a fresh copy of the library, or signing out); stamps loaded
  * only to draw a map (hidden sets) are kept.
  */
-export function registerRemoteSets(list: { set: StampSet; assets: StampAsset[] }[], replace = false) {
+export function registerRemoteSets(
+  list: { set: StampSet; assets: StampAsset[] }[],
+  replace = false,
+) {
   if (replace)
     for (const [id, s] of sets)
       if (!BUILTIN_PACKS.has(s.pack) && !s.hidden) {
         sets.delete(id);
-        for (const key of s.assets) if (setOfAsset(key)?.id === id) assets.delete(key);
+        for (const key of s.assets)
+          if (setOfAsset(key)?.id === id) assets.delete(key);
       }
   for (const { set, assets: a } of list) {
     // A listed set takes over assets loaded earlier only to draw a map.
@@ -155,9 +179,15 @@ export function assetSize(a: StampAsset) {
 
 /** Sets matching a search (name in the current language, or a tag), best
  * matches first: names before tags, starting matches before inner ones. */
-export function searchSets(query: string, label: (s: StampSet) => string, category: StampCategory | "all") {
+export function searchSets(
+  query: string,
+  label: (s: StampSet) => string,
+  category: StampCategory | "all",
+) {
   const q = query.trim().toLowerCase(),
-    inCategory = allSets().filter((s) => category === "all" || s.category === category);
+    inCategory = allSets().filter(
+      (s) => category === "all" || s.category === category,
+    );
   if (!q) return inCategory;
   const score = (s: StampSet) => {
     const name = label(s).toLowerCase(),

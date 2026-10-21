@@ -14,11 +14,17 @@
  * Failed saves retry on their own; the work is always kept on this device
  * meanwhile (the editor's local autosave), so nothing is lost offline.
  */
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { maps } from "../../account/api";
 import type { User } from "../../account/types";
 import type { CloudBinding, MMProject } from "../types";
-import {ApiError, NetworkError} from "@/lib/api/client";
+import { ApiError, NetworkError } from "@/lib/api/client";
 
 export type CloudStatus =
   | "loading" // waiting to know who is signed in
@@ -68,7 +74,9 @@ export function useCloudSync(o: Options) {
   });
   const saved = useRef<MMProject | null>(
       // A cloud copy loaded without local edits since its last save is in sync.
-      o.binding && (o.binding.savedAt ?? 0) >= o.project.updatedAt ? o.project : null,
+      o.binding && (o.binding.savedAt ?? 0) >= o.project.updatedAt
+        ? o.project
+        : null,
     ),
     timer = useRef<ReturnType<typeof setTimeout> | null>(null),
     inFlight = useRef(false),
@@ -76,7 +84,9 @@ export function useCloudSync(o: Options) {
     blocked = useRef(false), // conflict or limit: no automatic saves
     lastThumb = useRef(0),
     thumbTimer = useRef<ReturnType<typeof setTimeout> | null>(null),
-    uploadThumbnailRef = useRef<(id: string, force?: boolean) => Promise<void>>(async () => {}),
+    uploadThumbnailRef = useRef<(id: string, force?: boolean) => Promise<void>>(
+      async () => {},
+    ),
     // The save routine, read by timers (always the latest version).
     runRef = useRef<() => Promise<void>>(async () => {});
 
@@ -91,7 +101,10 @@ export function useCloudSync(o: Options) {
     const wait = THUMBNAIL_EVERY - (Date.now() - lastThumb.current);
     if (!force && wait > 0) {
       // Too soon after the last one: refresh it once the interval is up.
-      thumbTimer.current = setTimeout(() => void uploadThumbnailRef.current(id, true), wait);
+      thumbTimer.current = setTimeout(
+        () => void uploadThumbnailRef.current(id, true),
+        wait,
+      );
       return;
     }
     lastThumb.current = Date.now();
@@ -238,7 +251,10 @@ export function useCloudSync(o: Options) {
       try {
         if (choice === "load") {
           const fresh = await maps.get(binding.id);
-          latest.current.onReplaceProject({ ...fresh.project, cloud: { ...fresh.project.cloud!, savedAt: Date.now() } });
+          latest.current.onReplaceProject({
+            ...fresh.project,
+            cloud: { ...fresh.project.cloud!, savedAt: Date.now() },
+          });
           return;
         }
         if (choice === "copy") {
@@ -264,5 +280,13 @@ export function useCloudSync(o: Options) {
     [bind, conflictRevision, uploadThumbnail],
   );
 
-  return { status, saveNow, conflict: conflictRevision !== null, resolveConflict, resolving, resolveError, limitMax };
+  return {
+    status,
+    saveNow,
+    conflict: conflictRevision !== null,
+    resolveConflict,
+    resolving,
+    resolveError,
+    limitMax,
+  };
 }

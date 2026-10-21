@@ -121,6 +121,36 @@ const PATHS: Record<string, React.ReactNode> = {
   ),
   region: <path d="M12 3.5 20 8l-2.5 12h-11L4 8Z" />,
   label: <path d="M4 5h16M12 5v14" />,
+  text: (
+    <>
+      <path d="M5 6V4.5h14V6" />
+      <path d="M12 4.5V19.5" />
+      <path d="M9 19.5h6" />
+    </>
+  ),
+  eyedropper: (
+    <>
+      <path d="M14.5 4.5l5 5" />
+      <path d="M17 2.5a2.1 2.1 0 0 1 3 3l-2.5 2.5-3-3Z" />
+      <path d="M15.5 7.5 6 17l-1 3 3-1 9.5-9.5" />
+    </>
+  ),
+  alignStart: (
+    <>
+      <path d="M20 5H4M20 10h-9M20 15H4M20 20h-9" />
+      <path d="M21 3v4" />
+    </>
+  ),
+  alignEnd: (
+    <>
+      <path d="M4 5h16M4 10h9M4 15h16M4 20h9" />
+      <path d="M3 3v4" />
+    </>
+  ),
+  curve_straight: <path d="M3 14h18M6 10v4M10 10v4M14 10v4M18 10v4" />,
+  curve_up: <path d="M3 17c4-8 14-8 18 0" />,
+  curve_down: <path d="M3 8c4 8 14 8 18 0" />,
+  curve_path: <path d="M3 16c3-6 6-6 9-1s6 4 9-3" />,
   eye: (
     <>
       <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z" />
@@ -275,7 +305,9 @@ const PATHS: Record<string, React.ReactNode> = {
       <path d="M7 20h13M9.3 9.3l5.4 5.4" />
     </>
   ),
-  star: <path d="m12 3.5 2.6 5.3 5.8.8-4.2 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.2-4.1 5.8-.8Z" />,
+  star: (
+    <path d="m12 3.5 2.6 5.3 5.8.8-4.2 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.2-4.1 5.8-.8Z" />
+  ),
   chevronDown: <path d="m6 9 6 6 6-6" />,
   close: <path d="M6 6l12 12M18 6 6 18" />,
   land: <path d="M3 18 9 8l3.5 5.5L15 10l6 8Z" />,

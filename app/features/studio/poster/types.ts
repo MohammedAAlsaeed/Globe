@@ -51,7 +51,8 @@ export const DEFAULT_POSTER: PosterSettings = {
   subtitle: "",
 };
 
-const finite = (v: unknown, min: number, max: number) => typeof v === "number" && Number.isFinite(v) && v >= min && v <= max;
+const finite = (v: unknown, min: number, max: number) =>
+  typeof v === "number" && Number.isFinite(v) && v >= min && v <= max;
 const hex = (v: unknown) => typeof v === "string" && /^#[0-9a-f]{6}$/i.test(v);
 
 /** Imported projects are untrusted. */

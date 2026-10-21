@@ -72,7 +72,8 @@ export interface PathObject {
   width: number;
   color: string;
 }
-export type Biome = "forest" | "mountains" | "desert" | "water" | "grass" | "swamp";
+export type Biome =
+  "forest" | "mountains" | "desert" | "water" | "grass" | "swamp";
 /** A closed biome region, filled with a per-biome color when rendered. */
 export interface RegionObject {
   id: string;

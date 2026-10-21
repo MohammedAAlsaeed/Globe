@@ -5,7 +5,13 @@
  * the maps kept only in this browser (made signed out, or imported), which
  * can be uploaded to the cloud.
  */
-import { useCallback, useEffect, useRef, useState, type ChangeEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ChangeEvent,
+} from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTranslation } from "react-i18next";
@@ -24,11 +30,15 @@ import { auth, maps } from "./api";
 import { useAuth } from "./AuthProvider";
 import type { CloudMap, User } from "./types";
 import { CompassLoader, CompassScreen, SiteHeader, errorMessage } from "./ui";
-import {ApiError} from "@/lib/api/client";
+import { ApiError } from "@/lib/api/client";
 
 function formatDate(value: string | number, locale: string) {
   try {
-    return new Date(value).toLocaleDateString(locale, { year: "numeric", month: "short", day: "numeric" });
+    return new Date(value).toLocaleDateString(locale, {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    });
   } catch {
     return "";
   }
@@ -44,7 +54,10 @@ export function MapsPage() {
     [creating, setCreating] = useState(false),
     [confirm, setConfirm] = useState<string | null>(null),
     [busyId, setBusyId] = useState<string | null>(null),
-    [notice, setNotice] = useState<{ kind: "ok" | "error"; text: string } | null>(null);
+    [notice, setNotice] = useState<{
+      kind: "ok" | "error";
+      text: string;
+    } | null>(null);
 
   const loadCloud = useCallback(async () => {
     try {
@@ -75,7 +88,10 @@ export function MapsPage() {
       kind: "error",
       text:
         e instanceof ApiError && e.code === "plan_limit_reached" && user
-          ? t("acLimitReached", { plan: t(`acPlan_${user.plan.code}`), max: e.body.max })
+          ? t("acLimitReached", {
+              plan: t(`acPlan_${user.plan.code}`),
+              max: e.body.max,
+            })
           : errorMessage(t, e),
     });
   }
@@ -110,7 +126,10 @@ export function MapsPage() {
     setBusyId(project.id);
     try {
       const { project: bound } = await maps.create(project);
-      await saveProject({ ...bound, cloud: { ...bound.cloud!, savedAt: Date.now() } });
+      await saveProject({
+        ...bound,
+        cloud: { ...bound.cloud!, savedAt: Date.now() },
+      });
       await deleteProject(project.id);
       await Promise.all([loadCloud(), loadLocal(), refresh()]);
     } catch (e) {
@@ -157,7 +176,10 @@ export function MapsPage() {
             <h1>{t("acMapsTitle")}</h1>
           </div>
           <div className="maps-head-actions">
-            <button className="site-btn quiet" onClick={() => fileInput.current?.click()}>
+            <button
+              className="site-btn quiet"
+              onClick={() => fileInput.current?.click()}
+            >
               <Glyph name="upload" size={16} />
               {t("acImportMap")}
             </button>
@@ -166,12 +188,23 @@ export function MapsPage() {
             </button>
           </div>
         </div>
-        <input ref={fileInput} type="file" accept=".json,application/json" hidden onChange={importFile} />
+        <input
+          ref={fileInput}
+          type="file"
+          accept=".json,application/json"
+          hidden
+          onChange={importFile}
+        />
 
-        {user && <PlanMeter user={user} count={cloud?.length ?? user.usage.maps} />}
+        {user && (
+          <PlanMeter user={user} count={cloud?.length ?? user.usage.maps} />
+        )}
         {user && !user.email_verified && <VerifyNotice email={user.email} />}
         {notice && (
-          <p className={`site-notice ${notice.kind}`} role={notice.kind === "error" ? "alert" : "status"}>
+          <p
+            className={`site-notice ${notice.kind}`}
+            role={notice.kind === "error" ? "alert" : "status"}
+          >
             {notice.text}
           </p>
         )}
@@ -194,7 +227,9 @@ export function MapsPage() {
             <CompassLoader size={72} label={t("acLoading")} />
           ) : (
             <>
-              {cloud.length === 0 && <p className="maps-section-note">{t("acEmptyCloud")}</p>}
+              {cloud.length === 0 && (
+                <p className="maps-section-note">{t("acEmptyCloud")}</p>
+              )}
               <div className="maps-grid">
                 <button className="maps-new" onClick={() => setCreating(true)}>
                   <span aria-hidden="true">+</span>
@@ -202,7 +237,11 @@ export function MapsPage() {
                 </button>
                 {cloud.map((m) => (
                   <div className="map-tile" key={m.id}>
-                    <Link className="map-tile-open" href={`/editor?map=${m.id}`} aria-label={m.name}>
+                    <Link
+                      className="map-tile-open"
+                      href={`/editor?map=${m.id}`}
+                      aria-label={m.name}
+                    >
                       {m.thumbnail_url ? (
                         <img src={m.thumbnail_url} alt="" loading="lazy" />
                       ) : (
@@ -214,10 +253,17 @@ export function MapsPage() {
                     {confirm === m.id ? (
                       <div className="map-tile-confirm">
                         <span>{t("acDeleteConfirm")}</span>
-                        <button className="site-btn small" disabled={busyId === m.id} onClick={() => removeCloud(m.id)}>
+                        <button
+                          className="site-btn small"
+                          disabled={busyId === m.id}
+                          onClick={() => removeCloud(m.id)}
+                        >
                           {t("acDelete")}
                         </button>
-                        <button className="site-btn quiet small" onClick={() => setConfirm(null)}>
+                        <button
+                          className="site-btn quiet small"
+                          onClick={() => setConfirm(null)}
+                        >
                           {t("acCancel")}
                         </button>
                       </div>
@@ -226,14 +272,25 @@ export function MapsPage() {
                         <div>
                           <b>{m.name}</b>
                           <small>
-                            {t("acUpdated", { date: formatDate(m.updated_at, i18n.language) })}
+                            {t("acUpdated", {
+                              date: formatDate(m.updated_at, i18n.language),
+                            })}
                           </small>
                         </div>
                         <div className="map-tile-actions">
-                          <button title={t("acDownload")} aria-label={t("acDownload")} disabled={busyId === m.id} onClick={() => downloadCloud(m.id)}>
+                          <button
+                            title={t("acDownload")}
+                            aria-label={t("acDownload")}
+                            disabled={busyId === m.id}
+                            onClick={() => downloadCloud(m.id)}
+                          >
                             <Glyph name="download" size={15} />
                           </button>
-                          <button title={t("acDelete")} aria-label={t("acDelete")} onClick={() => setConfirm(m.id)}>
+                          <button
+                            title={t("acDelete")}
+                            aria-label={t("acDelete")}
+                            onClick={() => setConfirm(m.id)}
+                          >
                             <Glyph name="trash" size={15} />
                           </button>
                         </div>
@@ -249,22 +306,37 @@ export function MapsPage() {
         {local && local.length > 0 && (
           <section className="maps-section" aria-labelledby="device-maps">
             <h2 id="device-maps">{t("acDeviceMaps")}</h2>
-            <p className="maps-section-note">{t(user ? "acDeviceNote" : "acDeviceNoteGuest")}</p>
+            <p className="maps-section-note">
+              {t(user ? "acDeviceNote" : "acDeviceNoteGuest")}
+            </p>
             <div className="maps-grid">
               {local.map((p) => (
                 <div className="map-tile" key={p.id}>
-                  <button className="map-tile-open" onClick={() => openLocal(p)} aria-label={p.name || t("mmUntitledMap")}>
-                    <span className="map-tile-blank" style={{ background: p.background }}>
+                  <button
+                    className="map-tile-open"
+                    onClick={() => openLocal(p)}
+                    aria-label={p.name || t("mmUntitledMap")}
+                  >
+                    <span
+                      className="map-tile-blank"
+                      style={{ background: p.background }}
+                    >
                       <img src="/brand/compass-256.webp" alt="" />
                     </span>
                   </button>
                   {confirm === p.id ? (
                     <div className="map-tile-confirm">
                       <span>{t("acDeleteConfirm")}</span>
-                      <button className="site-btn small" onClick={() => removeLocal(p.id)}>
+                      <button
+                        className="site-btn small"
+                        onClick={() => removeLocal(p.id)}
+                      >
                         {t("acDelete")}
                       </button>
-                      <button className="site-btn quiet small" onClick={() => setConfirm(null)}>
+                      <button
+                        className="site-btn quiet small"
+                        onClick={() => setConfirm(null)}
+                      >
                         {t("acCancel")}
                       </button>
                     </div>
@@ -272,18 +344,35 @@ export function MapsPage() {
                     <div className="map-tile-info">
                       <div>
                         <b>{p.name || t("mmUntitledMap")}</b>
-                        <small>{t("acUpdated", { date: formatDate(p.updatedAt, i18n.language) })}</small>
+                        <small>
+                          {t("acUpdated", {
+                            date: formatDate(p.updatedAt, i18n.language),
+                          })}
+                        </small>
                       </div>
                       <div className="map-tile-actions">
                         {user && (
-                          <button title={t("acUpload")} aria-label={t("acUpload")} disabled={busyId === p.id} onClick={() => upload(p)}>
+                          <button
+                            title={t("acUpload")}
+                            aria-label={t("acUpload")}
+                            disabled={busyId === p.id}
+                            onClick={() => upload(p)}
+                          >
                             <Glyph name="upload" size={15} />
                           </button>
                         )}
-                        <button title={t("acDownload")} aria-label={t("acDownload")} onClick={() => exportProjectToFile(p)}>
+                        <button
+                          title={t("acDownload")}
+                          aria-label={t("acDownload")}
+                          onClick={() => exportProjectToFile(p)}
+                        >
                           <Glyph name="download" size={15} />
                         </button>
-                        <button title={t("acDelete")} aria-label={t("acDelete")} onClick={() => setConfirm(p.id)}>
+                        <button
+                          title={t("acDelete")}
+                          aria-label={t("acDelete")}
+                          onClick={() => setConfirm(p.id)}
+                        >
                           <Glyph name="trash" size={15} />
                         </button>
                       </div>
@@ -310,7 +399,9 @@ function PlanMeter({ user, count }: { user: User; count: number }) {
       <span>
         <b>{t("acPlanLine", { plan: t(`acPlan_${user.plan.code}`) })}</b>
         {"  "}
-        {max === null ? t("acPlanUnlimited", { used: count }) : t("acPlanUsage", { used: count, max })}
+        {max === null
+          ? t("acPlanUnlimited", { used: count })
+          : t("acPlanUsage", { used: count, max })}
       </span>
       {max !== null && (
         <div
@@ -320,7 +411,11 @@ function PlanMeter({ user, count }: { user: User; count: number }) {
           aria-valuemax={max}
           aria-valuenow={count}
         >
-          <span style={{ width: `${Math.min(100, (count / Math.max(1, max)) * 100)}%` }} />
+          <span
+            style={{
+              width: `${Math.min(100, (count / Math.max(1, max)) * 100)}%`,
+            }}
+          />
         </div>
       )}
     </div>

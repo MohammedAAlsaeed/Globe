@@ -17,14 +17,18 @@ import { useTranslation } from "react-i18next";
 import { plans as plansApi } from "./api";
 import type { Plan } from "./types";
 
-export type LimitKind = "line_styles" | "maps" | "upload_bytes" | "export_px";
+export type LimitKind =
+  "line_styles" | "text_styles" | "maps" | "upload_bytes" | "export_px";
 
 const UPGRADE_URL = (process.env.NEXT_PUBLIC_UPGRADE_URL ?? "").trim();
 
 /** Where a plan's upgrade button goes (null: no checkout configured yet). */
 export function upgradeHref(plan: string, from: LimitKind): string | null {
   if (!UPGRADE_URL) return null;
-  const url = new URL(UPGRADE_URL, typeof window !== "undefined" ? window.location.href : "http://localhost");
+  const url = new URL(
+    UPGRADE_URL,
+    typeof window !== "undefined" ? window.location.href : "http://localhost",
+  );
   url.searchParams.set("plan", plan);
   url.searchParams.set("from", from);
   return url.toString();
@@ -40,8 +44,13 @@ function loadPlans() {
   return plansRequest;
 }
 
-function megabytes(bytes: number, t: (k: string, o?: Record<string, unknown>) => string) {
-  return bytes >= 1024 ** 3 ? t("acSizeGb", { n: Math.round((bytes / 1024 ** 3) * 10) / 10 }) : t("acSizeMb", { n: Math.round(bytes / 1024 ** 2) });
+function megabytes(
+  bytes: number,
+  t: (k: string, o?: Record<string, unknown>) => string,
+) {
+  return bytes >= 1024 ** 3
+    ? t("acSizeGb", { n: Math.round((bytes / 1024 ** 3) * 10) / 10 })
+    : t("acSizeMb", { n: Math.round(bytes / 1024 ** 2) });
 }
 
 export function UpgradeDialog({
@@ -86,25 +95,66 @@ export function UpgradeDialog({
   }, []);
 
   const current = plans?.find((p) => p.code === planCode),
-    above = plans && current ? plans.filter((p) => p.tier > current.tier).sort((a, b) => a.tier - b.tier) : [];
+    above =
+      plans && current
+        ? plans
+            .filter((p) => p.tier > current.tier)
+            .sort((a, b) => a.tier - b.tier)
+        : [];
 
   /** The plan's features, the one this limit is about first. */
   const features = (p: Plan) => {
     const all: { key: LimitKind | "commercial"; text: string }[] = [
-      { key: "line_styles", text: p.max_line_styles === null ? t("acFeatLineStylesUnlimited") : t("acFeatLineStyles", { count: p.max_line_styles }) },
-      { key: "maps", text: p.max_maps === null ? t("acFeatMapsUnlimited") : t("acFeatMaps", { count: p.max_maps }) },
-      { key: "export_px", text: t("acFeatExport", { px: p.max_export_px.toLocaleString() }) },
-      { key: "upload_bytes", text: t("acFeatStorage", { size: megabytes(p.upload_quota_bytes, t) }) },
+      {
+        key: "line_styles",
+        text:
+          p.max_line_styles === null
+            ? t("acFeatLineStylesUnlimited")
+            : t("acFeatLineStyles", { count: p.max_line_styles }),
+      },
+      ...(p.max_text_styles !== undefined
+        ? [
+            {
+              key: "text_styles" as const,
+              text:
+                p.max_text_styles === null
+                  ? t("acFeatTextStylesUnlimited")
+                  : t("acFeatTextStyles", { count: p.max_text_styles }),
+            },
+          ]
+        : []),
+      {
+        key: "maps",
+        text:
+          p.max_maps === null
+            ? t("acFeatMapsUnlimited")
+            : t("acFeatMaps", { count: p.max_maps }),
+      },
+      {
+        key: "export_px",
+        text: t("acFeatExport", { px: p.max_export_px.toLocaleString() }),
+      },
+      {
+        key: "upload_bytes",
+        text: t("acFeatStorage", { size: megabytes(p.upload_quota_bytes, t) }),
+      },
     ];
-    if (p.commercial_use) all.push({ key: "commercial", text: t("acFeatCommercial") });
-    return [...all.filter((f) => f.key === limit), ...all.filter((f) => f.key !== limit)];
+    if (p.commercial_use)
+      all.push({ key: "commercial", text: t("acFeatCommercial") });
+    return [
+      ...all.filter((f) => f.key === limit),
+      ...all.filter((f) => f.key !== limit),
+    ];
   };
 
   const close = () => {
     dialog.current?.close();
     onClose();
   };
-  const meter = max !== null && used !== undefined ? Math.min(1, used / Math.max(1, max)) : null;
+  const meter =
+    max !== null && used !== undefined
+      ? Math.min(1, used / Math.max(1, max))
+      : null;
 
   return (
     <dialog
@@ -121,7 +171,11 @@ export function UpgradeDialog({
       }}
     >
       <div className="upg-body">
-        <button className="upg-close" onClick={close} aria-label={t("acUpgradeClose")}>
+        <button
+          className="upg-close"
+          onClick={close}
+          aria-label={t("acUpgradeClose")}
+        >
           ×
         </button>
         <span className="upg-eyebrow">{t("acUpgradeEyebrow")}</span>
@@ -129,12 +183,20 @@ export function UpgradeDialog({
         <p className="upg-message">{message}</p>
 
         {meter !== null && (
-          <div className="upg-meter" role="meter" aria-valuemin={0} aria-valuemax={max ?? 0} aria-valuenow={used} aria-label={t("acUpgradeUsage", { used, max })}>
+          <div
+            className="upg-meter"
+            role="meter"
+            aria-valuemin={0}
+            aria-valuemax={max ?? 0}
+            aria-valuenow={used}
+            aria-label={t("acUpgradeUsage", { used, max })}
+          >
             <div className="upg-meter-bar">
               <span style={{ width: `${meter * 100}%` }} />
             </div>
             <small>
-              {t("acUpgradeUsage", { used, max })} · {t("acUpgradeCurrent")}: <b>{t(`acPlan_${planCode}`)}</b>
+              {t("acUpgradeUsage", { used, max })} · {t("acUpgradeCurrent")}:{" "}
+              <b>{t(`acPlan_${planCode}`)}</b>
             </small>
           </div>
         )}
@@ -152,12 +214,22 @@ export function UpgradeDialog({
               {above.map((p, i) => {
                 const href = upgradeHref(p.code, limit);
                 return (
-                  <section key={p.code} className={`upg-plan ${i === 0 ? "recommended" : ""}`}>
-                    {i === 0 && <span className="upg-badge">{t("acUpgradeRecommended")}</span>}
+                  <section
+                    key={p.code}
+                    className={`upg-plan ${i === 0 ? "recommended" : ""}`}
+                  >
+                    {i === 0 && (
+                      <span className="upg-badge">
+                        {t("acUpgradeRecommended")}
+                      </span>
+                    )}
                     <h3>{t(`acPlan_${p.code}`)}</h3>
                     <ul>
                       {features(p).map((f, k) => (
-                        <li key={f.key} className={k === 0 && f.key === limit ? "key" : ""}>
+                        <li
+                          key={f.key}
+                          className={k === 0 && f.key === limit ? "key" : ""}
+                        >
                           {f.text}
                         </li>
                       ))}

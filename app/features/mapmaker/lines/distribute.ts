@@ -78,16 +78,21 @@ export function layoutPieces(poly: Polyline, o: LayoutOptions): Placement[] {
     gap = o.pieceLen * Math.max(-0.9, o.spacing);
 
   // Runs of the path to fill: the whole line, or the stretches between corners.
-  const corners = o.corners === "split" ? o.cornerAt.map((i) => poly.cum[i]).filter((d) => d > 0.5 && d < L - 0.5) : [];
+  const corners =
+    o.corners === "split"
+      ? o.cornerAt.map((i) => poly.cum[i]).filter((d) => d > 0.5 && d < L - 0.5)
+      : [];
   const stops = [0, ...corners, L];
   // Open lines reserve room for their caps.
   const startPad = !poly.closed && o.startLen > 0 ? o.startLen : 0,
     endPad = !poly.closed && o.endLen > 0 ? o.endLen : 0;
   // A closed loop that starts on a sharp corner has a corner where it
   // begins and ends, too.
-  const startCorner = poly.closed && o.corners === "split" && o.cornerAt.includes(0);
+  const startCorner =
+    poly.closed && o.corners === "split" && o.cornerAt.includes(0);
   // Corner pieces take half their length out of the runs on either side.
-  const halfCorner = (corners.length || startCorner) && o.cornerLen > 0 ? o.cornerLen / 2 : 0;
+  const halfCorner =
+    (corners.length || startCorner) && o.cornerLen > 0 ? o.cornerLen / 2 : 0;
 
   // Distances wrap round a closed loop (the corner piece at its start).
   const at = (d: number) => pointAt(poly, poly.closed ? ((d % L) + L) % L : d);
@@ -102,7 +107,10 @@ export function layoutPieces(poly: Polyline, o: LayoutOptions): Placement[] {
       y = (a.y + b.y) / 2;
       const chord = Math.hypot(b.x - a.x, b.y - a.y);
       // Very short chords (a hairpin) fall back to the path's own direction.
-      angle = chord > len0 * 0.2 ? Math.atan2(b.y - a.y, b.x - a.x) : angleAt(poly, (d0 + d1) / 2);
+      angle =
+        chord > len0 * 0.2
+          ? Math.atan2(b.y - a.y, b.x - a.x)
+          : angleAt(poly, (d0 + d1) / 2);
       len = Math.max(chord, len0 * 0.2);
     } else {
       const m = pointAt(poly, (d0 + d1) / 2);
@@ -116,8 +124,14 @@ export function layoutPieces(poly: Polyline, o: LayoutOptions): Placement[] {
       sideways = o.offset * o.thick;
     x += -Math.sin(dir) * sideways;
     y += Math.cos(dir) * sideways;
-    const k = role === "seg" && o.scaleJitter > 0 ? 1 - rand() * o.scaleJitter * 0.5 : 1,
-      jitter = role === "seg" && o.rotationJitter > 0 ? (rand() - 0.5) * o.rotationJitter * Math.PI : 0;
+    const k =
+        role === "seg" && o.scaleJitter > 0
+          ? 1 - rand() * o.scaleJitter * 0.5
+          : 1,
+      jitter =
+        role === "seg" && o.rotationJitter > 0
+          ? (rand() - 0.5) * o.rotationJitter * Math.PI
+          : 0;
     let thick = o.thick * k;
     if (o.anchor === "base") {
       // Stand on the line: lift the piece by half its height ("up" is the
@@ -129,10 +143,20 @@ export function layoutPieces(poly: Polyline, o: LayoutOptions): Placement[] {
     if (!Number.isFinite(x) || !Number.isFinite(y)) return;
     len *= k;
     thick = Math.max(0.25, thick);
-    out.push({ role, variant, x, y, angle: angle + o.rotation + jitter, len, thick, flip: o.flip });
+    out.push({
+      role,
+      variant,
+      x,
+      y,
+      angle: angle + o.rotation + jitter,
+      len,
+      thick,
+      flip: o.flip,
+    });
   };
 
-  const nextVariant = () => (o.variants <= 1 ? 0 : Math.floor(rand() * o.variants) % o.variants);
+  const nextVariant = () =>
+    o.variants <= 1 ? 0 : Math.floor(rand() * o.variants) % o.variants;
 
   for (let r = 0; r < stops.length - 1; r++) {
     let a = stops[r],

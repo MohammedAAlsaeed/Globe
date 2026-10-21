@@ -24,10 +24,16 @@ export function validOrigin(v: unknown): SourceOrigin | undefined {
   return o.kind === "editor" &&
     typeof o.name === "string" &&
     o.name.length <= 100 &&
-    (o.mapId === null || (typeof o.mapId === "string" && /^[\w-]{1,64}$/.test(o.mapId))) &&
+    (o.mapId === null ||
+      (typeof o.mapId === "string" && /^[\w-]{1,64}$/.test(o.mapId))) &&
     typeof o.background === "string" &&
     /^#[0-9a-f]{6}$/i.test(o.background)
-    ? { kind: "editor", name: o.name, mapId: o.mapId as string | null, background: o.background }
+    ? {
+        kind: "editor",
+        name: o.name,
+        mapId: o.mapId as string | null,
+        background: o.background,
+      }
     : undefined;
 }
 export async function checkImage(blob: Blob) {
@@ -98,7 +104,12 @@ export async function decodeProject(file: File): Promise<SavedProject> {
       type: meta.mime,
     });
   await checkImage(source);
-  return { document, source, filename: meta.filename.slice(0, 200), origin: validOrigin(meta.origin) };
+  return {
+    document,
+    source,
+    filename: meta.filename.slice(0, 200),
+    origin: validOrigin(meta.origin),
+  };
 }
 function db(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {

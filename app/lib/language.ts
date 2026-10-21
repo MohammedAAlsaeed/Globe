@@ -8,7 +8,9 @@ export type Language = "en" | "ar";
 
 export const LANGUAGE_KEY = "atelier-language";
 
-export function parseLanguage(value: string | null | undefined): Language | null {
+export function parseLanguage(
+  value: string | null | undefined,
+): Language | null {
   return value === "ar" || value === "en" ? value : null;
 }
 

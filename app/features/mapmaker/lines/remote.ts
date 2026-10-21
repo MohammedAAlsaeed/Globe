@@ -16,9 +16,18 @@
 import { useCallback, useEffect, useState } from "react";
 import { library, lineStyles } from "../../account/api";
 import { ApiError } from "@/lib/api/client";
-import type { Asset, AssetPack, LineStyleRecord, User } from "../../account/types";
+import type {
+  Asset,
+  AssetPack,
+  LineStyleRecord,
+  User,
+} from "../../account/types";
 import { prepareStampImage } from "../stamps/upload";
-import { registerRemoteSets, type StampAsset, type StampSet } from "../stamps/catalog";
+import {
+  registerRemoteSets,
+  type StampAsset,
+  type StampSet,
+} from "../stamps/catalog";
 import { uploadedKey } from "../stamps/remote";
 import type { LineLook } from "../types";
 import { setRemoteLineSets, type LineArtSet } from "./catalog";
@@ -31,19 +40,35 @@ const ROLES: PieceRole[] = ["seg", "start", "end", "corner"];
 /** A server style for the panel (locked ones show a neutral preview). */
 function toStyle(r: LineStyleRecord): LineStyle | null {
   if (r.look && !validLook(r.look)) return null;
-  return { id: `s:${r.id}`, source: r.official ? "official" : "own", name: r.name, look: r.look ?? factoryLook(), locked: r.locked || !r.look };
+  return {
+    id: `s:${r.id}`,
+    source: r.official ? "official" : "own",
+    name: r.name,
+    look: r.look ?? factoryLook(),
+    locked: r.locked || !r.look,
+  };
 }
 
 /** One pack's pictures as line sets (grouped by set_key). */
-export function linePackSets(pack: AssetPack, assets: Asset[]): { set: LineArtSet; stamp: { set: StampSet; assets: StampAsset[] } }[] {
+export function linePackSets(
+  pack: AssetPack,
+  assets: Asset[],
+): { set: LineArtSet; stamp: { set: StampSet; assets: StampAsset[] } }[] {
   const groups = new Map<string, Asset[]>();
   for (const a of assets) {
     const key = a.set_key ?? `one-${a.id}`;
     groups.set(key, [...(groups.get(key) ?? []), a]);
   }
-  const out: { set: LineArtSet; stamp: { set: StampSet; assets: StampAsset[] } }[] = [];
+  const out: {
+    set: LineArtSet;
+    stamp: { set: StampSet; assets: StampAsset[] };
+  }[] = [];
   for (const [key, list] of groups) {
-    const byRole = (r: PieceRole) => list.filter((a) => (ROLES.includes(a.category as PieceRole) ? a.category : "seg") === r);
+    const byRole = (r: PieceRole) =>
+      list.filter(
+        (a) =>
+          (ROLES.includes(a.category as PieceRole) ? a.category : "seg") === r,
+      );
     const seg = byRole("seg");
     if (!seg.length) continue;
     const id = `lu:${pack.id}:${key}`,
@@ -51,14 +76,20 @@ export function linePackSets(pack: AssetPack, assets: Asset[]): { set: LineArtSe
       // Thickness from the picture's proportions: about 1% of the map wide
       // for a typical long piece.
       size = 0.01;
-    const one = (r: PieceRole) => byRole(r)[0] ? uploadedKey(byRole(r)[0].id) : null;
+    const one = (r: PieceRole) =>
+      byRole(r)[0] ? uploadedKey(byRole(r)[0].id) : null;
     out.push({
       set: {
         id,
         category: pack.official ? "library" : "custom",
         name: first.name,
         tags: [...new Set(list.flatMap((a) => a.tags)), pack.name],
-        parts: { seg: seg.map((a) => uploadedKey(a.id)), start: one("start"), end: one("end"), corner: one("corner") },
+        parts: {
+          seg: seg.map((a) => uploadedKey(a.id)),
+          start: one("start"),
+          end: one("end"),
+          corner: one("corner"),
+        },
         vector: false,
         defaults: {
           ink: "#3a2e22",
@@ -93,7 +124,14 @@ export function linePackSets(pack: AssetPack, assets: Asset[]): { set: LineArtSe
           pivot: "center",
           hidden: true,
         },
-        assets: list.map((a) => ({ key: uploadedKey(a.id), set: `h:${id}`, kind: "image" as const, url: a.url, w: a.width ?? 1, h: a.height ?? 1 })),
+        assets: list.map((a) => ({
+          key: uploadedKey(a.id),
+          set: `h:${id}`,
+          kind: "image" as const,
+          url: a.url,
+          w: a.width ?? 1,
+          h: a.height ?? 1,
+        })),
       },
     });
   }
@@ -116,11 +154,26 @@ async function loadLineArt() {
           parts: { seg: [] },
           vector: false,
           locked: true,
-          defaults: { ink: "#3a2e22", fill: null, size: 0.01, spacing: 0, followPath: true, fit: true, corners: "continuous", caps: false, scaleJitter: 0, rotationJitter: 0, anchor: "center" },
+          defaults: {
+            ink: "#3a2e22",
+            fill: null,
+            size: 0.01,
+            spacing: 0,
+            followPath: true,
+            fit: true,
+            corners: "continuous",
+            caps: false,
+            scaleJitter: 0,
+            rotationJitter: 0,
+            anchor: "center",
+          },
         });
         return;
       }
-      for (const x of linePackSets(pack, await library.assets(pack.id).catch(() => []))) {
+      for (const x of linePackSets(
+        pack,
+        await library.assets(pack.id).catch(() => []),
+      )) {
         sets.push(x.set);
         stamps.push(x.stamp);
       }
@@ -133,10 +186,16 @@ async function loadLineArt() {
 /** The person's own line-art pack, made on first upload. */
 async function ownLinePack(): Promise<AssetPack> {
   const packs = await library.linePacks();
-  return packs.find((p) => !p.official) ?? (await library.createPack({ name: "My line art", kind: "lines" }));
+  return (
+    packs.find((p) => !p.official) ??
+    (await library.createPack({ name: "My line art", kind: "lines" }))
+  );
 }
 
-export function useLineLibrary(user: User | null | undefined, describeError: (e: unknown) => string) {
+export function useLineLibrary(
+  user: User | null | undefined,
+  describeError: (e: unknown) => string,
+) {
   const [own, setOwn] = useState<LineStyle[]>([]),
     [official, setOfficial] = useState<LineStyle[]>([]),
     [max, setMax] = useState<number | null>(null),
@@ -146,15 +205,21 @@ export function useLineLibrary(user: User | null | undefined, describeError: (e:
     [uploadError, setUploadError] = useState<string | null>(null),
     // The upgrade prompt: opened when saving at the plan's limit (checked
     // here first, and again by the server, which has the final say).
-    [limitPrompt, setLimitPrompt] = useState<{ max: number | null; plan: string | null } | null>(null);
+    [limitPrompt, setLimitPrompt] = useState<{
+      max: number | null;
+      plan: string | null;
+    } | null>(null);
 
   /** Applies a fresh list of styles from the server. */
-  const apply = useCallback((r: Awaited<ReturnType<typeof lineStyles.list>>) => {
-    const styles = r.data.map(toStyle).filter((s): s is LineStyle => !!s);
-    setOwn(styles.filter((s) => s.source === "own"));
-    setOfficial(styles.filter((s) => s.source === "official"));
-    setMax(r.limits.max);
-  }, []);
+  const apply = useCallback(
+    (r: Awaited<ReturnType<typeof lineStyles.list>>) => {
+      const styles = r.data.map(toStyle).filter((s): s is LineStyle => !!s);
+      setOwn(styles.filter((s) => s.source === "own"));
+      setOfficial(styles.filter((s) => s.source === "official"));
+      setMax(r.limits.max);
+    },
+    [],
+  );
   const refresh = useCallback(
     () =>
       lineStyles.list().then(apply, () => {
@@ -190,10 +255,17 @@ export function useLineLibrary(user: User | null | undefined, describeError: (e:
         await lineStyles.create({ name, look });
         await refresh();
       } catch (e) {
-        if (e instanceof ApiError && e.code === "plan_limit_reached" && e.body.limit === "line_styles") {
+        if (
+          e instanceof ApiError &&
+          e.code === "plan_limit_reached" &&
+          e.body.limit === "line_styles"
+        ) {
           // Saved from another tab or device meanwhile: show the prompt, and
           // the up-to-date count behind it.
-          setLimitPrompt({ max: typeof e.body.max === "number" ? e.body.max : null, plan: typeof e.body.plan === "string" ? e.body.plan : null });
+          setLimitPrompt({
+            max: typeof e.body.max === "number" ? e.body.max : null,
+            plan: typeof e.body.plan === "string" ? e.body.plan : null,
+          });
           void refresh();
         } else setError(describeError(e));
       } finally {
@@ -203,7 +275,10 @@ export function useLineLibrary(user: User | null | undefined, describeError: (e:
     [refresh, describeError],
   );
   /** Opens the upgrade prompt (the save button at the limit). */
-  const promptLimit = useCallback(() => setLimitPrompt({ max, plan: null }), [max]);
+  const promptLimit = useCallback(
+    () => setLimitPrompt({ max, plan: null }),
+    [max],
+  );
   const closeLimitPrompt = useCallback(() => setLimitPrompt(null), []);
   const remove = useCallback(
     async (styleId: string) => {
@@ -231,7 +306,11 @@ export function useLineLibrary(user: User | null | undefined, describeError: (e:
           const blob = await prepareStampImage(file),
             name = file.name.replace(/\.[^.]+$/, "").slice(0, 80) || "Line",
             ext = blob.type === "image/webp" ? "webp" : "png";
-          await library.upload(pack.id, blob, `${name}.${ext}`, { name, set_key: setKey, category: "seg" });
+          await library.upload(pack.id, blob, `${name}.${ext}`, {
+            name,
+            set_key: setKey,
+            category: "seg",
+          });
         }
         await loadLineArt();
         return `lu:${pack.id}:${setKey}`;
@@ -254,7 +333,11 @@ export function useLineLibrary(user: User | null | undefined, describeError: (e:
       try {
         const blob = await prepareStampImage(file),
           ext = blob.type === "image/webp" ? "webp" : "png";
-        await library.upload(packId, blob, `${role}.${ext}`, { name: role, set_key: setKey.startsWith("one-") ? null : setKey, category: role });
+        await library.upload(packId, blob, `${role}.${ext}`, {
+          name: role,
+          set_key: setKey.startsWith("one-") ? null : setKey,
+          category: role,
+        });
         await loadLineArt();
       } catch (e) {
         setUploadError(describeError(e));

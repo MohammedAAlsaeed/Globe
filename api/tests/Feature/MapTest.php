@@ -228,4 +228,38 @@ class MapTest extends TestCase
         // Still at revision 1: nothing broken was stored.
         $this->getJson("/api/v1/maps/{$map['id']}")->assertJsonPath('data.revision', 1);
     }
+
+    public function test_text_tool_texts_are_validated_on_save(): void
+    {
+        $user = User::factory()->create();
+        $text = TextStyleTest::look() + [
+            'id' => 'text-1', 'kind' => 'text', 'text' => "مملكة الأندلس\nKingdom of Andalusia", 'x' => 0.5, 'y' => 0.2, 'rotation' => -12,
+            'boxWidth' => null, 'styleId' => 't:kingdomTitle', 'attach' => ['to' => 's', 'dx' => 0.01, 'dy' => -0.02],
+            'path' => ['nodes' => [['x' => 0.2, 'y' => 0.3], ['x' => 0.5, 'y' => 0.25, 't' => 'smooth', 'hi' => ['x' => -0.1, 'y' => 0], 'ho' => ['x' => 0.1, 'y' => 0]], ['x' => 0.8, 'y' => 0.3]],
+                'reverse' => false, 'align' => 'center', 'offset' => 0, 'side' => 'above', 'baseline' => 0.1, 'smooth' => true],
+        ];
+        $doc = fn (array $t) => ['id' => 'x', 'name' => 'Texts', 'layers' => [['id' => 'l1', 'name' => 'Names', 'visible' => true, 'locked' => false, 'opacity' => 1, 'objects' => [$t, ['id' => 's', 'kind' => 'stamp']]]]];
+
+        $map = $this->createMap($user, ['document' => $doc($text)]);
+        $this->getJson("/api/v1/maps/{$map['id']}")->assertOk()
+            ->assertJsonPath('document.layers.0.objects.0.text', "مملكة الأندلس\nKingdom of Andalusia")
+            ->assertJsonPath('document.layers.0.objects.0.path.nodes.1.t', 'smooth')
+            ->assertJsonPath('document.layers.0.objects.0.features.dlig', true);
+
+        $broken = [
+            'empty' => ['text' => ''],
+            'too long' => ['text' => str_repeat('م', 2001)],
+            'off the map' => ['x' => 50],
+            'bad width' => ['boxWidth' => -1],
+            'bad font' => ['font' => '<b>'],
+            'bad path' => ['path' => ['nodes' => [['x' => 0.1, 'y' => 0.1]]] + $text['path']],
+            'bad link' => ['attach' => ['to' => 's', 'dx' => 'far', 'dy' => 0]],
+            'bad outline' => ['outline' => ['position' => 'inside'] + $text['outline']],
+        ];
+        foreach ($broken as $why => $patch) {
+            $this->putJson("/api/v1/maps/{$map['id']}", ['revision' => 1, 'document' => $doc(array_replace($text, $patch))])
+                ->assertUnprocessable()->assertJsonValidationErrors('document');
+        }
+        $this->getJson("/api/v1/maps/{$map['id']}")->assertJsonPath('data.revision', 1);
+    }
 }

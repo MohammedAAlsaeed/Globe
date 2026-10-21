@@ -160,7 +160,11 @@
 }
 .pr-modes button.active {
   border-color: var(--gold);
-  background: linear-gradient(180deg, rgba(217, 169, 59, 0.16), rgba(13, 22, 54, 0.8));
+  background: linear-gradient(
+    180deg,
+    rgba(217, 169, 59, 0.16),
+    rgba(13, 22, 54, 0.8)
+  );
   color: var(--gold);
 }
 .pr-modes button:hover:not(.active) {
@@ -536,7 +540,10 @@
 .pr-page .sheet-scroll,
 .pr-page .preview-scroll {
   background-color: #0a1230;
-  background-image: radial-gradient(rgba(217, 169, 59, 0.16) 0.7px, transparent 0.7px);
+  background-image: radial-gradient(
+    rgba(217, 169, 59, 0.16) 0.7px,
+    transparent 0.7px
+  );
 }
 .pr-page .sheet-paper {
   box-shadow: 0 14px 40px rgba(0, 0, 0, 0.45);
@@ -588,7 +595,10 @@
   place-items: center;
   padding: 28px;
   background-color: #0a1230;
-  background-image: radial-gradient(rgba(217, 169, 59, 0.16) 0.7px, transparent 0.7px);
+  background-image: radial-gradient(
+    rgba(217, 169, 59, 0.16) 0.7px,
+    transparent 0.7px
+  );
   background-size: 12px 12px;
 }
 .pr-overview-art {

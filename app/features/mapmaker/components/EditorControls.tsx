@@ -8,10 +8,9 @@ import { useId, type ReactNode } from "react";
 import { ResetButton, ValueEditor } from "@/components/ui/ValueEditor";
 import { Glyph } from "../glyphs";
 import { shortcutLabel } from "../shortcuts";
-import { ARABIC_RANGE, TOOL_DEFAULTS } from "../domain";
+import { TOOL_DEFAULTS } from "../domain";
 import { DEFAULT_BRUSH } from "../brush/presets";
-import type { LabelAlign, MMObject, MMPatch } from "../types";
-import {SelectField} from "@/components/ui/fields";
+import type { MMObject, MMPatch } from "../types";
 
 /** A collapsible group of settings in a tool panel. */
 export function Section({
@@ -88,9 +87,26 @@ export function Slider({
   const slider = (
     <div className="mm-slider">
       <label htmlFor={id}>{label}</label>
-      <input id={id} type="range" min={min} max={max} step={step} value={value} onChange={(e) => onChange(+e.target.value)} />
+      <input
+        id={id}
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        onChange={(e) => onChange(+e.target.value)}
+      />
       <b>
-        <ValueEditor value={value} min={min} max={max} step={step} onChange={onChange} format={format} parse={parse} label={label} />
+        <ValueEditor
+          value={value}
+          min={min}
+          max={max}
+          step={step}
+          onChange={onChange}
+          format={format}
+          parse={parse}
+          label={label}
+        />
       </b>
     </div>
   );
@@ -98,7 +114,14 @@ export function Slider({
   return (
     <div className="mm-reset-row">
       {slider}
-      <ResetButton value={value} defaultValue={defaultValue} onReset={() => onChange(defaultValue)} label={label} format={format} className="mm-reset" />
+      <ResetButton
+        value={value}
+        defaultValue={defaultValue}
+        onReset={() => onChange(defaultValue)}
+        label={label}
+        format={format}
+        className="mm-reset"
+      />
     </div>
   );
 }
@@ -119,12 +142,21 @@ export function ColorControl({
   return (
     <div className="mm-color-control">
       <label className="mm-color-input" title={label}>
-        <input type="color" value={color} onChange={(e) => onChange(e.target.value)} />
+        <input
+          type="color"
+          value={color}
+          onChange={(e) => onChange(e.target.value)}
+        />
       </label>
       {recents.length > 0 && (
         <div className="mm-recents-row" title={recentLabel}>
           {recents.map((c) => (
-            <button key={c} className="mm-color-chip" style={{ background: c }} onClick={() => onChange(c)} />
+            <button
+              key={c}
+              className="mm-color-chip"
+              style={{ background: c }}
+              onClick={() => onChange(c)}
+            />
           ))}
         </div>
       )}
@@ -149,67 +181,125 @@ export function ObjectQuickBar({
   onDelete: () => void;
   onReorder: (dir: "front" | "back" | "forward" | "backward") => void;
   /** Lines: node editing and path actions (their look is edited in the Line panel). */
-  lineActions?: { editingNodes: boolean; canClose: boolean; onEditNodes: () => void; onReverse: () => void; onToggleClosed: () => void };
+  lineActions?: {
+    editingNodes: boolean;
+    canClose: boolean;
+    onEditNodes: () => void;
+    onReverse: () => void;
+    onToggleClosed: () => void;
+  };
 }) {
   return (
     <div className="mm-quickbar">
-      {obj.kind === "label" && (
-        <>
-          <input
-            className="mm-inline-text"
-            value={obj.text}
-            dir={obj.rtl ? "rtl" : "ltr"}
-            onChange={(e) => {
-              const text = e.target.value,
-                rtl = ARABIC_RANGE.test(text);
-              onPatch(rtl !== obj.rtl ? { text, rtl } : { text });
-            }}
-          />
-          <ColorControl color={obj.color} recents={[]} onChange={(v) => onPatch({ color: v })} label={t("mmColor")} recentLabel="" />
-          <Slider label={t("mmLabelSize")} defaultValue={TOOL_DEFAULTS.labelSize} value={obj.size} min={0.01} max={0.1} step={0.005} onChange={(v) => onPatch({ size: v })} />
-          <Slider label={t("mmIconRotation")} defaultValue={0} value={obj.rotation ?? 0} min={-180} max={180} step={1} onChange={(v) => onPatch({ rotation: v })} format={(v) => `${v}°`} />
-          <SelectField label={t("mmLabelAlign")} value={obj.align} onChange={(v) => onPatch({ align: v as LabelAlign })}>
-            <option value="start">{t("mmAlignStart")}</option>
-            <option value="center">{t("mmAlignCenter")}</option>
-            <option value="end">{t("mmAlignEnd")}</option>
-          </SelectField>
-        </>
-      )}
       {obj.kind === "line" && lineActions && (
         <div className="button-row">
-          <button className={`secondary-button ${lineActions.editingNodes ? "active" : ""}`} aria-pressed={lineActions.editingNodes} onClick={lineActions.onEditNodes} title={t("lnEditNodesHint", { key: shortcutLabel("line.editNodes") })}>
+          <button
+            className={`secondary-button ${lineActions.editingNodes ? "active" : ""}`}
+            aria-pressed={lineActions.editingNodes}
+            onClick={lineActions.onEditNodes}
+            title={t("lnEditNodesHint", {
+              key: shortcutLabel("line.editNodes"),
+            })}
+          >
             <Glyph name="editNodes" size={13} /> {t("lnEditNodes")}
           </button>
-          <button className="secondary-button" onClick={lineActions.onReverse} title={t("lnReverseHint")}>
+          <button
+            className="secondary-button"
+            onClick={lineActions.onReverse}
+            title={t("lnReverseHint")}
+          >
             <Glyph name="reverse" size={13} />
           </button>
-          <button className={`secondary-button ${obj.closed ? "active" : ""}`} aria-pressed={obj.closed} disabled={!lineActions.canClose} onClick={lineActions.onToggleClosed} title={t("lnClosed")}>
+          <button
+            className={`secondary-button ${obj.closed ? "active" : ""}`}
+            aria-pressed={obj.closed}
+            disabled={!lineActions.canClose}
+            onClick={lineActions.onToggleClosed}
+            title={t("lnClosed")}
+          >
             <Glyph name="closePath" size={13} />
           </button>
         </div>
       )}
       {obj.kind === "region" && (
-        <Slider label={t("mmFillOpacity")} defaultValue={TOOL_DEFAULTS.fillOpacity} value={obj.opacity} min={0.1} max={1} step={0.05} onChange={(v) => onPatch({ opacity: v })} format={(v) => `${Math.round(v * 100)}%`} />
+        <Slider
+          label={t("mmFillOpacity")}
+          defaultValue={TOOL_DEFAULTS.fillOpacity}
+          value={obj.opacity}
+          min={0.1}
+          max={1}
+          step={0.05}
+          onChange={(v) => onPatch({ opacity: v })}
+          format={(v) => `${Math.round(v * 100)}%`}
+        />
       )}
       {obj.kind === "brush" && (
         <>
-          <ColorControl color={obj.color} recents={[]} onChange={(v) => onPatch({ color: v })} label={t("mmColor")} recentLabel="" />
-          <Slider label={t("mmBrushSize")} defaultValue={DEFAULT_BRUSH.size} value={obj.size} min={0.002} max={0.05} step={0.001} onChange={(v) => onPatch({ size: v })} />
-          <Slider label={t("mmBrushOpacity")} defaultValue={1} value={obj.opacity} min={0.1} max={1} step={0.05} onChange={(v) => onPatch({ opacity: v })} format={(v) => `${Math.round(v * 100)}%`} />
-          <Slider label={t("mmBrushSoftness")} defaultValue={DEFAULT_BRUSH.softness} value={obj.softness} min={0} max={1} step={0.05} onChange={(v) => onPatch({ softness: v })} format={(v) => `${Math.round(v * 100)}%`} />
+          <ColorControl
+            color={obj.color}
+            recents={[]}
+            onChange={(v) => onPatch({ color: v })}
+            label={t("mmColor")}
+            recentLabel=""
+          />
+          <Slider
+            label={t("mmBrushSize")}
+            defaultValue={DEFAULT_BRUSH.size}
+            value={obj.size}
+            min={0.002}
+            max={0.05}
+            step={0.001}
+            onChange={(v) => onPatch({ size: v })}
+          />
+          <Slider
+            label={t("mmBrushOpacity")}
+            defaultValue={1}
+            value={obj.opacity}
+            min={0.1}
+            max={1}
+            step={0.05}
+            onChange={(v) => onPatch({ opacity: v })}
+            format={(v) => `${Math.round(v * 100)}%`}
+          />
+          <Slider
+            label={t("mmBrushSoftness")}
+            defaultValue={DEFAULT_BRUSH.softness}
+            value={obj.softness}
+            min={0}
+            max={1}
+            step={0.05}
+            onChange={(v) => onPatch({ softness: v })}
+            format={(v) => `${Math.round(v * 100)}%`}
+          />
         </>
       )}
       <div className="button-row">
-        <button className="secondary-button" title={t("mmBringToFront")} onClick={() => onReorder("front")}>
+        <button
+          className="secondary-button"
+          title={t("mmBringToFront")}
+          onClick={() => onReorder("front")}
+        >
           <Glyph name="toTop" size={13} />
         </button>
-        <button className="secondary-button" title={t("mmBringForward")} onClick={() => onReorder("forward")}>
+        <button
+          className="secondary-button"
+          title={t("mmBringForward")}
+          onClick={() => onReorder("forward")}
+        >
           <Glyph name="up" size={13} />
         </button>
-        <button className="secondary-button" title={t("mmSendBackward")} onClick={() => onReorder("backward")}>
+        <button
+          className="secondary-button"
+          title={t("mmSendBackward")}
+          onClick={() => onReorder("backward")}
+        >
           <Glyph name="down" size={13} />
         </button>
-        <button className="secondary-button" title={t("mmSendToBack")} onClick={() => onReorder("back")}>
+        <button
+          className="secondary-button"
+          title={t("mmSendToBack")}
+          onClick={() => onReorder("back")}
+        >
           <Glyph name="toBottom" size={13} />
         </button>
         <button className="secondary-button" onClick={onDuplicate}>
@@ -259,9 +349,25 @@ export function MenuHint({ label, hint }: { label: string; hint: string }) {
  * front/back/duplicate/copy/delete rather than the single-object's
  * per-kind style controls, which don't make sense across mixed kinds. */
 /** A small toolbar button showing just a glyph (its label is the tooltip). */
-function IconButton({ glyph, label, onClick, disabled }: { glyph: string; label: string; onClick: () => void; disabled?: boolean }) {
+function IconButton({
+  glyph,
+  label,
+  onClick,
+  disabled,
+}: {
+  glyph: string;
+  label: string;
+  onClick: () => void;
+  disabled?: boolean;
+}) {
   return (
-    <button className="mm-icon-btn" title={label} aria-label={label} onClick={onClick} disabled={disabled}>
+    <button
+      className="mm-icon-btn"
+      title={label}
+      aria-label={label}
+      onClick={onClick}
+      disabled={disabled}
+    >
       <Glyph name={glyph} size={15} />
     </button>
   );
@@ -300,7 +406,9 @@ export function MultiSelectionBar({
   grouped: boolean;
   onGroup: () => void;
   onUngroup: () => void;
-  onAlign: (mode: "left" | "centerX" | "right" | "top" | "centerY" | "bottom") => void;
+  onAlign: (
+    mode: "left" | "centerX" | "right" | "top" | "centerY" | "bottom",
+  ) => void;
   onDistribute: (axis: "x" | "y") => void;
   onLock: () => void;
   onHide: () => void;
@@ -311,31 +419,108 @@ export function MultiSelectionBar({
     <div className="mm-quickbar">
       <span className="mm-toolbar-note">{t("mmMultiSelected", { count })}</span>
       <div className="mm-icon-group">
-        <IconButton glyph="group" label={`${t("mmGroup")} (${shortcutLabel("edit.group")})`} onClick={onGroup} />
-        <IconButton glyph="ungroup" label={`${t("mmUngroup")} (${shortcutLabel("edit.ungroup")})`} onClick={onUngroup} disabled={!grouped} />
+        <IconButton
+          glyph="group"
+          label={`${t("mmGroup")} (${shortcutLabel("edit.group")})`}
+          onClick={onGroup}
+        />
+        <IconButton
+          glyph="ungroup"
+          label={`${t("mmUngroup")} (${shortcutLabel("edit.ungroup")})`}
+          onClick={onUngroup}
+          disabled={!grouped}
+        />
       </div>
       <div className="mm-icon-group">
-        <IconButton glyph="alignLeft" label={t("mmAlignLeft")} onClick={() => onAlign("left")} />
-        <IconButton glyph="alignCenterX" label={t("mmAlignCenterX")} onClick={() => onAlign("centerX")} />
-        <IconButton glyph="alignRight" label={t("mmAlignRight")} onClick={() => onAlign("right")} />
-        <IconButton glyph="alignTop" label={t("mmAlignTop")} onClick={() => onAlign("top")} />
-        <IconButton glyph="alignCenterY" label={t("mmAlignCenterY")} onClick={() => onAlign("centerY")} />
-        <IconButton glyph="alignBottom" label={t("mmAlignBottom")} onClick={() => onAlign("bottom")} />
-        <IconButton glyph="distributeX" label={t("mmDistributeX")} onClick={() => onDistribute("x")} disabled={count < 3} />
-        <IconButton glyph="distributeY" label={t("mmDistributeY")} onClick={() => onDistribute("y")} disabled={count < 3} />
+        <IconButton
+          glyph="alignLeft"
+          label={t("mmAlignLeft")}
+          onClick={() => onAlign("left")}
+        />
+        <IconButton
+          glyph="alignCenterX"
+          label={t("mmAlignCenterX")}
+          onClick={() => onAlign("centerX")}
+        />
+        <IconButton
+          glyph="alignRight"
+          label={t("mmAlignRight")}
+          onClick={() => onAlign("right")}
+        />
+        <IconButton
+          glyph="alignTop"
+          label={t("mmAlignTop")}
+          onClick={() => onAlign("top")}
+        />
+        <IconButton
+          glyph="alignCenterY"
+          label={t("mmAlignCenterY")}
+          onClick={() => onAlign("centerY")}
+        />
+        <IconButton
+          glyph="alignBottom"
+          label={t("mmAlignBottom")}
+          onClick={() => onAlign("bottom")}
+        />
+        <IconButton
+          glyph="distributeX"
+          label={t("mmDistributeX")}
+          onClick={() => onDistribute("x")}
+          disabled={count < 3}
+        />
+        <IconButton
+          glyph="distributeY"
+          label={t("mmDistributeY")}
+          onClick={() => onDistribute("y")}
+          disabled={count < 3}
+        />
       </div>
       <div className="mm-icon-group">
-        <IconButton glyph="toTop" label={t("mmBringToFront")} onClick={onFront} />
-        <IconButton glyph="toBottom" label={t("mmSendToBack")} onClick={onBack} />
+        <IconButton
+          glyph="toTop"
+          label={t("mmBringToFront")}
+          onClick={onFront}
+        />
+        <IconButton
+          glyph="toBottom"
+          label={t("mmSendToBack")}
+          onClick={onBack}
+        />
         <IconButton glyph="lock" label={t("mmLockObjects")} onClick={onLock} />
-        <IconButton glyph="eyeOff" label={t("mmHideObjects")} onClick={onHide} />
+        <IconButton
+          glyph="eyeOff"
+          label={t("mmHideObjects")}
+          onClick={onHide}
+        />
       </div>
       <div className="mm-icon-group">
-        <IconButton glyph="copy" label={`${t("mmCopyObject")} (${shortcutLabel("edit.copy")})`} onClick={onCopy} />
-        <IconButton glyph="duplicate" label={`${t("mmDuplicateObject")} (${shortcutLabel("edit.duplicate")})`} onClick={onDuplicate} />
-        <IconButton glyph="trash" label={t("mmDeleteObject")} onClick={onDelete} />
-        {onSaveStamp && <IconButton glyph="stamp" label={t("stSaveAsStamp")} onClick={onSaveStamp} />}
-        <IconButton glyph="close" label={t("mmClearSelection")} onClick={onClear} />
+        <IconButton
+          glyph="copy"
+          label={`${t("mmCopyObject")} (${shortcutLabel("edit.copy")})`}
+          onClick={onCopy}
+        />
+        <IconButton
+          glyph="duplicate"
+          label={`${t("mmDuplicateObject")} (${shortcutLabel("edit.duplicate")})`}
+          onClick={onDuplicate}
+        />
+        <IconButton
+          glyph="trash"
+          label={t("mmDeleteObject")}
+          onClick={onDelete}
+        />
+        {onSaveStamp && (
+          <IconButton
+            glyph="stamp"
+            label={t("stSaveAsStamp")}
+            onClick={onSaveStamp}
+          />
+        )}
+        <IconButton
+          glyph="close"
+          label={t("mmClearSelection")}
+          onClick={onClear}
+        />
       </div>
     </div>
   );

@@ -41,7 +41,12 @@ export function ProjectToolbar({
     [busy, setBusy] = useState(false);
   const project = () => {
     if (!source) throw new Error("missingSource");
-    return { document: d, source: source.blob, filename: source.filename, origin: origin ?? undefined };
+    return {
+      document: d,
+      source: source.blob,
+      filename: source.filename,
+      origin: origin ?? undefined,
+    };
   };
   async function task(fn: () => Promise<void>) {
     setBusy(true);

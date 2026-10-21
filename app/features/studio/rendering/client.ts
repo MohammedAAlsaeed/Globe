@@ -43,6 +43,9 @@ export function renderInWorker(
       } else fail(new Error(m.message));
     };
     // Workers can't tell an iPad from a Mac, so the page sends the limit.
-    worker.postMessage({ ...request, maxPixels: request.maxPixels ?? maxCanvasPixels() });
+    worker.postMessage({
+      ...request,
+      maxPixels: request.maxPixels ?? maxCanvasPixels(),
+    });
   });
 }

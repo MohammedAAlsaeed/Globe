@@ -25,8 +25,11 @@ export function SourceCard({
   const { t } = useTranslation(),
     input = useRef<HTMLInputElement>(null),
     [drag, setDrag] = useState(false);
-  const name = origin?.name || source?.filename?.replace(/\.[^.]+$/, "") || t("prSample");
-  const editorHref = origin?.mapId ? `/editor?map=${encodeURIComponent(origin.mapId)}` : "/editor";
+  const name =
+    origin?.name || source?.filename?.replace(/\.[^.]+$/, "") || t("prSample");
+  const editorHref = origin?.mapId
+    ? `/editor?map=${encodeURIComponent(origin.mapId)}`
+    : "/editor";
   return (
     <section
       className={`pr-source ${drag ? "dragging" : ""}`}
@@ -52,13 +55,26 @@ export function SourceCard({
           e.target.value = "";
         }}
       />
-      <div className="pr-source-thumb">{source ? <img src={source.url} alt="" /> : <span className="pr-spinner" aria-hidden="true" />}</div>
+      <div className="pr-source-thumb">
+        {source ? (
+          <img src={source.url} alt="" />
+        ) : (
+          <span className="pr-spinner" aria-hidden="true" />
+        )}
+      </div>
       <div className="pr-source-text">
-        <span className="pr-source-badge">{origin ? t("prFromEditor") : source?.filename ? t("prFromDevice") : t("prSampleBadge")}</span>
+        <span className="pr-source-badge">
+          {origin
+            ? t("prFromEditor")
+            : source?.filename
+              ? t("prFromDevice")
+              : t("prSampleBadge")}
+        </span>
         <strong>{loading ? t("sourceReplacing") : name}</strong>
         {source && (
           <small dir="ltr">
-            {source.width.toLocaleString()} × {source.height.toLocaleString()} px
+            {source.width.toLocaleString()} × {source.height.toLocaleString()}{" "}
+            px
           </small>
         )}
       </div>
@@ -68,7 +84,11 @@ export function SourceCard({
             {t("prBackToEditor")}
           </Link>
         )}
-        <button className="site-btn quiet small" disabled={loading} onClick={() => input.current?.click()}>
+        <button
+          className="site-btn quiet small"
+          disabled={loading}
+          onClick={() => input.current?.click()}
+        >
           <Icon name="upload" size={14} />
           {t("prOtherImage")}
         </button>

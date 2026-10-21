@@ -14,7 +14,10 @@ export interface SourceState {
  * (for example a map handed off from the standalone map creator), so the
  * sample doesn't race it and win.
  */
-export function useSource(onError: (message: string) => void, autoSample = true) {
+export function useSource(
+  onError: (message: string) => void,
+  autoSample = true,
+) {
   const [source, setSource] = useState<SourceState | null>(null),
     [loading, setLoading] = useState(() => autoSample);
   const resources = useRef({ url: "", generation: 0 });

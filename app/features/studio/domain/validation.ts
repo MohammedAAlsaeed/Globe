@@ -9,7 +9,11 @@ const hexColor = (v: unknown) =>
 const PATH_KINDS = ["river", "road", "border"];
 const BIOMES = ["forest", "mountains", "desert", "water", "grass", "swamp"];
 const ALIGNS = ["start", "center", "end"];
-function validPoints(points: unknown, min: number, max: number): points is Array<{ x: number; y: number }> {
+function validPoints(
+  points: unknown,
+  min: number,
+  max: number,
+): points is Array<{ x: number; y: number }> {
   return (
     Array.isArray(points) &&
     points.length >= min &&

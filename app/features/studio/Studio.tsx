@@ -30,13 +30,22 @@ import { useSource } from "./hooks/useSource";
 import { useGlobeSource } from "./hooks/useGlobeSource";
 import { needsFit } from "./domain/fit";
 import { planPrint } from "./domain/layout";
-import { loadHandoff, clearHandoff, type SavedProject, type SourceOrigin } from "./storage/projects";
+import {
+  loadHandoff,
+  clearHandoff,
+  type SavedProject,
+  type SourceOrigin,
+} from "./storage/projects";
 import type { GlobeSettings, PrintSettings } from "./domain/types";
 import { Icon } from "@/components/ui/ornaments";
 
 const DEFAULT_FILL = "#2c5678";
 
-export default function Studio({ handoff: handoffPending = false }: { handoff?: boolean }) {
+export default function Studio({
+  handoff: handoffPending = false,
+}: {
+  handoff?: boolean;
+}) {
   const { t, i18n } = useTranslation(),
     state = useDocument(),
     [notice, setNotice] = useState(""),
@@ -48,7 +57,9 @@ export default function Studio({ handoff: handoffPending = false }: { handoff?: 
     poster = d.poster ?? DEFAULT_POSTER;
   const globeSource = useGlobeSource(sourceState.source, d.globe);
   const plan = useMemo(() => planPrint(d.globe, d.print), [d.globe, d.print]);
-  const aspect = sourceState.source ? sourceState.source.width / sourceState.source.height : 2,
+  const aspect = sourceState.source
+      ? sourceState.source.width / sourceState.source.height
+      : 2,
     posterPlan = useMemo(() => planPoster(aspect, poster), [aspect, poster]);
 
   // Messages fade after a while (they stay readable, and can be closed sooner).
@@ -73,7 +84,10 @@ export default function Studio({ handoff: handoffPending = false }: { handoff?: 
     (async () => {
       try {
         const handoff = await loadHandoff();
-        if (handoff && (await sourceState.upload(handoff.source, handoff.filename))) {
+        if (
+          handoff &&
+          (await sourceState.upload(handoff.source, handoff.filename))
+        ) {
           const size = await createImageBitmap(handoff.source).then((b) => {
             const r = { width: b.width, height: b.height };
             b.close();
@@ -85,7 +99,11 @@ export default function Studio({ handoff: handoffPending = false }: { handoff?: 
             name,
             // A world-shaped (2:1) map opens on the globe; any other on the poster.
             mode: needsFit(size.width, size.height) ? "poster" : "globe",
-            globe: { ...handoff.document.globe, fit: "contain", fill: handoff.origin?.background ?? DEFAULT_FILL },
+            globe: {
+              ...handoff.document.globe,
+              fit: "contain",
+              fill: handoff.origin?.background ?? DEFAULT_FILL,
+            },
             poster: { ...DEFAULT_POSTER, ...handoff.document.poster },
           });
           setOrigin(handoff.origin ?? null);
@@ -99,10 +117,17 @@ export default function Studio({ handoff: handoffPending = false }: { handoff?: 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [handoffPending]);
 
-  const globe = (patch: Partial<GlobeSettings>) => state.change((old) => ({ ...old, globe: { ...old.globe, ...patch } }));
-  const print = (patch: Partial<PrintSettings>) => state.change((old) => ({ ...old, print: { ...old.print, ...patch } }));
-  const posterChange = (patch: Partial<PosterSettings>) => state.change((old) => ({ ...old, poster: { ...(old.poster ?? DEFAULT_POSTER), ...patch } }));
-  const setMode = (m: "globe" | "poster") => state.change((old) => ({ ...old, mode: m }));
+  const globe = (patch: Partial<GlobeSettings>) =>
+    state.change((old) => ({ ...old, globe: { ...old.globe, ...patch } }));
+  const print = (patch: Partial<PrintSettings>) =>
+    state.change((old) => ({ ...old, print: { ...old.print, ...patch } }));
+  const posterChange = (patch: Partial<PosterSettings>) =>
+    state.change((old) => ({
+      ...old,
+      poster: { ...(old.poster ?? DEFAULT_POSTER), ...patch },
+    }));
+  const setMode = (m: "globe" | "poster") =>
+    state.change((old) => ({ ...old, mode: m }));
 
   async function restore(project: SavedProject) {
     if (await sourceState.upload(project.source, project.filename)) {
@@ -128,7 +153,11 @@ export default function Studio({ handoff: handoffPending = false }: { handoff?: 
             onUpload={async (f) => {
               if (await sourceState.upload(f, f.name)) {
                 setOrigin(null);
-                state.replace({ ...d, name: f.name.replace(/\.[^.]+$/, "").slice(0, 100) || d.name, layers: [] });
+                state.replace({
+                  ...d,
+                  name: f.name.replace(/\.[^.]+$/, "").slice(0, 100) || d.name,
+                  layers: [],
+                });
               }
             }}
           />
@@ -136,11 +165,19 @@ export default function Studio({ handoff: handoffPending = false }: { handoff?: 
 
         <div className="pr-modes" role="tablist" aria-label={t("prModes")}>
           {(["globe", "poster"] as const).map((m) => (
-            <button key={m} role="tab" aria-selected={mode === m} className={mode === m ? "active" : ""} onClick={() => setMode(m)}>
+            <button
+              key={m}
+              role="tab"
+              aria-selected={mode === m}
+              className={mode === m ? "active" : ""}
+              onClick={() => setMode(m)}
+            >
               <Icon name={m === "globe" ? "globe" : "grid"} size={18} />
               <span>
                 <b>{t(m === "globe" ? "prModeGlobe" : "prModePoster")}</b>
-                <small>{t(m === "globe" ? "prModeGlobeNote" : "prModePosterNote")}</small>
+                <small>
+                  {t(m === "globe" ? "prModeGlobeNote" : "prModePosterNote")}
+                </small>
               </span>
             </button>
           ))}
@@ -161,7 +198,10 @@ export default function Studio({ handoff: handoffPending = false }: { handoff?: 
         {notice && (
           <div className="studio-notice" role="status">
             <span>{t(i18n.exists(notice) ? notice : "errorGeneric")}</span>
-            <button aria-label={t("clearMessage")} onClick={() => setNotice("")}>
+            <button
+              aria-label={t("clearMessage")}
+              onClick={() => setNotice("")}
+            >
               ×
             </button>
           </div>
@@ -171,12 +211,27 @@ export default function Studio({ handoff: handoffPending = false }: { handoff?: 
           <aside className="pr-controls" aria-label={t("settings")}>
             {mode === "globe" ? (
               <>
-                <GlobeFitControls globe={d.globe} source={sourceState.source} globeSource={globeSource.source} defaultFill={origin?.background ?? DEFAULT_FILL} onChange={globe} />
+                <GlobeFitControls
+                  globe={d.globe}
+                  source={sourceState.source}
+                  globeSource={globeSource.source}
+                  defaultFill={origin?.background ?? DEFAULT_FILL}
+                  onChange={globe}
+                />
                 <GlobeControls globe={d.globe} onChange={globe} />
-                <PrintControls settings={d.print} onChange={print} notify={notify} />
+                <PrintControls
+                  settings={d.print}
+                  onChange={print}
+                  notify={notify}
+                />
               </>
             ) : (
-              <PosterControls settings={poster} plan={posterPlan} aspect={aspect} onChange={posterChange} />
+              <PosterControls
+                settings={poster}
+                plan={posterPlan}
+                aspect={aspect}
+                onChange={posterChange}
+              />
             )}
             <div className="sidebar-note">
               <Icon name="shield" size={15} />
@@ -189,11 +244,31 @@ export default function Studio({ handoff: handoffPending = false }: { handoff?: 
           <div className="pr-stage">
             {mode === "globe" ? (
               <>
-                <PreviewPanel document={d} source={globeSource.pending ? null : globeSource.source} plan={plan} />
-                <ExportPanel document={d} source={sourceState.loading || globeSource.pending ? null : globeSource.source} plan={plan} onDpi={(dpi) => state.change((old) => ({ ...old, dpi }))} notify={notify} />
+                <PreviewPanel
+                  document={d}
+                  source={globeSource.pending ? null : globeSource.source}
+                  plan={plan}
+                />
+                <ExportPanel
+                  document={d}
+                  source={
+                    sourceState.loading || globeSource.pending
+                      ? null
+                      : globeSource.source
+                  }
+                  plan={plan}
+                  onDpi={(dpi) => state.change((old) => ({ ...old, dpi }))}
+                  notify={notify}
+                />
               </>
             ) : (
-              <PosterView source={sourceState.loading ? null : sourceState.source} plan={posterPlan} settings={poster} name={d.name} notify={notify} />
+              <PosterView
+                source={sourceState.loading ? null : sourceState.source}
+                plan={posterPlan}
+                settings={poster}
+                name={d.name}
+                notify={notify}
+              />
             )}
           </div>
         </div>

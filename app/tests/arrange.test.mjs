@@ -1,7 +1,13 @@
 // Arranging objects: groups, alignment, even spacing, offsets.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { alignDeltas, distributeDeltas, pickable, shiftPatch, withGroups } from "../features/mapmaker/arrange.ts";
+import {
+  alignDeltas,
+  distributeDeltas,
+  pickable,
+  shiftPatch,
+  withGroups,
+} from "../features/mapmaker/arrange.ts";
 
 const rects = new Map([
   ["a", { x: 0, y: 0, width: 10, height: 10 }],
@@ -10,10 +16,22 @@ const rects = new Map([
 ]);
 
 test("align to the selection's own edges and centers", () => {
-  assert.deepEqual([...alignDeltas(rects, "left").values()].map((d) => d.dx), [0, -50, -30]);
-  assert.deepEqual([...alignDeltas(rects, "right").values()].map((d) => d.dx), [60, 0, 30]);
-  assert.deepEqual([...alignDeltas(rects, "centerX").values()].map((d) => d.dx), [30, -25, 0]);
-  assert.deepEqual([...alignDeltas(rects, "bottom").values()].map((d) => d.dy), [80, 60, 0]);
+  assert.deepEqual(
+    [...alignDeltas(rects, "left").values()].map((d) => d.dx),
+    [0, -50, -30],
+  );
+  assert.deepEqual(
+    [...alignDeltas(rects, "right").values()].map((d) => d.dx),
+    [60, 0, 30],
+  );
+  assert.deepEqual(
+    [...alignDeltas(rects, "centerX").values()].map((d) => d.dx),
+    [30, -25, 0],
+  );
+  assert.deepEqual(
+    [...alignDeltas(rects, "bottom").values()].map((d) => d.dy),
+    [80, 60, 0],
+  );
   assert.ok([...alignDeltas(rects, "top").values()].every((d) => d.dx === 0));
 });
 
@@ -41,7 +59,13 @@ test("a group is picked as a whole", () => {
 });
 
 test("moving by an offset", () => {
-  assert.deepEqual(shiftPatch({ kind: "stamp", x: 0.2, y: 0.3 }, 0.1, -0.1), { x: 0.30000000000000004, y: 0.19999999999999998 });
-  assert.deepEqual(shiftPatch({ kind: "path", points: [{ x: 0, y: 0 }] }, 0.5, 0.5), { points: [{ x: 0.5, y: 0.5 }] });
+  assert.deepEqual(shiftPatch({ kind: "stamp", x: 0.2, y: 0.3 }, 0.1, -0.1), {
+    x: 0.30000000000000004,
+    y: 0.19999999999999998,
+  });
+  assert.deepEqual(
+    shiftPatch({ kind: "path", points: [{ x: 0, y: 0 }] }, 0.5, 0.5),
+    { points: [{ x: 0.5, y: 0.5 }] },
+  );
   assert.deepEqual(shiftPatch({ kind: "paint" }, 1, 1), {});
 });

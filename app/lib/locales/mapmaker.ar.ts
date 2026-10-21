@@ -138,7 +138,8 @@ export const mapmakerAr: typeof mapmakerEn = {
   mmShowShortcuts: "إظهار شريط الاختصارات",
   mmShortcutHintSelect: "انقر للتحديد · اسحب المقابض للتحويل · Delete للحذف",
   mmShortcutHintBrush: "انقر واسحب للرسم",
-  mmShortcutHintStamp: "انقر لوضع ختم · اسحب للنثر (تلقائي، متعدد) · انتقل إلى تحديد للتعديل",
+  mmShortcutHintStamp:
+    "انقر لوضع ختم · اسحب للنثر (تلقائي، متعدد) · انتقل إلى تحديد للتعديل",
   mmShortcutHintPath: "اسحب للرسم · حرّر للإنهاء",
   mmShortcutHintRegion: "انقر لإضافة زوايا · انقر مرتين أو أغلق الشكل للتعبئة",
   mmShortcutHintLabel: "انقر على اللوحة، ثم اكتب",
@@ -302,7 +303,8 @@ export const mapmakerAr: typeof mapmakerEn = {
   mmGridHex: "سداسيات",
   mmCellSize: "حجم الخلية",
   mmMatchMapTiles: "مطابقة مربعات الخريطة",
-  mmBrushShortcuts: "{{brush}} الفرشاة · {{land}} اليابسة · {{line}} الخط · {{erase}} الممحاة · {{size}} الحجم · {{cancel}} إلغاء",
+  mmBrushShortcuts:
+    "{{brush}} الفرشاة · {{land}} اليابسة · {{line}} الخط · {{erase}} الممحاة · {{size}} الحجم · {{cancel}} إلغاء",
   mmAddLandLayer: "طبقة يابسة",
   mmAddWaterLayer: "طبقة فرشاة للمياه",
   mmAddCustomLayer: "طبقة مخصصة",
@@ -355,7 +357,8 @@ export const mapmakerAr: typeof mapmakerEn = {
   mmLandTexture: "ملمس اليابسة",
   mmLandTextureHint:
     "شكل اليابسة الجديدة. ارسم فوقها بالفرشاة لتضيف الغابات والرمال والجبال…",
-  mmLandShortcuts: "{{land}} اليابسة · {{erase}} إضافة/إزالة · {{size}} الحجم · {{cancel}} إلغاء",
+  mmLandShortcuts:
+    "{{land}} اليابسة · {{erase}} إضافة/إزالة · {{size}} الحجم · {{cancel}} إلغاء",
   mmTargetLandShape: "شكل اليابسة",
   mmTargetLandTexture: "ملمس اليابسة",
   mmTargetLandTextureNote:

@@ -8,7 +8,7 @@ import { useAuth } from "./AuthProvider";
 import { AuthShell } from "./AuthShell";
 import { GoogleButton } from "./LoginForm";
 import { CompassScreen, errorMessage, safeNext } from "./ui";
-import {ApiError} from "@/lib/api/client";
+import { ApiError } from "@/lib/api/client";
 
 export function RegisterForm() {
   const { t, i18n } = useTranslation(),
@@ -21,7 +21,12 @@ export function RegisterForm() {
     [password, setPassword] = useState(""),
     [confirm, setConfirm] = useState(""),
     [busy, setBusy] = useState(false),
-    [errors, setErrors] = useState<{ name?: string; email?: string; password?: string; form?: string }>({});
+    [errors, setErrors] = useState<{
+      name?: string;
+      email?: string;
+      password?: string;
+      form?: string;
+    }>({});
 
   useEffect(() => {
     if (user) router.replace(next);
@@ -49,7 +54,11 @@ export function RegisterForm() {
       if (err instanceof ApiError && err.status === 422) {
         setErrors({
           name: err.field("name") ?? undefined,
-          email: err.field("email") ? (/taken/i.test(err.field("email")!) ? t("acErrorEmailTaken") : err.field("email")!) : undefined,
+          email: err.field("email")
+            ? /taken/i.test(err.field("email")!)
+              ? t("acErrorEmailTaken")
+              : err.field("email")!
+            : undefined,
           password: err.field("password") ? t("acPasswordHint") : undefined,
         });
       } else setErrors({ form: errorMessage(t, err) });
@@ -63,36 +72,76 @@ export function RegisterForm() {
       <form className="auth-form" onSubmit={submit} noValidate>
         <label className="site-field">
           {t("acName")}
-          <input autoComplete="name" required maxLength={80} value={name} onChange={(e) => setName(e.target.value)} aria-invalid={!!errors.name} />
-          {errors.name && <span className="site-field-error">{errors.name}</span>}
+          <input
+            autoComplete="name"
+            required
+            maxLength={80}
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            aria-invalid={!!errors.name}
+          />
+          {errors.name && (
+            <span className="site-field-error">{errors.name}</span>
+          )}
         </label>
         <label className="site-field">
           {t("acEmail")}
-          <input type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} aria-invalid={!!errors.email} />
-          {errors.email && <span className="site-field-error">{errors.email}</span>}
+          <input
+            type="email"
+            autoComplete="email"
+            required
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            aria-invalid={!!errors.email}
+          />
+          {errors.email && (
+            <span className="site-field-error">{errors.email}</span>
+          )}
         </label>
         <label className="site-field">
           {t("acPassword")}
-          <input type="password" autoComplete="new-password" required value={password} onChange={(e) => setPassword(e.target.value)} aria-invalid={!!errors.password} />
-          <span className={errors.password ? "site-field-error" : undefined}>{errors.password ?? t("acPasswordHint")}</span>
+          <input
+            type="password"
+            autoComplete="new-password"
+            required
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            aria-invalid={!!errors.password}
+          />
+          <span className={errors.password ? "site-field-error" : undefined}>
+            {errors.password ?? t("acPasswordHint")}
+          </span>
         </label>
         <label className="site-field">
           {t("acPasswordConfirm")}
-          <input type="password" autoComplete="new-password" required value={confirm} onChange={(e) => setConfirm(e.target.value)} />
+          <input
+            type="password"
+            autoComplete="new-password"
+            required
+            value={confirm}
+            onChange={(e) => setConfirm(e.target.value)}
+          />
         </label>
         {errors.form && (
           <p className="site-notice error" role="alert">
             {errors.form}
           </p>
         )}
-        <button className="site-btn" type="submit" disabled={busy || !name || !email || !password || !confirm}>
+        <button
+          className="site-btn"
+          type="submit"
+          disabled={busy || !name || !email || !password || !confirm}
+        >
           {t("acCreateAccount")}
         </button>
       </form>
       <div className="auth-or">{t("acOr")}</div>
       <GoogleButton next={next} />
       <p className="auth-switch">
-        {t("acHaveAccount")} <Link href={`/login?next=${encodeURIComponent(next)}`}>{t("acSignIn")}</Link>
+        {t("acHaveAccount")}{" "}
+        <Link href={`/login?next=${encodeURIComponent(next)}`}>
+          {t("acSignIn")}
+        </Link>
       </p>
     </AuthShell>
   );

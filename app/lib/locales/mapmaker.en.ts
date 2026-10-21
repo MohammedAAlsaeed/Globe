@@ -139,7 +139,8 @@ export const mapmakerEn = {
   mmShortcutHintSelect:
     "Click to select · drag handles to transform · Delete to remove",
   mmShortcutHintBrush: "Click and drag to paint",
-  mmShortcutHintStamp: "Click to place one stamp · drag to scatter (Auto, Multiple) · switch to Select to adjust",
+  mmShortcutHintStamp:
+    "Click to place one stamp · drag to scatter (Auto, Multiple) · switch to Select to adjust",
   mmShortcutHintPath: "Drag to draw · release to finish",
   mmShortcutHintRegion:
     "Click to add corners · double-click or close the loop to fill",
@@ -305,7 +306,8 @@ export const mapmakerEn = {
   mmGridHex: "Hexagon",
   mmCellSize: "Cell size",
   mmMatchMapTiles: "Match map tiles",
-  mmBrushShortcuts: "{{brush}} brush · {{land}} land · {{line}} line · {{erase}} eraser · {{size}} size · {{cancel}} cancel",
+  mmBrushShortcuts:
+    "{{brush}} brush · {{land}} land · {{line}} line · {{erase}} eraser · {{size}} size · {{cancel}} cancel",
   mmAddLandLayer: "Land layer",
   mmAddWaterLayer: "Water brush layer",
   mmAddCustomLayer: "Custom layer",
@@ -358,7 +360,8 @@ export const mapmakerEn = {
   mmLandTexture: "Land texture",
   mmLandTextureHint:
     "What new land looks like. Paint over it with the Brush to add forests, sand, mountains…",
-  mmLandShortcuts: "{{land}} land · {{erase}} add/remove · {{size}} size · {{cancel}} cancel",
+  mmLandShortcuts:
+    "{{land}} land · {{erase}} add/remove · {{size}} size · {{cancel}} cancel",
   mmTargetLandShape: "Land shape",
   mmTargetLandTexture: "Land texture",
   mmTargetLandTextureNote:

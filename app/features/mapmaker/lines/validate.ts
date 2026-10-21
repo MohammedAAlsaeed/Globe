@@ -5,10 +5,12 @@
  * hostile data never reaches the renderer. The API checks the same rules
  * (api/app/Support/LineRules.php) — keep the two in step.
  */
-const finite = (v: unknown, min: number, max: number) => typeof v === "number" && Number.isFinite(v) && v >= min && v <= max;
+const finite = (v: unknown, min: number, max: number) =>
+  typeof v === "number" && Number.isFinite(v) && v >= min && v <= max;
 const hex = (v: unknown) => typeof v === "string" && /^#[0-9a-f]{6}$/i.test(v);
 const bool = (v: unknown) => typeof v === "boolean";
-const rec = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);
+const rec = (v: unknown): v is Record<string, unknown> =>
+  !!v && typeof v === "object" && !Array.isArray(v);
 
 export const LINE_LIMITS = {
   /** Nodes per line. */
@@ -20,7 +22,22 @@ export const LINE_LIMITS = {
 const PATTERNS = ["solid", "dashed", "dotted", "dashdot", "custom"];
 const CAPS = ["round", "butt", "square"];
 const JOINS = ["round", "miter", "bevel"];
-const BLENDS = ["normal", "multiply", "screen", "overlay", "darken", "lighten", "color-dodge", "color-burn", "soft-light", "hard-light", "hue", "saturation", "color", "luminosity"];
+const BLENDS = [
+  "normal",
+  "multiply",
+  "screen",
+  "overlay",
+  "darken",
+  "lighten",
+  "color-dodge",
+  "color-burn",
+  "soft-light",
+  "hard-light",
+  "hue",
+  "saturation",
+  "color",
+  "luminosity",
+];
 /** Stamp-catalog asset keys: built-in vector art or an uploaded image. */
 export const ASSET_KEY = /^(b:[\w-]{1,40}:\d{1,3}|u:[0-9A-Za-z]{10,40})$/;
 const key = (v: unknown) => typeof v === "string" && ASSET_KEY.test(v);
@@ -86,7 +103,9 @@ export function validLook(v: unknown) {
 }
 
 function validHandle(v: unknown) {
-  return v === undefined || (rec(v) && finite(v.x, -4, 4) && finite(v.y, -4, 4));
+  return (
+    v === undefined || (rec(v) && finite(v.x, -4, 4) && finite(v.y, -4, 4))
+  );
 }
 export function validNodes(v: unknown, closed: boolean) {
   return (
@@ -111,7 +130,10 @@ export function validLine(o: Record<string, unknown>) {
     bool(o.closed) &&
     validNodes(o.nodes, o.closed as boolean) &&
     validLook(o) &&
-    (o.name === undefined || (typeof o.name === "string" && o.name.length <= 80)) &&
-    (o.styleId === undefined || o.styleId === null || (typeof o.styleId === "string" && o.styleId.length <= 64))
+    (o.name === undefined ||
+      (typeof o.name === "string" && o.name.length <= 80)) &&
+    (o.styleId === undefined ||
+      o.styleId === null ||
+      (typeof o.styleId === "string" && o.styleId.length <= 64))
   );
 }

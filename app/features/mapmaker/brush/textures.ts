@@ -617,7 +617,7 @@ export function textureTile(
   filters: Filters = NO_FILTERS,
 ) {
   const def = textureDef(id),
-    size = TEXTURE_BASE_PX << level as number,
+    size = (TEXTURE_BASE_PX << level) as number,
     filtered = hasFilters(filters),
     key = filtered
       ? `${def.id}@${level}|${filters.hue}|${filters.saturation}|${filters.brightness}|${filters.contrast}`

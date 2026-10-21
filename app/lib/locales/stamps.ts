@@ -17,19 +17,24 @@ export const stampsEn = {
   stCatLibrary: "Library packs",
   stUpload: "Upload stamps",
   stUploadSet: "Upload a set",
-  stUploadSetHint: "The pictures become variants of one stamp, placed at random",
+  stUploadSetHint:
+    "The pictures become variants of one stamp, placed at random",
   stUploadHint: "PNG, WebP or JPEG. Transparent edges are trimmed for you.",
   stUploading: "Uploading…",
-  stUploadSignIn: "Sign in to upload your own stamps and use them on any device.",
+  stUploadSignIn:
+    "Sign in to upload your own stamps and use them on any device.",
   stUploadEmpty: "That picture is empty (fully transparent).",
-  stUploadLimit: "Your plan's storage for stamps is full ({{quota}}). Remove some in My stamps, or upgrade.",
+  stUploadLimit:
+    "Your plan's storage for stamps is full ({{quota}}). Remove some in My stamps, or upgrade.",
   stQuota: "{{used}} of {{quota}} used",
   stManage: "Manage my stamps",
   stLibraryTitle: "My stamps",
-  stLibraryLead: "Your own stamps, ready in the Stamp tool on any device. Pictures in one set are variants, placed at random.",
+  stLibraryLead:
+    "Your own stamps, ready in the Stamp tool on any device. Pictures in one set are variants, placed at random.",
   stBackToEditor: "Open the editor",
   stOfficialLibrary: "Official library",
-  stOfficialLead: "Stamps every account sees. A pack shows as locked to plans below the one it needs; unpublished packs are visible only to admins.",
+  stOfficialLead:
+    "Stamps every account sees. A pack shows as locked to plans below the one it needs; unpublished packs are visible only to admins.",
   stStartLibrary: "Start my stamps",
   stNewPack: "New official pack",
   stCreatePack: "Create pack",
@@ -56,7 +61,8 @@ export const stampsEn = {
   stPlaceSingle: "Single",
   stPlaceSingleHint: "Click to place one stamp.",
   stPlaceMultiple: "Multiple",
-  stPlaceMultipleHint: "Drag to scatter stamps along your stroke — forests, rocks, waves.",
+  stPlaceMultipleHint:
+    "Drag to scatter stamps along your stroke — forests, rocks, waves.",
   stPlaceAuto: "Auto",
   stPlaceAutoHint: "Click for one stamp, drag to scatter many.",
   stAutoSelect: "Select after placing",
@@ -77,7 +83,8 @@ export const stampsEn = {
   stPivot: "Anchor point",
   stPivotBase: "Base",
   stPivotCenter: "Center",
-  stPivotBaseHint: "Placed, turned and resized standing on its base — trees and buildings stay on the ground.",
+  stPivotBaseHint:
+    "Placed, turned and resized standing on its base — trees and buildings stay on the ground.",
   stPivotCenterHint: "Placed, turned and resized around its middle.",
   stResetTransform: "Reset size & direction",
   stResetAll: "Reset all",
@@ -93,23 +100,28 @@ export const stampsEn = {
   stOpacity: "Opacity",
   stResetColors: "Reset colors",
   stEffects: "Blending & clipping",
-  stLayerBlends: "This layer has its own blend mode, which applies to all its stamps.",
+  stLayerBlends:
+    "This layer has its own blend mode, which applies to all its stamps.",
   stClip: "Clip mask",
   stClipNone: "None",
   stClipNoneHint: "The stamp as drawn.",
   stClipTexture: "Texture",
-  stClipTextureHint: "Fills the stamp's shape with a texture — the land below, by default — keeping its lines and shading.",
+  stClipTextureHint:
+    "Fills the stamp's shape with a texture — the land below, by default — keeping its lines and shading.",
   stClipErase: "Erase",
-  stClipEraseHint: "The stamp's shape cuts through everything beneath it in this layer.",
+  stClipEraseHint:
+    "The stamp's shape cuts through everything beneath it in this layer.",
   stLayerEffects: "Layer blending & stamp shadow",
   stLayerShadowHint: "Stamps set to the Layer shadow use this one.",
   stShadow: "Shadow",
   stShadowNone: "None",
   stShadowNoneHint: "No shadow.",
   stShadowDefault: "Default",
-  stShadowDefaultHint: "The stamp's own soft ground shadow (flat symbols have none).",
+  stShadowDefaultHint:
+    "The stamp's own soft ground shadow (flat symbols have none).",
   stShadowLayer: "Layer",
-  stShadowLayerHint: "The layer's shared stamp shadow — change it once for every stamp in the layer.",
+  stShadowLayerHint:
+    "The layer's shared stamp shadow — change it once for every stamp in the layer.",
   stShadowCustom: "Custom",
   stShadowCustomHint: "This stamp's own shadow.",
   stShadowColor: "Color",
@@ -124,7 +136,8 @@ export const stampsEn = {
   stWheelZoom: "Zooms the map",
   stWheelRotate: "Turns stamps (Inkarnate style)",
   stStampKeys: "Stamps",
-  stStampKeysHint: "Shift + wheel or {{bigger}} · {{smaller}} resize · Alt + wheel or {{left}} / {{right}} turn (15°) · Alt with the keys: fine steps",
+  stStampKeysHint:
+    "Shift + wheel or {{bigger}} · {{smaller}} resize · Alt + wheel or {{left}} / {{right}} turn (15°) · Alt with the keys: fine steps",
   stSaveAsStamp: "Save as a stamp",
   stSceneName: "Scene {{n}}",
   stSceneSaved: "Saved to My stamps — find it in the Stamp tool.",
@@ -154,7 +167,8 @@ export const stampsEn = {
 
 // Arabic has six plural forms (zero, one, two, few, many, other), so it
 // carries plural keys English doesn't.
-export const stampsAr: Record<keyof typeof stampsEn, string> & Record<string, string> = {
+export const stampsAr: Record<keyof typeof stampsEn, string> &
+  Record<string, string> = {
   stPanel: "أداة الأختام",
   stTarget: "الأختام",
   stSearch: "ابحث في الأختام",
@@ -177,14 +191,17 @@ export const stampsAr: Record<keyof typeof stampsEn, string> & Record<string, st
   stUploading: "جارٍ الرفع…",
   stUploadSignIn: "سجّل دخولك لترفع أختامك وتستخدمها من أي جهاز.",
   stUploadEmpty: "هذه الصورة فارغة (شفافة بالكامل).",
-  stUploadLimit: "امتلأت مساحة الأختام في خطتك ({{quota}}). احذف بعضها من «أختامي» أو رقِّ خطتك.",
+  stUploadLimit:
+    "امتلأت مساحة الأختام في خطتك ({{quota}}). احذف بعضها من «أختامي» أو رقِّ خطتك.",
   stQuota: "استُخدم {{used}} من {{quota}}",
   stManage: "إدارة أختامي",
   stLibraryTitle: "أختامي",
-  stLibraryLead: "أختامك الخاصة، جاهزة في أداة الأختام من أي جهاز. الصور في المجموعة الواحدة أشكال لختم واحد تُوضع عشوائياً.",
+  stLibraryLead:
+    "أختامك الخاصة، جاهزة في أداة الأختام من أي جهاز. الصور في المجموعة الواحدة أشكال لختم واحد تُوضع عشوائياً.",
   stBackToEditor: "افتح المحرر",
   stOfficialLibrary: "المكتبة الرسمية",
-  stOfficialLead: "أختام يراها كل الحسابات. تظهر الحزمة مقفلة للخطط الأدنى من الخطة التي تتطلبها، والحزم غير المنشورة لا يراها إلا المشرفون.",
+  stOfficialLead:
+    "أختام يراها كل الحسابات. تظهر الحزمة مقفلة للخطط الأدنى من الخطة التي تتطلبها، والحزم غير المنشورة لا يراها إلا المشرفون.",
   stStartLibrary: "ابدأ أختامي",
   stNewPack: "حزمة رسمية جديدة",
   stCreatePack: "أنشئ الحزمة",
@@ -232,7 +249,8 @@ export const stampsAr: Record<keyof typeof stampsEn, string> & Record<string, st
   stPivot: "نقطة الارتكاز",
   stPivotBase: "القاعدة",
   stPivotCenter: "المركز",
-  stPivotBaseHint: "يُوضع ويدور ويتغير حجمه وهو قائم على قاعدته، فتبقى الأشجار والمباني على الأرض.",
+  stPivotBaseHint:
+    "يُوضع ويدور ويتغير حجمه وهو قائم على قاعدته، فتبقى الأشجار والمباني على الأرض.",
   stPivotCenterHint: "يُوضع ويدور ويتغير حجمه حول منتصفه.",
   stResetTransform: "إعادة الحجم والاتجاه",
   stResetAll: "إعادة الكل",
@@ -253,7 +271,8 @@ export const stampsAr: Record<keyof typeof stampsEn, string> & Record<string, st
   stClipNone: "بلا",
   stClipNoneHint: "الختم كما رُسم.",
   stClipTexture: "خامة",
-  stClipTextureHint: "يملأ شكل الختم بخامة — خامة اليابسة تحته افتراضياً — مع الإبقاء على خطوطه وتظليله.",
+  stClipTextureHint:
+    "يملأ شكل الختم بخامة — خامة اليابسة تحته افتراضياً — مع الإبقاء على خطوطه وتظليله.",
   stClipErase: "مسح",
   stClipEraseHint: "يقصّ شكلُ الختم كل ما تحته في هذه الطبقة.",
   stLayerEffects: "دمج الطبقة وظل الأختام",
@@ -283,7 +302,8 @@ export const stampsAr: Record<keyof typeof stampsEn, string> & Record<string, st
   stWheelZoom: "تكبّر الخريطة",
   stWheelRotate: "تدير الأختام (مثل Inkarnate)",
   stStampKeys: "الأختام",
-  stStampKeysHint: "Shift + العجلة أو {{bigger}} · {{smaller}} للحجم · Alt + العجلة أو {{left}} / {{right}} للدوران (15°) · Alt مع المفاتيح: خطوات دقيقة",
+  stStampKeysHint:
+    "Shift + العجلة أو {{bigger}} · {{smaller}} للحجم · Alt + العجلة أو {{left}} / {{right}} للدوران (15°) · Alt مع المفاتيح: خطوات دقيقة",
   stSaveAsStamp: "احفظ كختم",
   stSceneName: "مشهد {{n}}",
   stSceneSaved: "حُفظ في «أختامي»، تجده في أداة الأختام.",

@@ -15,9 +15,18 @@ export const PAPERS = {
 } as const;
 
 export type PaperId = keyof typeof PAPERS | "custom";
-export const PAPER_IDS = [...(Object.keys(PAPERS) as (keyof typeof PAPERS)[]), "custom"] as PaperId[];
+export const PAPER_IDS = [
+  ...(Object.keys(PAPERS) as (keyof typeof PAPERS)[]),
+  "custom",
+] as PaperId[];
 
 /** A paper's size (custom: the given one). */
-export function paperSize(paper: PaperId, width: number, height: number): [number, number] {
-  return paper === "custom" ? [width, height] : [PAPERS[paper][0], PAPERS[paper][1]];
+export function paperSize(
+  paper: PaperId,
+  width: number,
+  height: number,
+): [number, number] {
+  return paper === "custom"
+    ? [width, height]
+    : [PAPERS[paper][0], PAPERS[paper][1]];
 }

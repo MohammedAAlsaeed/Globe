@@ -12,12 +12,7 @@ import type { LineNode } from "./lines/geometry";
 export type { IconId, LineNode };
 export type Point = { x: number; y: number };
 export type Biome =
-  | "forest"
-  | "mountains"
-  | "desert"
-  | "water"
-  | "grass"
-  | "swamp";
+  "forest" | "mountains" | "desert" | "water" | "grass" | "swamp";
 export type PathKind = "river" | "road" | "border";
 export type LabelAlign = "start" | "center" | "end";
 
@@ -71,6 +66,9 @@ export interface MMRegion extends MMObjectBase {
   textureScale: number;
   textureRotation: number;
 }
+/** Legacy text label (before the Text Tool). Older saved maps may still
+ * contain these; they open as Text Tool texts with the same words, place,
+ * size, colour and turn (stamps/migrate). */
 export interface MMLabel extends MMObjectBase {
   kind: "label";
   text: string;
@@ -443,9 +441,133 @@ export interface MMLine extends MMObjectBase, LineLook {
   nodes: LineNode[];
 }
 
-/** Every object kind a layer can hold. Legacy kinds (MMIcon, MMPath) are
- * converted when a map opens (see ./stamps/migrate). */
-export type MMObject = MMBrush | MMStamp | MMLine | MMRegion | MMLabel | MMPaint | MMLand;
+// -----------------------------------------------------------------------------
+// Text Tool — names, titles and notes, in any language
+// -----------------------------------------------------------------------------
+// A text keeps its words as plain Unicode (never pictures of letters) plus a
+// *look*: the font profile (an Arabic + Latin pairing with fallbacks for
+// every other script), size, colour, effects and curve. The text engine
+// (./text) shapes it with HarfBuzz — joined Arabic, marks, ligatures,
+// mixed directions — and draws the same vector letters on screen, in prints
+// and in exports. Lengths are fractions of the map width; letter effects are
+// in em (fractions of the text's own size), so they scale with the text.
+
+/** start/end follow the writing direction; left/right are fixed. */
+export type TextAlign = "start" | "center" | "end" | "left" | "right";
+export type TextDirection = "auto" | "ltr" | "rtl";
+/** straight · arc (a circular bend) · path (follows a drawn curve). */
+export type TextCurveMode = "straight" | "arc" | "path";
+/** How letters follow a curve: warp (the whole line bends smoothly, keeps
+ * Arabic joined), letters (each letter turns on its own), words (each word
+ * turns as a whole), auto (warp for joined scripts, letters for the rest). */
+export type CurveLetters = "auto" | "warp" | "letters" | "words";
+
+export interface TextOutline {
+  enabled: boolean;
+  color: string;
+  /** Thickness, em. */
+  width: number;
+  /** 0..1 */
+  opacity: number;
+  join: LineJoin;
+  /** outside: drawn behind the letters (a halo around the joined word) · center: on the edge. */
+  position: "outside" | "center";
+}
+export interface TextShadow {
+  enabled: boolean;
+  color: string;
+  /** 0..1 */
+  opacity: number;
+  /** em */
+  blur: number;
+  /** em, along the map (the light comes from the same side for every text). */
+  offsetX: number;
+  offsetY: number;
+}
+
+/** Everything about how a text looks (what presets and saved text styles hold). */
+export interface TextLook {
+  /** Font profile id (see text/fonts). */
+  profile: string;
+  /** A font chosen by hand for the text (its own scripts); null = the profile's. */
+  font: string | null;
+  /** Height of the letters (em), fraction of the map width. */
+  size: number;
+  /** 100..900 (variable fonts take any value; others their nearest real weight). */
+  weight: number;
+  italic: boolean;
+  /** All capitals (Latin, Greek, Cyrillic; other scripts have none). */
+  caps: boolean;
+  /** em; joined scripts get it only between letters that don't join. */
+  letterSpacing: number;
+  /** em added at each space. */
+  wordSpacing: number;
+  /** Baseline to baseline, relative to each font's own natural line height. */
+  lineHeight: number;
+  align: TextAlign;
+  direction: TextDirection;
+  /** BCP 47 language ("ar", "fa", "ur", "en"…); "" = from the letters. */
+  lang: string;
+  /** OpenType features turned on/off by hand ("dlig", "smcp", "onum"…). */
+  features: Record<string, boolean>;
+  /** 0..1 Arabic elongation (kashida/tatweel) between letters that join. */
+  kashida: number;
+  fill: string;
+  fillOpacity: number;
+  /** The whole text (fill, outline and shadow together). */
+  opacity: number;
+  blend?: BlendMode;
+  outline: TextOutline;
+  shadow: TextShadow;
+  curveMode: TextCurveMode;
+  /** Arc: -100..100 (0 straight, + bends like an arch, − like a bowl). */
+  curve: number;
+  letters: CurveLetters;
+}
+
+/** The curve a text follows (curve mode "path"). Nodes are map fractions,
+ * like a line's, so the path moves and reshapes like one. */
+export interface TextPath {
+  nodes: LineNode[];
+  /** Read the path from its other end. */
+  reverse: boolean;
+  /** Where on the path the text sits. */
+  align: "start" | "center" | "end";
+  /** Shift along the path, fraction of its length (-0.5..0.5). */
+  offset: number;
+  /** above: the text stands on the path · center: on its middle · below: hangs under it. */
+  side: "above" | "center" | "below";
+  /** Extra distance from the path, em (+ away from the side the text is on). */
+  baseline: number;
+  /** Rounds off sharp bends under the letters, so they never collide. */
+  smooth: boolean;
+}
+
+export interface MMText extends MMObjectBase, TextLook {
+  kind: "text";
+  text: string;
+  /** The anchor (map fractions): the alignment edge of the text, halfway up.
+   * Path texts keep it at their middle. */
+  x: number;
+  y: number;
+  /** Degrees (straight and arc texts). */
+  rotation: number;
+  /** Wrapping width, fraction of the map width; null = one line per paragraph. */
+  boxWidth: number | null;
+  /** The curve (kept while another curve mode is used, so switching back restores it). */
+  path?: TextPath;
+  /** Optional name in the Objects list (the text itself otherwise). */
+  name?: string;
+  /** The library style it was made with (Reset returns to it). */
+  styleId?: string | null;
+  /** Follows a stamp (a city's name moving with its city). */
+  attach?: { to: string; dx: number; dy: number } | null;
+}
+
+/** Every object kind a layer can hold. Legacy kinds (MMIcon, MMPath,
+ * MMLabel) are converted when a map opens (see ./stamps/migrate). */
+export type MMObject =
+  MMBrush | MMStamp | MMLine | MMRegion | MMText | MMPaint | MMLand;
 
 /** Brush-layer role (Inkarnate-style). Optional — older layers read as "custom". */
 export type LayerRole = "land" | "water" | "custom";

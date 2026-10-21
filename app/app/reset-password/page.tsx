@@ -1,6 +1,6 @@
 "use client";
 import { Suspense } from "react";
-import {ResetPasswordForm} from "@/features/account/PasswordForms";
+import { ResetPasswordForm } from "@/features/account/PasswordForms";
 
 export default function Page() {
   return (
