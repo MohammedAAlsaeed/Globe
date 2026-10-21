@@ -303,7 +303,7 @@ test("on a straight path, the warp is only a move; a reversed path flips the rea
     [x2, y2] = pc.curve.map(1, -0.3);
   assert.ok(Math.abs(x2 - x1 - 1) < 1e-6 && Math.abs(y2 - y1 + 0.3) < 1e-6);
   // The middle of the text sits on the middle of the path (in em: 0.5 / size).
-  assert.ok(Math.abs(x1 - 0.5 / o.size - (s.left + s.width / 2) * 0) < s.width);
+  assert.ok(Math.abs(x1 - 0.5 / o.size) < s.width);
   const rev = pathCurve({ ...o, path: { ...o.path, reverse: true } }, s, 0.5);
   assert.ok(
     rev.curve.map(1, 0)[0] < rev.curve.map(0, 0)[0],

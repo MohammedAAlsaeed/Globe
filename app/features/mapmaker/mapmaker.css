@@ -12,7 +12,7 @@
   justify-content: center;
 }
 .mm-landing-hero h1 {
-  font-family: var(--serif);
+  font-family: var(--serif), serif;
   font-size: clamp(28px, 4vw, 44px);
   margin: 10px 0;
 }
@@ -61,7 +61,7 @@
   color: var(--gold);
 }
 .mm-cta-card h2 {
-  font-family: var(--serif);
+  font-family: var(--serif), serif;
   font-size: 20px;
   margin: 0;
 }
@@ -209,7 +209,7 @@
   flex-direction: column;
   background: var(--mm-bg);
   color: var(--mm-text);
-  font-family: var(--sans, Arial, sans-serif);
+  font-family: var(--sans, Arial), sans-serif;
   z-index: 40;
 }
 .mm-shell button {

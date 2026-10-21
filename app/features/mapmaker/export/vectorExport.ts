@@ -59,6 +59,13 @@ async function dataUrl(canvas: HTMLCanvasElement): Promise<string> {
     r.readAsDataURL(blob);
   });
 }
+/** An SVG <image> filling the map (built as data, not markup, so editors don't read it as HTML). */
+function svgImage(width: number, height: number, href: string): string {
+  const attrs = { width, height, preserveAspectRatio: "none", href };
+  return `<image ${Object.entries(attrs)
+    .map(([k, v]) => `${k}="${v}"`)
+    .join(" ")}/>`;
+}
 const esc = (s: string) =>
   s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
@@ -86,9 +93,7 @@ export async function encodeSvg(
   let n = 0;
   for (const p of parts) {
     if (p.kind === "raster") {
-      chunks.push(
-        `<image width="${outW}" height="${outH}" preserveAspectRatio="none" href="${await dataUrl(p.canvas)}"/>`,
-      );
+      chunks.push(svgImage(outW, outH, await dataUrl(p.canvas)));
     } else {
       const svg = textToSvg(p.o, outW, outH, mode, `t${++n}`, embed);
       defs.push(svg.defs);
