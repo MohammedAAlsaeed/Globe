@@ -879,7 +879,10 @@ dialog.mm-modal .dialog-header button {
   border-bottom: 1px solid transparent;
   background: none;
   color: var(--vellum, #f3e8cc);
-  font: 700 22px/1.2 Amiri, Georgia, serif;
+  font:
+    700 22px/1.2 Amiri,
+    Georgia,
+    serif;
 }
 .lib-name:focus {
   outline: none;
@@ -995,7 +998,11 @@ dialog.upg-dialog {
   border: 1px solid var(--upg-rule);
   border-radius: 14px;
   background:
-    radial-gradient(120% 70% at 50% -10%, rgba(217, 169, 59, 0.16), transparent 60%),
+    radial-gradient(
+      120% 70% at 50% -10%,
+      rgba(217, 169, 59, 0.16),
+      transparent 60%
+    ),
     linear-gradient(180deg, var(--upg-lapis) 0%, var(--upg-night) 100%);
   color: var(--upg-vellum);
   font-family: "IBM Plex Sans Arabic", "Segoe UI", Tahoma, sans-serif;
@@ -1113,7 +1120,11 @@ dialog.upg-dialog p.upg-message {
 }
 .upg-plan.recommended {
   border-color: var(--upg-gold);
-  background: linear-gradient(180deg, rgba(217, 169, 59, 0.12), rgba(13, 22, 54, 0.6));
+  background: linear-gradient(
+    180deg,
+    rgba(217, 169, 59, 0.12),
+    rgba(13, 22, 54, 0.6)
+  );
 }
 .upg-loading .upg-plan {
   animation: upg-pulse 1.2s ease-in-out infinite alternate;

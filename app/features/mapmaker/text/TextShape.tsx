@@ -47,7 +47,9 @@ export class MapText extends Konva.Shape {
     const o = this.attrs.text as MMText | undefined;
     if (!o) return null;
     const live = this.attrs.liveBox as number | null | undefined;
-    return live !== undefined && live !== o.boxWidth ? { ...o, boxWidth: live } : o;
+    return live !== undefined && live !== o.boxWidth
+      ? { ...o, boxWidth: live }
+      : o;
   }
   private geo() {
     const o = this.obj(),
@@ -62,7 +64,8 @@ export class MapText extends Konva.Shape {
     if (this.attrs.editing) return;
     const g = this.geo();
     if (!g) return;
-    const ctx = (context as unknown as { _context: CanvasRenderingContext2D })._context;
+    const ctx = (context as unknown as { _context: CanvasRenderingContext2D })
+      ._context;
     ctx.save();
     ctx.scale(g.k, g.k);
     drawText(ctx, g.geo, g.o);
@@ -71,18 +74,33 @@ export class MapText extends Konva.Shape {
   _hitFunc(context: Context) {
     const g = this.geo();
     if (!g) return;
-    const ctx = (context as unknown as { _context: CanvasRenderingContext2D })._context;
+    const ctx = (context as unknown as { _context: CanvasRenderingContext2D })
+      ._context;
     ctx.save();
     ctx.scale(g.k, g.k);
-    hitText(ctx, g.geo, g.o, this.colorKey, g.o.curveMode === "straight" || (g.o.curveMode === "arc" && Math.abs(g.o.curve) < 25));
+    hitText(
+      ctx,
+      g.geo,
+      g.o,
+      this.colorKey,
+      g.o.curveMode === "straight" ||
+        (g.o.curveMode === "arc" && Math.abs(g.o.curve) < 25),
+    );
     ctx.restore();
   }
   getSelfRect() {
     const g = this.geo();
     if (!g) return { x: 0, y: 0, width: 0, height: 0 };
     const { x0, y0, x1, y1 } = g.geo.bounds;
-    const pad = g.o.outline.enabled ? g.o.outline.width * (g.o.outline.position === "outside" ? 2 : 1) : 0.02;
-    return { x: (x0 - pad) * g.k, y: (y0 - pad) * g.k, width: (x1 - x0 + pad * 2) * g.k, height: (y1 - y0 + pad * 2) * g.k };
+    const pad = g.o.outline.enabled
+      ? g.o.outline.width * (g.o.outline.position === "outside" ? 2 : 1)
+      : 0.02;
+    return {
+      x: (x0 - pad) * g.k,
+      y: (y0 - pad) * g.k,
+      width: (x1 - x0 + pad * 2) * g.k,
+      height: (y1 - y0 + pad * 2) * g.k,
+    };
   }
   _useBufferCanvas() {
     return this.getAbsoluteOpacity() < 1 && !!this.getStage();

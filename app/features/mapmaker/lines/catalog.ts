@@ -13,13 +13,22 @@
  * (../stamps/render). A line stores the keys themselves (MMLine.stamp.parts),
  * so it still draws even when its set isn't listed any more.
  */
-import { builtinKey, registerHiddenArt, stampAsset, stampSet, allSets, assetSize, type StampSet } from "../stamps/catalog";
+import {
+  builtinKey,
+  registerHiddenArt,
+  stampAsset,
+  stampSet,
+  allSets,
+  assetSize,
+  type StampSet,
+} from "../stamps/catalog";
 import type { BuiltinSet } from "../stamps/builtin";
 import type { VectorArt } from "../stamps/art";
 import type { LineParts, LineStampStroke } from "../types";
 import * as art from "./art";
 
-export type LineCategory = "walls" | "fences" | "roads" | "nature" | "stamps" | "library" | "custom";
+export type LineCategory =
+  "walls" | "fences" | "roads" | "nature" | "stamps" | "library" | "custom";
 export const LINE_CATEGORIES: { key: LineCategory; labelKey: string }[] = [
   { key: "walls", labelKey: "lnCatWalls" },
   { key: "fences", labelKey: "lnCatFences" },
@@ -33,7 +42,17 @@ export const LINE_CATEGORIES: { key: LineCategory; labelKey: string }[] = [
 /** Defaults a set gives a Stamp Stroke when picked (the rest of the look stays). */
 export type LineSetDefaults = Pick<
   LineStampStroke,
-  "ink" | "fill" | "size" | "spacing" | "followPath" | "fit" | "corners" | "caps" | "scaleJitter" | "rotationJitter" | "anchor"
+  | "ink"
+  | "fill"
+  | "size"
+  | "spacing"
+  | "followPath"
+  | "fit"
+  | "corners"
+  | "caps"
+  | "scaleJitter"
+  | "rotationJitter"
+  | "anchor"
 >;
 
 export interface LineArtSet {
@@ -54,7 +73,11 @@ export interface LineArtSet {
 // ---- built-in pieces ------------------------------------------------------------------
 const INK = "#3a2e22";
 /** Registers art under hidden stamp sets: `b:ln-<name>:<variant>`. */
-function pieces(name: string, variants: number, draw: (seed: number) => VectorArt): string[] {
+function pieces(
+  name: string,
+  variants: number,
+  draw: (seed: number) => VectorArt,
+): string[] {
   const id = `ln-${name}`;
   const def: BuiltinSet = {
     id,
@@ -100,7 +123,15 @@ const builtin = (
   parts: LineParts,
   defaults: Partial<LineSetDefaults>,
   tags: string[] = [],
-): LineArtSet => ({ id: `lb:${id}`, category, labelKey: `ln_${id}`, tags, parts, vector: true, defaults: { ...base, ...defaults } });
+): LineArtSet => ({
+  id: `lb:${id}`,
+  category,
+  labelKey: `ln_${id}`,
+  tags,
+  parts,
+  vector: true,
+  defaults: { ...base, ...defaults },
+});
 
 let builtins: LineArtSet[] | null = null;
 /** The built-in line sets (art registered on first use). */
@@ -110,17 +141,138 @@ export function builtinLineSets(): LineArtSet[] {
     tower = pieces("castleTower", 1, art.castleTower)[0],
     post = pieces("fencePost", 1, art.fencePost)[0];
   builtins = [
-    builtin("stoneWall", "walls", { seg: pieces("stoneWall", 3, art.stoneWall), start: stoneBlock, end: stoneBlock, corner: stoneBlock }, { size: 0.009, fill: "#c9bda3" }, ["stone", "wall", "dry"]),
-    builtin("castleWall", "walls", { seg: pieces("castleWall", 2, art.castleWall), start: tower, end: tower, corner: tower }, { size: 0.012, fill: "#d3c4a6" }, ["castle", "fort", "rampart", "city"]),
-    builtin("palisade", "walls", { seg: pieces("palisade", 3, art.palisade) }, { size: 0.008, fill: "#a5835a", corners: "continuous" }, ["stockade", "logs", "wood", "camp"]),
-    builtin("woodenFence", "fences", { seg: pieces("woodenFence", 3, art.woodenFence), start: post, end: post, corner: post }, { size: 0.005, fill: "#a8875e" }, ["fence", "rail", "farm"]),
-    builtin("hedge", "fences", { seg: pieces("hedge", 3, art.hedge) }, { size: 0.01, ink: "#26301c", fill: "#6f8c48", corners: "continuous", scaleJitter: 0.2, spacing: -0.2, fit: false }, ["bush", "hedgerow", "green"]),
-    builtin("railway", "roads", { seg: pieces("railway", 2, art.railway) }, { size: 0.008, fill: "#8a6a45", corners: "continuous", caps: false }, ["rail", "train", "track"]),
-    builtin("footprints", "roads", { seg: pieces("footprints", 2, art.footprints) }, { size: 0.006, fill: null, spacing: 0.4, corners: "continuous", fit: false, caps: false }, ["steps", "trail", "journey"]),
-    builtin("chevrons", "roads", { seg: pieces("chevrons", 1, art.chevrons) }, { size: 0.007, fill: null, spacing: 0.6, corners: "continuous", fit: false, caps: false }, ["arrow", "route", "march"]),
-    builtin("cliff", "nature", { seg: pieces("cliff", 3, art.cliff) }, { size: 0.014, fill: "#b9ab8f", corners: "continuous", caps: false }, ["cliff", "escarpment", "edge"]),
-    builtin("ridge", "nature", { seg: pieces("ridge", 4, art.ridge) }, { size: 0.03, fill: "#e0d2b2", corners: "continuous", caps: false, anchor: "base", spacing: -0.3, fit: false, followPath: false, scaleJitter: 0.25 }, ["mountain", "range", "peaks"]),
-    builtin("waveLine", "nature", { seg: pieces("waveLine", 1, art.waveLine) }, { size: 0.006, ink: "#d6e4ea", fill: null, corners: "continuous", caps: false, spacing: 0.1, fit: false }, ["surf", "sea", "coast"]),
+    builtin(
+      "stoneWall",
+      "walls",
+      {
+        seg: pieces("stoneWall", 3, art.stoneWall),
+        start: stoneBlock,
+        end: stoneBlock,
+        corner: stoneBlock,
+      },
+      { size: 0.009, fill: "#c9bda3" },
+      ["stone", "wall", "dry"],
+    ),
+    builtin(
+      "castleWall",
+      "walls",
+      {
+        seg: pieces("castleWall", 2, art.castleWall),
+        start: tower,
+        end: tower,
+        corner: tower,
+      },
+      { size: 0.012, fill: "#d3c4a6" },
+      ["castle", "fort", "rampart", "city"],
+    ),
+    builtin(
+      "palisade",
+      "walls",
+      { seg: pieces("palisade", 3, art.palisade) },
+      { size: 0.008, fill: "#a5835a", corners: "continuous" },
+      ["stockade", "logs", "wood", "camp"],
+    ),
+    builtin(
+      "woodenFence",
+      "fences",
+      {
+        seg: pieces("woodenFence", 3, art.woodenFence),
+        start: post,
+        end: post,
+        corner: post,
+      },
+      { size: 0.005, fill: "#a8875e" },
+      ["fence", "rail", "farm"],
+    ),
+    builtin(
+      "hedge",
+      "fences",
+      { seg: pieces("hedge", 3, art.hedge) },
+      {
+        size: 0.01,
+        ink: "#26301c",
+        fill: "#6f8c48",
+        corners: "continuous",
+        scaleJitter: 0.2,
+        spacing: -0.2,
+        fit: false,
+      },
+      ["bush", "hedgerow", "green"],
+    ),
+    builtin(
+      "railway",
+      "roads",
+      { seg: pieces("railway", 2, art.railway) },
+      { size: 0.008, fill: "#8a6a45", corners: "continuous", caps: false },
+      ["rail", "train", "track"],
+    ),
+    builtin(
+      "footprints",
+      "roads",
+      { seg: pieces("footprints", 2, art.footprints) },
+      {
+        size: 0.006,
+        fill: null,
+        spacing: 0.4,
+        corners: "continuous",
+        fit: false,
+        caps: false,
+      },
+      ["steps", "trail", "journey"],
+    ),
+    builtin(
+      "chevrons",
+      "roads",
+      { seg: pieces("chevrons", 1, art.chevrons) },
+      {
+        size: 0.007,
+        fill: null,
+        spacing: 0.6,
+        corners: "continuous",
+        fit: false,
+        caps: false,
+      },
+      ["arrow", "route", "march"],
+    ),
+    builtin(
+      "cliff",
+      "nature",
+      { seg: pieces("cliff", 3, art.cliff) },
+      { size: 0.014, fill: "#b9ab8f", corners: "continuous", caps: false },
+      ["cliff", "escarpment", "edge"],
+    ),
+    builtin(
+      "ridge",
+      "nature",
+      { seg: pieces("ridge", 4, art.ridge) },
+      {
+        size: 0.03,
+        fill: "#e0d2b2",
+        corners: "continuous",
+        caps: false,
+        anchor: "base",
+        spacing: -0.3,
+        fit: false,
+        followPath: false,
+        scaleJitter: 0.25,
+      },
+      ["mountain", "range", "peaks"],
+    ),
+    builtin(
+      "waveLine",
+      "nature",
+      { seg: pieces("waveLine", 1, art.waveLine) },
+      {
+        size: 0.006,
+        ink: "#d6e4ea",
+        fill: null,
+        corners: "continuous",
+        caps: false,
+        spacing: 0.1,
+        fit: false,
+      },
+      ["surf", "sea", "coast"],
+    ),
   ];
   return builtins;
 }
@@ -208,13 +360,21 @@ export function pieceAspect(key: string): number | null {
 
 /** Every asset key a line uses (to load uploaded pieces a map needs). */
 export function lineAssetKeys(parts: LineParts): string[] {
-  return [...parts.seg, parts.start, parts.end, parts.corner].filter((k): k is string => !!k);
+  return [...parts.seg, parts.start, parts.end, parts.corner].filter(
+    (k): k is string => !!k,
+  );
 }
 
 /** Search by name (current language) or tag, best matches first. */
-export function searchLineSets(query: string, label: (s: LineArtSet) => string, category: LineCategory | "all") {
+export function searchLineSets(
+  query: string,
+  label: (s: LineArtSet) => string,
+  category: LineCategory | "all",
+) {
   const q = query.trim().toLowerCase(),
-    list = allLineSets().filter((s) => category === "all" || s.category === category);
+    list = allLineSets().filter(
+      (s) => category === "all" || s.category === category,
+    );
   if (!q) return list;
   const score = (s: LineArtSet) => {
     const name = label(s).toLowerCase();

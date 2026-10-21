@@ -12,12 +12,16 @@
  *
  * Everything here except `encodeMapImage` is pure, so it is unit tested.
  */
-import {canvasFits, DEFAULT_CANVAS_PIXELS} from "@/lib/canvasLimits";
-
+import { canvasFits, DEFAULT_CANVAS_PIXELS } from "@/lib/canvasLimits";
 
 export type ImageFormat = "png" | "jpeg" | "webp" | "tiff" | "pdf" | "svg";
 
-export const IMAGE_FORMATS: { id: ImageFormat; ext: string; mime: string; lossy: boolean }[] = [
+export const IMAGE_FORMATS: {
+  id: ImageFormat;
+  ext: string;
+  mime: string;
+  lossy: boolean;
+}[] = [
   { id: "png", ext: "png", mime: "image/png", lossy: false },
   { id: "jpeg", ext: "jpg", mime: "image/jpeg", lossy: true },
   { id: "webp", ext: "webp", mime: "image/webp", lossy: true },
@@ -42,10 +46,24 @@ export interface ExportSize {
  * Sizes this device can't draw (`canvasPixels`, see lib/canvasLimits) are
  * never offered — on an iPhone or iPad they would come out blank.
  */
-export function exportSizes(width: number, height: number, maxPx: number, canvasPixels = MAX_CANVAS_PIXELS): ExportSize[] {
+export function exportSizes(
+  width: number,
+  height: number,
+  maxPx: number,
+  canvasPixels = MAX_CANVAS_PIXELS,
+): ExportSize[] {
   return [0.25, 0.5, 1, 2]
-    .map((scale) => ({ scale, width: Math.round(width * scale), height: Math.round(height * scale) }))
-    .filter((s) => s.width >= 64 && s.height >= 64 && canvasFits(s.width, s.height, canvasPixels))
+    .map((scale) => ({
+      scale,
+      width: Math.round(width * scale),
+      height: Math.round(height * scale),
+    }))
+    .filter(
+      (s) =>
+        s.width >= 64 &&
+        s.height >= 64 &&
+        canvasFits(s.width, s.height, canvasPixels),
+    )
     .map((s) => ({ ...s, locked: Math.max(s.width, s.height) > maxPx }));
 }
 
@@ -56,7 +74,12 @@ export function printSizeCm(px: number, dpi: number): number {
 
 /** A safe file name from the map's name ("My map!" → "My-map"). */
 export function fileName(name: string, ext: string): string {
-  const base = name.trim().replace(/[\\/:*?"<>|\s]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 80) || "map";
+  const base =
+    name
+      .trim()
+      .replace(/[\\/:*?"<>|\s]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 80) || "map";
   return `${base}.${ext}`;
 }
 
@@ -64,7 +87,12 @@ export function fileName(name: string, ext: string): string {
  * An uncompressed baseline TIFF (8-bit RGB, one strip, little-endian) with
  * its resolution in pixels per inch. Alpha is flattened onto white.
  */
-export function encodeTiff(rgba: Uint8ClampedArray | Uint8Array, width: number, height: number, dpi: number): Uint8Array {
+export function encodeTiff(
+  rgba: Uint8ClampedArray | Uint8Array,
+  width: number,
+  height: number,
+  dpi: number,
+): Uint8Array {
   const pixels = width * height,
     dataSize = pixels * 3,
     entries = 12,
@@ -122,7 +150,12 @@ export function encodeTiff(rgba: Uint8ClampedArray | Uint8Array, width: number, 
 /** Writes the DPI into a JPEG's JFIF header (browsers leave it unset). */
 export function jpegWithDpi(bytes: Uint8Array, dpi: number): Uint8Array {
   // SOI, then APP0 "JFIF\0": version (2), units (1), X density (2), Y density (2).
-  const isJfif = bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff && bytes[3] === 0xe0 && String.fromCharCode(...bytes.slice(6, 11)) === "JFIF\0";
+  const isJfif =
+    bytes[0] === 0xff &&
+    bytes[1] === 0xd8 &&
+    bytes[2] === 0xff &&
+    bytes[3] === 0xe0 &&
+    String.fromCharCode(...bytes.slice(6, 11)) === "JFIF\0";
   if (!isJfif) return bytes;
   const out = bytes.slice(),
     d = Math.min(65535, Math.round(dpi));

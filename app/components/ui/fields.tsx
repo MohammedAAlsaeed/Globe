@@ -93,10 +93,34 @@ export function RangeField({
   return (
     <div className={`range-field ${className}`}>
       <label htmlFor={id}>{label}</label>
-      <input id={id} type="range" min={min} max={max} step={step} value={value} onChange={(e) => onChange(+e.target.value)} />
-      <ValueEditor value={value} min={min} max={max} step={step} onChange={onChange} format={format} label={label} className="range-field-value" />
+      <input
+        id={id}
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        onChange={(e) => onChange(+e.target.value)}
+      />
+      <ValueEditor
+        value={value}
+        min={min}
+        max={max}
+        step={step}
+        onChange={onChange}
+        format={format}
+        label={label}
+        className="range-field-value"
+      />
       {defaultValue !== undefined && (
-        <ResetButton value={value} defaultValue={defaultValue} onReset={() => onChange(defaultValue)} label={label} format={format} className="range-field-reset" />
+        <ResetButton
+          value={value}
+          defaultValue={defaultValue}
+          onReset={() => onChange(defaultValue)}
+          label={label}
+          format={format}
+          className="range-field-reset"
+        />
       )}
     </div>
   );

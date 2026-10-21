@@ -5,11 +5,29 @@
  */
 import { validNodes } from "../lines/validate";
 
-const BLENDS = ["normal", "multiply", "screen", "overlay", "darken", "lighten", "color-dodge", "color-burn", "soft-light", "hard-light", "hue", "saturation", "color", "luminosity"];
-const rec = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);
-const num = (v: unknown, min: number, max: number) => typeof v === "number" && Number.isFinite(v) && v >= min && v <= max;
+const BLENDS = [
+  "normal",
+  "multiply",
+  "screen",
+  "overlay",
+  "darken",
+  "lighten",
+  "color-dodge",
+  "color-burn",
+  "soft-light",
+  "hard-light",
+  "hue",
+  "saturation",
+  "color",
+  "luminosity",
+];
+const rec = (v: unknown): v is Record<string, unknown> =>
+  !!v && typeof v === "object" && !Array.isArray(v);
+const num = (v: unknown, min: number, max: number) =>
+  typeof v === "number" && Number.isFinite(v) && v >= min && v <= max;
 const hex = (v: unknown) => typeof v === "string" && /^#[0-9a-f]{6}$/i.test(v);
-const id = (v: unknown) => typeof v === "string" && /^[a-z0-9][a-z0-9-]{0,59}$/.test(v);
+const id = (v: unknown) =>
+  typeof v === "string" && /^[a-z0-9][a-z0-9-]{0,59}$/.test(v);
 
 export const TEXT_LIMITS = { maxChars: 2000, maxPathNodes: 2000 } as const;
 
@@ -32,10 +50,15 @@ export function validLook(v: unknown): boolean {
     ["start", "center", "end", "left", "right"].includes(v.align as string) &&
     ["auto", "ltr", "rtl"].includes(v.direction as string) &&
     // The server stores "" as null (Laravel turns empty strings into null).
-    (v.lang == null || (typeof v.lang === "string" && (v.lang === "" || /^[a-zA-Z]{2,3}(-[a-zA-Z0-9]{2,8}){0,3}$/.test(v.lang)))) &&
+    (v.lang == null ||
+      (typeof v.lang === "string" &&
+        (v.lang === "" ||
+          /^[a-zA-Z]{2,3}(-[a-zA-Z0-9]{2,8}){0,3}$/.test(v.lang)))) &&
     rec(f) &&
     Object.keys(f).length <= 24 &&
-    Object.entries(f).every(([k, x]) => /^[a-z0-9]{4}$/.test(k) && typeof x === "boolean") &&
+    Object.entries(f).every(
+      ([k, x]) => /^[a-z0-9]{4}$/.test(k) && typeof x === "boolean",
+    ) &&
     num(v.kashida, 0, 1) &&
     hex(v.fill) &&
     num(v.fillOpacity, 0, 1) &&
@@ -85,9 +108,18 @@ export function validText(v: Record<string, unknown>): boolean {
     num(v.rotation, -3600, 3600) &&
     (v.boxWidth === null || num(v.boxWidth, 0.002, 2)) &&
     (v.path === undefined || validPath(v.path)) &&
-    (v.name === undefined || (typeof v.name === "string" && v.name.length <= 80)) &&
-    (v.styleId === undefined || v.styleId === null || (typeof v.styleId === "string" && v.styleId.length <= 64)) &&
-    (v.attach === undefined || v.attach === null || (rec(v.attach) && typeof v.attach.to === "string" && v.attach.to.length <= 64 && num(v.attach.dx, -2, 2) && num(v.attach.dy, -2, 2))) &&
+    (v.name === undefined ||
+      (typeof v.name === "string" && v.name.length <= 80)) &&
+    (v.styleId === undefined ||
+      v.styleId === null ||
+      (typeof v.styleId === "string" && v.styleId.length <= 64)) &&
+    (v.attach === undefined ||
+      v.attach === null ||
+      (rec(v.attach) &&
+        typeof v.attach.to === "string" &&
+        v.attach.to.length <= 64 &&
+        num(v.attach.dx, -2, 2) &&
+        num(v.attach.dy, -2, 2))) &&
     validLook(v)
   );
 }

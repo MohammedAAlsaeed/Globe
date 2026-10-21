@@ -15,7 +15,11 @@ self.onmessage = async (event: MessageEvent<RenderRequest>) => {
     if (bitmap.width * bitmap.height > limit) {
       const f = Math.sqrt(limit / (bitmap.width * bitmap.height)),
         large = bitmap;
-      bitmap = await createImageBitmap(large, { resizeWidth: Math.floor(large.width * f), resizeHeight: Math.floor(large.height * f), resizeQuality: "high" });
+      bitmap = await createImageBitmap(large, {
+        resizeWidth: Math.floor(large.width * f),
+        resizeHeight: Math.floor(large.height * f),
+        resizeQuality: "high",
+      });
       large.close();
     }
     let w = bitmap.width,

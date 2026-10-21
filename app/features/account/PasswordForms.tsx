@@ -6,7 +6,7 @@ import { useTranslation } from "react-i18next";
 import { auth } from "./api";
 import { AuthShell } from "./AuthShell";
 import { errorMessage } from "./ui";
-import {ApiError} from "@/lib/api/client";
+import { ApiError } from "@/lib/api/client";
 
 export function ForgotPasswordForm() {
   const { t } = useTranslation();
@@ -39,7 +39,13 @@ export function ForgotPasswordForm() {
         <form className="auth-form" onSubmit={submit} noValidate>
           <label className="site-field">
             {t("acEmail")}
-            <input type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
+            <input
+              type="email"
+              autoComplete="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
           </label>
           {error && (
             <p className="site-notice error" role="alert">
@@ -78,12 +84,19 @@ export function ResetPasswordForm() {
     setBusy(true);
     setError(null);
     try {
-      await auth.resetPassword({ token, email, password, password_confirmation: confirm });
+      await auth.resetPassword({
+        token,
+        email,
+        password,
+        password_confirmation: confirm,
+      });
       router.replace("/login?reset=1");
     } catch (err) {
       setError(
         err instanceof ApiError && err.status === 422
-          ? (err.field("password") ? t("acPasswordHint") : (err.field("email") ?? t("acResetInvalid")))
+          ? err.field("password")
+            ? t("acPasswordHint")
+            : (err.field("email") ?? t("acResetInvalid"))
           : errorMessage(t, err),
       );
       setBusy(false);
@@ -98,19 +111,35 @@ export function ResetPasswordForm() {
         <form className="auth-form" onSubmit={submit} noValidate>
           <label className="site-field">
             {t("acNewPassword")}
-            <input type="password" autoComplete="new-password" required value={password} onChange={(e) => setPassword(e.target.value)} />
+            <input
+              type="password"
+              autoComplete="new-password"
+              required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
             <span>{t("acPasswordHint")}</span>
           </label>
           <label className="site-field">
             {t("acPasswordConfirm")}
-            <input type="password" autoComplete="new-password" required value={confirm} onChange={(e) => setConfirm(e.target.value)} />
+            <input
+              type="password"
+              autoComplete="new-password"
+              required
+              value={confirm}
+              onChange={(e) => setConfirm(e.target.value)}
+            />
           </label>
           {error && (
             <p className="site-notice error" role="alert">
               {error}
             </p>
           )}
-          <button className="site-btn" type="submit" disabled={busy || !password || !confirm}>
+          <button
+            className="site-btn"
+            type="submit"
+            disabled={busy || !password || !confirm}
+          >
             {t("acResetButton")}
           </button>
         </form>

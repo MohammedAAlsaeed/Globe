@@ -7,7 +7,7 @@ import { auth } from "./api";
 import { useAuth } from "./AuthProvider";
 import { AuthShell } from "./AuthShell";
 import { CompassScreen, GoogleMark, errorMessage, safeNext } from "./ui";
-import {ApiError} from "@/lib/api/client";
+import { ApiError } from "@/lib/api/client";
 
 /** Remembered across the Google round trip (it leaves the site). */
 export const NEXT_KEY = "auth-next";
@@ -54,7 +54,11 @@ export function LoginForm() {
     try {
       setUser(await auth.login(email.trim(), password, remember));
     } catch (err) {
-      setError(err instanceof ApiError && err.status === 422 ? t("acErrorCredentials") : errorMessage(t, err));
+      setError(
+        err instanceof ApiError && err.status === 422
+          ? t("acErrorCredentials")
+          : errorMessage(t, err),
+      );
       setBusy(false);
     }
   }
@@ -65,22 +69,42 @@ export function LoginForm() {
     <AuthShell title={t("acLoginTitle")} lead={t("acLoginLead")}>
       {googleError && (
         <p className="site-notice error" role="alert">
-          {t(googleError === "google_email" ? "acGoogleEmail" : "acGoogleFailed")}
+          {t(
+            googleError === "google_email" ? "acGoogleEmail" : "acGoogleFailed",
+          )}
         </p>
       )}
-      {params.get("reset") === "1" && <p className="site-notice ok">{t("acResetDone")}</p>}
+      {params.get("reset") === "1" && (
+        <p className="site-notice ok">{t("acResetDone")}</p>
+      )}
       <form className="auth-form" onSubmit={submit} noValidate>
         <label className="site-field">
           {t("acEmail")}
-          <input type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
+          <input
+            type="email"
+            autoComplete="email"
+            required
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+          />
         </label>
         <label className="site-field">
           {t("acPassword")}
-          <input type="password" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} />
+          <input
+            type="password"
+            autoComplete="current-password"
+            required
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+          />
         </label>
         <div className="auth-row">
           <label className="site-check">
-            <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} />
+            <input
+              type="checkbox"
+              checked={remember}
+              onChange={(e) => setRemember(e.target.checked)}
+            />
             {t("acRemember")}
           </label>
           <Link href="/forgot-password">{t("acForgot")}</Link>
@@ -90,14 +114,21 @@ export function LoginForm() {
             {error}
           </p>
         )}
-        <button className="site-btn" type="submit" disabled={busy || !email || !password}>
+        <button
+          className="site-btn"
+          type="submit"
+          disabled={busy || !email || !password}
+        >
           {t("acSignIn")}
         </button>
       </form>
       <div className="auth-or">{t("acOr")}</div>
       <GoogleButton next={next} />
       <p className="auth-switch">
-        {t("acNoAccount")} <Link href={`/register?next=${encodeURIComponent(next)}`}>{t("acCreateAccount")}</Link>
+        {t("acNoAccount")}{" "}
+        <Link href={`/register?next=${encodeURIComponent(next)}`}>
+          {t("acCreateAccount")}
+        </Link>
       </p>
     </AuthShell>
   );

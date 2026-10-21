@@ -47,7 +47,12 @@ const isZero = (v?: Vec) => !v || (Math.abs(v.x) < EPS && Math.abs(v.y) < EPS);
 export const dist = (a: Vec, b: Vec) => Math.hypot(a.x - b.x, a.y - b.y);
 
 /** The cubic pieces of a line, in pixels (closed lines add the closing piece). */
-export function cubics(nodes: LineNode[], closed: boolean, w: number, h: number): Cubic[] {
+export function cubics(
+  nodes: LineNode[],
+  closed: boolean,
+  w: number,
+  h: number,
+): Cubic[] {
   const out: Cubic[] = [],
     n = nodes.length;
   const last = closed && n > 2 ? n : n - 1;
@@ -83,8 +88,14 @@ export function cubicPoint(c: Cubic, t: number): Vec {
 /** The derivative (direction of travel) at t. */
 export function cubicTangent(c: Cubic, t: number): Vec {
   const u = 1 - t;
-  let x = 3 * u * u * (c.p1.x - c.p0.x) + 6 * u * t * (c.p2.x - c.p1.x) + 3 * t * t * (c.p3.x - c.p2.x),
-    y = 3 * u * u * (c.p1.y - c.p0.y) + 6 * u * t * (c.p2.y - c.p1.y) + 3 * t * t * (c.p3.y - c.p2.y);
+  let x =
+      3 * u * u * (c.p1.x - c.p0.x) +
+      6 * u * t * (c.p2.x - c.p1.x) +
+      3 * t * t * (c.p3.x - c.p2.x),
+    y =
+      3 * u * u * (c.p1.y - c.p0.y) +
+      6 * u * t * (c.p2.y - c.p1.y) +
+      3 * t * t * (c.p3.y - c.p2.y);
   // Degenerate handle at an end: fall back to the chord.
   if (Math.abs(x) < EPS && Math.abs(y) < EPS) {
     x = c.p3.x - c.p0.x;
@@ -135,7 +146,10 @@ function flattenCubic(c: Cubic, tol: number, out: number[], depth = 0) {
 
 /** De Casteljau: the two halves of a cubic split at t. */
 export function splitCubic(c: Cubic, t: number): [Cubic, Cubic] {
-  const lerp = (a: Vec, b: Vec): Vec => ({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t });
+  const lerp = (a: Vec, b: Vec): Vec => ({
+    x: a.x + (b.x - a.x) * t,
+    y: a.y + (b.y - a.y) * t,
+  });
   const p01 = lerp(c.p0, c.p1),
     p12 = lerp(c.p1, c.p2),
     p23 = lerp(c.p2, c.p3),
@@ -148,7 +162,13 @@ export function splitCubic(c: Cubic, t: number): [Cubic, Cubic] {
   ];
 }
 
-export function flatten(nodes: LineNode[], closed: boolean, w: number, h: number, tol = 0.3): Polyline {
+export function flatten(
+  nodes: LineNode[],
+  closed: boolean,
+  w: number,
+  h: number,
+  tol = 0.3,
+): Polyline {
   const segs = cubics(nodes, closed, w, h),
     pts: number[] = [],
     nodeAt: number[] = [];
@@ -163,8 +183,17 @@ export function flatten(nodes: LineNode[], closed: boolean, w: number, h: number
   const n = pts.length / 2,
     xy = Float64Array.from(pts),
     cum = new Float64Array(n);
-  for (let i = 1; i < n; i++) cum[i] = cum[i - 1] + Math.hypot(xy[i * 2] - xy[i * 2 - 2], xy[i * 2 + 1] - xy[i * 2 - 1]);
-  return { xy, cum, nodeAt, length: n ? cum[n - 1] : 0, closed: closed && nodes.length > 2 };
+  for (let i = 1; i < n; i++)
+    cum[i] =
+      cum[i - 1] +
+      Math.hypot(xy[i * 2] - xy[i * 2 - 2], xy[i * 2 + 1] - xy[i * 2 - 1]);
+  return {
+    xy,
+    cum,
+    nodeAt,
+    length: n ? cum[n - 1] : 0,
+    closed: closed && nodes.length > 2,
+  };
 }
 
 /** The point at distance `d` along a polyline (clamped to its ends). */
@@ -173,7 +202,8 @@ export function pointAt(poly: Polyline, d: number): Vec & { i: number } {
     n = cum.length;
   if (n === 0) return { x: 0, y: 0, i: 0 };
   if (d <= 0 || n === 1) return { x: xy[0], y: xy[1], i: 0 };
-  if (d >= poly.length) return { x: xy[(n - 1) * 2], y: xy[(n - 1) * 2 + 1], i: n - 2 };
+  if (d >= poly.length)
+    return { x: xy[(n - 1) * 2], y: xy[(n - 1) * 2 + 1], i: n - 2 };
   let lo = 0,
     hi = n - 1;
   while (hi - lo > 1) {
@@ -183,7 +213,11 @@ export function pointAt(poly: Polyline, d: number): Vec & { i: number } {
   }
   const seg = cum[hi] - cum[lo] || 1,
     t = (d - cum[lo]) / seg;
-  return { x: xy[lo * 2] + (xy[hi * 2] - xy[lo * 2]) * t, y: xy[lo * 2 + 1] + (xy[hi * 2 + 1] - xy[lo * 2 + 1]) * t, i: lo };
+  return {
+    x: xy[lo * 2] + (xy[hi * 2] - xy[lo * 2]) * t,
+    y: xy[lo * 2 + 1] + (xy[hi * 2 + 1] - xy[lo * 2 + 1]) * t,
+    i: lo,
+  };
 }
 /** Direction of travel at distance `d`, radians (averaged over ±`span` px). */
 export function angleAt(poly: Polyline, d: number, span = 2): number {
@@ -213,7 +247,10 @@ export function simplify(points: Vec[], tol: number): Vec[] {
       farD = tol;
     for (let i = a + 1; i < b; i++) {
       const p = points[i],
-        d = len < EPS ? dist(p, pa) : Math.abs(dy * p.x - dx * p.y + pb.x * pa.y - pb.y * pa.x) / len;
+        d =
+          len < EPS
+            ? dist(p, pa)
+            : Math.abs(dy * p.x - dx * p.y + pb.x * pa.y - pb.y * pa.x) / len;
       if (d > farD) {
         farD = d;
         far = i;
@@ -233,7 +270,10 @@ export function smoothTrail(points: Vec[], passes: number): Vec[] {
   for (let k = 0; k < passes && pts.length > 2; k++) {
     const next = [pts[0]];
     for (let i = 1; i < pts.length - 1; i++)
-      next.push({ x: (pts[i - 1].x + 2 * pts[i].x + pts[i + 1].x) / 4, y: (pts[i - 1].y + 2 * pts[i].y + pts[i + 1].y) / 4 });
+      next.push({
+        x: (pts[i - 1].x + 2 * pts[i].x + pts[i + 1].x) / 4,
+        y: (pts[i - 1].y + 2 * pts[i].y + pts[i + 1].y) / 4,
+      });
     next.push(pts[pts.length - 1]);
     pts = next;
   }
@@ -246,7 +286,12 @@ export function smoothTrail(points: Vec[], passes: number): Vec[] {
  * Each handle is proportional to the distance to its own neighbour, so short
  * and long segments both stay well-shaped.
  */
-export function smoothHandles(prev: Vec | null, cur: Vec, next: Vec | null, tension = 0.4): { hi: Vec; ho: Vec } {
+export function smoothHandles(
+  prev: Vec | null,
+  cur: Vec,
+  next: Vec | null,
+  tension = 0.4,
+): { hi: Vec; ho: Vec } {
   if (!prev && !next) return { hi: { x: 0, y: 0 }, ho: { x: 0, y: 0 } };
   const a = prev ?? cur,
     b = next ?? cur,
@@ -276,13 +321,20 @@ function turn(prev: Vec, cur: Vec, next: Vec) {
  * smooth node. `smoothing` 0..1: 0 follows the hand closely, 1 is very
  * smooth (fewer nodes). Returns nodes in map fractions.
  */
-export function fitTrail(points: Vec[], w: number, h: number, smoothing: number, closed = false): LineNode[] {
+export function fitTrail(
+  points: Vec[],
+  w: number,
+  h: number,
+  smoothing: number,
+  closed = false,
+): LineNode[] {
   if (points.length === 0) return [];
   const s = Math.max(0, Math.min(1, smoothing));
   const smoothed = smoothTrail(points, Math.round(1 + s * 5)),
     tol = 0.6 + s * 5.5,
     key = simplify(smoothed, tol);
-  if (closed && key.length > 3 && dist(key[0], key[key.length - 1]) < tol * 2) key.pop();
+  if (closed && key.length > 3 && dist(key[0], key[key.length - 1]) < tol * 2)
+    key.pop();
   const n = key.length,
     cornerTurn = (0.55 + s * 0.35) * (Math.PI / 2);
   return key.map((p, i) => {
@@ -299,7 +351,12 @@ export function fitTrail(points: Vec[], w: number, h: number, smoothing: number,
       return node;
     }
     const { hi, ho } = smoothHandles(prev, p, next, 0.4);
-    return { ...node, t: "smooth", hi: { x: hi.x / w, y: hi.y / h }, ho: { x: ho.x / w, y: ho.y / h } };
+    return {
+      ...node,
+      t: "smooth",
+      hi: { x: hi.x / w, y: hi.y / h },
+      ho: { x: ho.x / w, y: ho.y / h },
+    };
   });
 }
 
@@ -308,7 +365,12 @@ export function fitTrail(points: Vec[], w: number, h: number, smoothing: number,
  * tool and brush strokes): the same curve, as Bézier nodes. Long freehand
  * trails are simplified first (within ~0.5 px at 2K), so they stay editable.
  */
-export function nodesFromTension(points: Vec[], tension: number, w: number, h: number): LineNode[] {
+export function nodesFromTension(
+  points: Vec[],
+  tension: number,
+  w: number,
+  h: number,
+): LineNode[] {
   const px = points.map((p) => ({ x: p.x * w, y: p.y * h })),
     key = px.length > 24 ? simplify(px, 0.5 * (w / 2048)) : px;
   return key.map((p, i) => {
@@ -317,7 +379,12 @@ export function nodesFromTension(points: Vec[], tension: number, w: number, h: n
       node: LineNode = { x: p.x / w, y: p.y / h };
     if (!prev || !next || tension <= 0) return node;
     const { hi, ho } = smoothHandles(prev, p, next, tension);
-    return { ...node, t: "smooth", hi: { x: hi.x / w, y: hi.y / h }, ho: { x: ho.x / w, y: ho.y / h } };
+    return {
+      ...node,
+      t: "smooth",
+      hi: { x: hi.x / w, y: hi.y / h },
+      ho: { x: ho.x / w, y: ho.y / h },
+    };
   });
 }
 
@@ -327,7 +394,13 @@ export function nodesFromTension(points: Vec[], tension: number, w: number, h: n
 
 /** Re-derives the handles of smooth node `i` from its neighbours (after a
  * neighbour moved or the node turned smooth), keeping the curve flowing. */
-export function autoSmooth(nodes: LineNode[], i: number, closed: boolean, w: number, h: number): LineNode {
+export function autoSmooth(
+  nodes: LineNode[],
+  i: number,
+  closed: boolean,
+  w: number,
+  h: number,
+): LineNode {
   const n = nodes.length,
     at = (k: number) => ({ x: nodes[k].x * w, y: nodes[k].y * h }),
     prev = i > 0 ? at(i - 1) : closed && n > 2 ? at(n - 1) : null,
@@ -344,7 +417,13 @@ export function autoSmooth(nodes: LineNode[], i: number, closed: boolean, w: num
 
 /** Corner ⇄ smooth. A corner loses its handles (sharp); a smooth node gets
  * flowing ones. */
-export function toggleNodeType(nodes: LineNode[], i: number, closed: boolean, w: number, h: number): LineNode[] {
+export function toggleNodeType(
+  nodes: LineNode[],
+  i: number,
+  closed: boolean,
+  w: number,
+  h: number,
+): LineNode[] {
   return nodes.map((nd, k) => {
     if (k !== i) return nd;
     if (nd.t === "smooth") return { x: nd.x, y: nd.y };
@@ -357,7 +436,14 @@ export function toggleNodeType(nodes: LineNode[], i: number, closed: boolean, w:
  * stay in line (keeping its own length), unless `breakTangent` (Alt-drag),
  * which makes the node a corner with independent handles.
  */
-export function moveHandle(node: LineNode, which: "hi" | "ho", rel: Vec, w: number, h: number, breakTangent: boolean): LineNode {
+export function moveHandle(
+  node: LineNode,
+  which: "hi" | "ho",
+  rel: Vec,
+  w: number,
+  h: number,
+  breakTangent: boolean,
+): LineNode {
   const other = which === "hi" ? "ho" : "hi",
     next: LineNode = { ...node, [which]: rel };
   if (breakTangent) {
@@ -368,21 +454,32 @@ export function moveHandle(node: LineNode, which: "hi" | "ho", rel: Vec, w: numb
     const o = node[other]!,
       len = Math.hypot(o.x * w, o.y * h),
       rl = Math.hypot(rel.x * w, rel.y * h) || 1;
-    next[other] = { x: (-rel.x * w * len) / rl / w, y: (-rel.y * h * len) / rl / h };
+    next[other] = {
+      x: (-rel.x * w * len) / rl / w,
+      y: (-rel.y * h * len) / rl / h,
+    };
   }
   return next;
 }
 
 /** Where a pixel point lies closest to a line: piece index, t on it, and the
  * distance in px. Used to pick a line and to insert nodes. */
-export function nearest(nodes: LineNode[], closed: boolean, w: number, h: number, p: Vec): { seg: number; t: number; d: number; at: Vec } | null {
+export function nearest(
+  nodes: LineNode[],
+  closed: boolean,
+  w: number,
+  h: number,
+  p: Vec,
+): { seg: number; t: number; d: number; at: Vec } | null {
   const segs = cubics(nodes, closed, w, h);
   let best: { seg: number; t: number; d: number; at: Vec } | null = null;
   segs.forEach((c, seg) => {
     const steps = isStraight(c) ? 1 : 32;
     for (let k = 0; k <= steps; k++) {
       const t = k / steps,
-        q = isStraight(c) ? projectOnSegment(c.p0, c.p3, p) : { t, at: cubicPoint(c, t) },
+        q = isStraight(c)
+          ? projectOnSegment(c.p0, c.p3, p)
+          : { t, at: cubicPoint(c, t) },
         d = dist(q.at, p);
       if (!best || d < best.d) best = { seg, t: q.t, d, at: q.at };
       if (isStraight(c)) break;
@@ -413,7 +510,10 @@ function projectOnSegment(a: Vec, b: Vec, p: Vec) {
   const dx = b.x - a.x,
     dy = b.y - a.y,
     len2 = dx * dx + dy * dy;
-  const t = len2 < EPS ? 0 : Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / len2));
+  const t =
+    len2 < EPS
+      ? 0
+      : Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / len2));
   return { t, at: { x: a.x + dx * t, y: a.y + dy * t } };
 }
 
@@ -421,7 +521,14 @@ function projectOnSegment(a: Vec, b: Vec, p: Vec) {
  * Inserts a node on piece `seg` at `t` without changing the curve's shape
  * (De Casteljau split): the neighbours' handles are shortened accordingly.
  */
-export function insertNode(nodes: LineNode[], closed: boolean, seg: number, t: number, w: number, h: number): LineNode[] {
+export function insertNode(
+  nodes: LineNode[],
+  closed: boolean,
+  seg: number,
+  t: number,
+  w: number,
+  h: number,
+): LineNode[] {
   const c = cubics(nodes, closed, w, h)[seg];
   if (!c) return nodes;
   const n = nodes.length,
@@ -435,13 +542,23 @@ export function insertNode(nodes: LineNode[], closed: boolean, seg: number, t: n
   out[b] = { ...nodes[b], ...(straight ? {} : { hi: rel(r.p2, r.p3) }) };
   const mid: LineNode = straight
     ? { x: l.p3.x / w, y: l.p3.y / h }
-    : { x: l.p3.x / w, y: l.p3.y / h, t: "smooth", hi: rel(l.p2, l.p3), ho: rel(r.p1, r.p0) };
+    : {
+        x: l.p3.x / w,
+        y: l.p3.y / h,
+        t: "smooth",
+        hi: rel(l.p2, l.p3),
+        ho: rel(r.p1, r.p0),
+      };
   out.splice(seg + 1, 0, mid);
   return out;
 }
 
 /** Removes node `i` (an open line keeps at least 2 nodes, a closed one 3). */
-export function removeNode(nodes: LineNode[], i: number, closed: boolean): LineNode[] {
+export function removeNode(
+  nodes: LineNode[],
+  i: number,
+  closed: boolean,
+): LineNode[] {
   if (nodes.length <= (closed ? 3 : 2)) return nodes;
   return nodes.filter((_, k) => k !== i);
 }
@@ -461,7 +578,12 @@ export function reverseNodes(nodes: LineNode[]): LineNode[] {
 }
 
 /** Applies an affine map (pixels → pixels) to every node and handle. */
-export function transformNodes(nodes: LineNode[], w: number, h: number, map: (p: Vec) => Vec): LineNode[] {
+export function transformNodes(
+  nodes: LineNode[],
+  w: number,
+  h: number,
+  map: (p: Vec) => Vec,
+): LineNode[] {
   const o = map({ x: 0, y: 0 }),
     vec = (v: Vec) => {
       const q = map({ x: v.x * w, y: v.y * h });
@@ -477,7 +599,11 @@ export function transformNodes(nodes: LineNode[], w: number, h: number, map: (p:
   });
 }
 
-export function shiftNodes(nodes: LineNode[], dx: number, dy: number): LineNode[] {
+export function shiftNodes(
+  nodes: LineNode[],
+  dx: number,
+  dy: number,
+): LineNode[] {
   return nodes.map((nd) => ({ ...nd, x: nd.x + dx, y: nd.y + dy }));
 }
 
@@ -493,7 +619,12 @@ export function snapAngle(from: Vec, to: Vec, stepDeg = 45): Vec {
 }
 
 /** Bounding box of a line in pixels (curves included). */
-export function bounds(nodes: LineNode[], closed: boolean, w: number, h: number) {
+export function bounds(
+  nodes: LineNode[],
+  closed: boolean,
+  w: number,
+  h: number,
+) {
   const poly = flatten(nodes, closed, w, h, 1);
   let x0 = Infinity,
     y0 = Infinity,
@@ -510,7 +641,13 @@ export function bounds(nodes: LineNode[], closed: boolean, w: number, h: number)
 }
 
 /** Indices of nodes where the line turns sharply (corners for walls, posts). */
-export function sharpNodes(nodes: LineNode[], closed: boolean, w: number, h: number, minTurnDeg = 35): number[] {
+export function sharpNodes(
+  nodes: LineNode[],
+  closed: boolean,
+  w: number,
+  h: number,
+  minTurnDeg = 35,
+): number[] {
   const out: number[] = [],
     n = nodes.length,
     px = (k: number) => ({ x: nodes[k].x * w, y: nodes[k].y * h });
@@ -519,8 +656,14 @@ export function sharpNodes(nodes: LineNode[], closed: boolean, w: number, h: num
     const nd = nodes[i];
     if (nd.t === "smooth") continue;
     const c = px(i),
-      inDir = nd.hi && !isZero(nd.hi) ? { x: c.x - nd.hi.x * w, y: c.y - nd.hi.y * h } : px((i - 1 + n) % n),
-      outDir = nd.ho && !isZero(nd.ho) ? { x: c.x + nd.ho.x * w, y: c.y + nd.ho.y * h } : px((i + 1) % n);
+      inDir =
+        nd.hi && !isZero(nd.hi)
+          ? { x: c.x - nd.hi.x * w, y: c.y - nd.hi.y * h }
+          : px((i - 1 + n) % n),
+      outDir =
+        nd.ho && !isZero(nd.ho)
+          ? { x: c.x + nd.ho.x * w, y: c.y + nd.ho.y * h }
+          : px((i + 1) % n);
     if ((turn(inDir, c, outDir) * 180) / Math.PI >= minTurnDeg) out.push(i);
   }
   return out;

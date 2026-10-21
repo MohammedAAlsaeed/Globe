@@ -52,7 +52,10 @@ export function LandPanel({
     set({ edge: { ...s.edge, ...patch } });
 
   return (
-    <aside className="mm-brush-panel mm-land-panel" aria-label={t("mmLandPanel")}>
+    <aside
+      className="mm-brush-panel mm-land-panel"
+      aria-label={t("mmLandPanel")}
+    >
       {target}
       <div className="mm-bp-head">
         <div className="mm-bp-segment" role="radiogroup">
@@ -78,7 +81,11 @@ export function LandPanel({
         </div>
       </div>
 
-      <div className="mm-bp-modes" role="radiogroup" aria-label={t("mmSubTools")}>
+      <div
+        className="mm-bp-modes"
+        role="radiogroup"
+        aria-label={t("mmSubTools")}
+      >
         {LAND_MODES.map((m) => (
           <button
             key={m.key}
@@ -98,7 +105,8 @@ export function LandPanel({
       <div className="mm-bp-props">
         {s.mode === "free" && (
           <Slider
-            label={t("mmBrushSize")} defaultValue={Math.round(DEFAULT_LAND_TOOL.size * mapWidthPx)}
+            label={t("mmBrushSize")}
+            defaultValue={Math.round(DEFAULT_LAND_TOOL.size * mapWidthPx)}
             value={Math.round(s.size * mapWidthPx)}
             min={2}
             max={Math.round(mapWidthPx * 0.3)}
@@ -121,7 +129,8 @@ export function LandPanel({
         {natural && (
           <>
             <Slider
-              label={t("mmRoughness")} defaultValue={DEFAULT_LAND_TOOL.edge.roughness}
+              label={t("mmRoughness")}
+              defaultValue={DEFAULT_LAND_TOOL.edge.roughness}
               value={s.edge.roughness}
               min={0}
               max={1}
@@ -130,7 +139,8 @@ export function LandPanel({
               format={pct}
             />
             <Slider
-              label={t("mmEdgeDetail")} defaultValue={DEFAULT_LAND_TOOL.edge.detail}
+              label={t("mmEdgeDetail")}
+              defaultValue={DEFAULT_LAND_TOOL.edge.detail}
               value={s.edge.detail}
               min={0}
               max={1}

@@ -19,7 +19,13 @@ import type React from "react";
 import Konva from "konva";
 import type { Context } from "konva/lib/Context";
 import type { MMLine } from "../types";
-import { drawLine, linePoly, lineReach, tracePath, type Drawable } from "./render";
+import {
+  drawLine,
+  linePoly,
+  lineReach,
+  tracePath,
+  type Drawable,
+} from "./render";
 
 /** Minimum clickable width around a line, screen pixels. */
 const HIT_MIN_PX = 12;
@@ -33,7 +39,8 @@ export class LineShape extends Konva.Shape {
       w = this.attrs.W as number,
       h = this.attrs.H as number;
     if (!line || !w || !h) return;
-    const ctx = (context as unknown as { _context: CanvasRenderingContext2D })._context;
+    const ctx = (context as unknown as { _context: CanvasRenderingContext2D })
+      ._context;
     drawLine(ctx, line, w, h, () => this.getLayer()?.batchDraw());
   }
   _hitFunc(context: Context) {
@@ -41,7 +48,8 @@ export class LineShape extends Konva.Shape {
       w = this.attrs.W as number,
       h = this.attrs.H as number;
     if (!line || line.nodes.length < 2) return;
-    const ctx = (context as unknown as { _context: CanvasRenderingContext2D })._context;
+    const ctx = (context as unknown as { _context: CanvasRenderingContext2D })
+      ._context;
     ctx.beginPath();
     tracePath(ctx, line.nodes, line.closed, w, h);
     ctx.lineWidth = Math.max(HIT_MIN_PX, lineReach(line, w) * 2);
@@ -54,7 +62,8 @@ export class LineShape extends Konva.Shape {
     const line = this.line(),
       w = this.attrs.W as number,
       h = this.attrs.H as number;
-    if (!line || line.nodes.length === 0 || !w || !h) return { x: 0, y: 0, width: 0, height: 0 };
+    if (!line || line.nodes.length === 0 || !w || !h)
+      return { x: 0, y: 0, width: 0, height: 0 };
     const poly = linePoly(line, w, h),
       pad = lineReach(line, w);
     let x0 = Infinity,
@@ -67,7 +76,12 @@ export class LineShape extends Konva.Shape {
       y0 = Math.min(y0, poly.xy[i + 1]);
       y1 = Math.max(y1, poly.xy[i + 1]);
     }
-    return { x: x0 - pad, y: y0 - pad, width: x1 - x0 + pad * 2, height: y1 - y0 + pad * 2 };
+    return {
+      x: x0 - pad,
+      y: y0 - pad,
+      width: x1 - x0 + pad * 2,
+      height: y1 - y0 + pad * 2,
+    };
   }
   _useBufferCanvas() {
     return this.getAbsoluteOpacity() < 1 && !!this.getStage();

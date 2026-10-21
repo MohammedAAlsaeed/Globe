@@ -13,8 +13,32 @@ import { en } from "./locales/en";
 import { ar } from "./locales/ar";
 i18n.use(initReactI18next).init({
   resources: {
-    en: { translation: { ...en, ...studioEn, ...mapmakerEn, ...accountEn, ...stampsEn, ...linesEn, ...shortcutsEn, ...printingEn, ...textEn } },
-    ar: { translation: { ...ar, ...studioAr, ...mapmakerAr, ...accountAr, ...stampsAr, ...linesAr, ...shortcutsAr, ...printingAr, ...textAr } },
+    en: {
+      translation: {
+        ...en,
+        ...studioEn,
+        ...mapmakerEn,
+        ...accountEn,
+        ...stampsEn,
+        ...linesEn,
+        ...shortcutsEn,
+        ...printingEn,
+        ...textEn,
+      },
+    },
+    ar: {
+      translation: {
+        ...ar,
+        ...studioAr,
+        ...mapmakerAr,
+        ...accountAr,
+        ...stampsAr,
+        ...linesAr,
+        ...shortcutsAr,
+        ...printingAr,
+        ...textAr,
+      },
+    },
   },
   lng: "en",
   fallbackLng: "en",

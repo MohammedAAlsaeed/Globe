@@ -17,14 +17,38 @@
  */
 
 /** How the library groups fonts (the picker's sections). */
-export type FontCategory = "ancient" | "classical" | "arabicManuscript" | "arabicKufi" | "fantasy" | "multilingual" | "world";
+export type FontCategory =
+  | "ancient"
+  | "classical"
+  | "arabicManuscript"
+  | "arabicKufi"
+  | "fantasy"
+  | "multilingual"
+  | "world";
 
-export const FONT_CATEGORIES: FontCategory[] = ["arabicManuscript", "arabicKufi", "ancient", "classical", "fantasy", "multilingual", "world"];
+export const FONT_CATEGORIES: FontCategory[] = [
+  "arabicManuscript",
+  "arabicKufi",
+  "ancient",
+  "classical",
+  "fantasy",
+  "multilingual",
+  "world",
+];
 
 /** The writing systems the engine picks fonts for. */
-export type ScriptSlot = "arabic" | "latin" | "greek" | "cyrillic" | "hebrew" | "devanagari" | "cjk";
+export type ScriptSlot =
+  "arabic" | "latin" | "greek" | "cyrillic" | "hebrew" | "devanagari" | "cjk";
 
-export const SCRIPT_SLOTS: ScriptSlot[] = ["arabic", "latin", "greek", "cyrillic", "hebrew", "devanagari", "cjk"];
+export const SCRIPT_SLOTS: ScriptSlot[] = [
+  "arabic",
+  "latin",
+  "greek",
+  "cyrillic",
+  "hebrew",
+  "devanagari",
+  "cjk",
+];
 
 export interface FontFile {
   /** Under public/ ("/fonts/amiri/Amiri-Regular.ttf"). */
@@ -58,7 +82,12 @@ export interface FontDefinition {
 }
 
 const ofl = "OFL-1.1" as const;
-const file = (id: string, name: string, weight: number | [number, number] = 400, italic = false): FontFile => ({ path: `/fonts/${id}/${name}`, weight, italic });
+const file = (
+  id: string,
+  name: string,
+  weight: number | [number, number] = 400,
+  italic = false,
+): FontFile => ({ path: `/fonts/${id}/${name}`, weight, italic });
 
 export const FONTS: FontDefinition[] = [
   // ---- Arabic: naskh, manuscript and Persian styles ----
@@ -67,9 +96,22 @@ export const FONTS: FontDefinition[] = [
     family: "Amiri",
     familyAr: "أميري",
     category: "arabicManuscript",
-    tags: ["naskh", "bulaq", "islamic", "andalusian", "ottoman", "manuscript", "classical"],
+    tags: [
+      "naskh",
+      "bulaq",
+      "islamic",
+      "andalusian",
+      "ottoman",
+      "manuscript",
+      "classical",
+    ],
     source: "file",
-    files: [file("amiri", "Amiri-Regular.ttf"), file("amiri", "Amiri-Bold.ttf", 700), file("amiri", "Amiri-Italic.ttf", 400, true), file("amiri", "Amiri-BoldItalic.ttf", 700, true)],
+    files: [
+      file("amiri", "Amiri-Regular.ttf"),
+      file("amiri", "Amiri-Bold.ttf", 700),
+      file("amiri", "Amiri-Italic.ttf", 400, true),
+      file("amiri", "Amiri-BoldItalic.ttf", 700, true),
+    ],
     sourceUrl: "https://github.com/aliftype/amiri",
     license: ofl,
     fallback: ["noto-naskh-arabic"],
@@ -95,7 +137,10 @@ export const FONTS: FontDefinition[] = [
     category: "arabicManuscript",
     tags: ["naskh", "traditional", "african", "manuscript", "scholarly"],
     source: "file",
-    files: [file("scheherazade-new", "ScheherazadeNew-Regular.ttf"), file("scheherazade-new", "ScheherazadeNew-Bold.ttf", 700)],
+    files: [
+      file("scheherazade-new", "ScheherazadeNew-Regular.ttf"),
+      file("scheherazade-new", "ScheherazadeNew-Bold.ttf", 700),
+    ],
     sourceUrl: "https://software.sil.org/scheherazade/",
     license: ofl,
     fallback: ["noto-naskh-arabic"],
@@ -108,7 +153,10 @@ export const FONTS: FontDefinition[] = [
     category: "arabicManuscript",
     tags: ["naskh", "sindhi", "south asia", "manuscript"],
     source: "file",
-    files: [file("lateef", "Lateef-Regular.ttf"), file("lateef", "Lateef-Bold.ttf", 700)],
+    files: [
+      file("lateef", "Lateef-Regular.ttf"),
+      file("lateef", "Lateef-Bold.ttf", 700),
+    ],
     sourceUrl: "https://software.sil.org/lateef/",
     license: ofl,
     fallback: ["noto-naskh-arabic"],
@@ -134,7 +182,10 @@ export const FONTS: FontDefinition[] = [
     category: "arabicManuscript",
     tags: ["ruqaa", "handwritten", "ottoman", "notes", "letters"],
     source: "file",
-    files: [file("aref-ruqaa", "ArefRuqaa-Regular.ttf"), file("aref-ruqaa", "ArefRuqaa-Bold.ttf", 700)],
+    files: [
+      file("aref-ruqaa", "ArefRuqaa-Regular.ttf"),
+      file("aref-ruqaa", "ArefRuqaa-Bold.ttf", 700),
+    ],
     sourceUrl: "https://github.com/alif-type/aref-ruqaa",
     license: ofl,
     fallback: ["amiri", "noto-naskh-arabic"],
@@ -212,7 +263,10 @@ export const FONTS: FontDefinition[] = [
     category: "ancient",
     tags: ["roman", "decorative", "kingdom", "capitals"],
     source: "file",
-    files: [file("cinzel-decorative", "CinzelDecorative-Regular.ttf"), file("cinzel-decorative", "CinzelDecorative-Bold.ttf", 700)],
+    files: [
+      file("cinzel-decorative", "CinzelDecorative-Regular.ttf"),
+      file("cinzel-decorative", "CinzelDecorative-Bold.ttf", 700),
+    ],
     sourceUrl: "https://github.com/NDISCOVER/Cinzel",
     license: ofl,
     fallback: ["cinzel", "noto-serif"],
@@ -224,7 +278,10 @@ export const FONTS: FontDefinition[] = [
     category: "ancient",
     tags: ["17th century", "english", "printing", "old maps", "notes"],
     source: "file",
-    files: [file("im-fell-english", "IMFeENrm28P.ttf"), file("im-fell-english", "IMFeENit28P.ttf", 400, true)],
+    files: [
+      file("im-fell-english", "IMFeENrm28P.ttf"),
+      file("im-fell-english", "IMFeENit28P.ttf", 400, true),
+    ],
     sourceUrl: "https://iginomarini.com/fell/",
     license: ofl,
     fallback: ["eb-garamond", "noto-serif"],
@@ -247,9 +304,20 @@ export const FONTS: FontDefinition[] = [
     id: "eb-garamond",
     family: "EB Garamond",
     category: "classical",
-    tags: ["renaissance", "garamont", "16th century", "european", "book", "greek", "cyrillic"],
+    tags: [
+      "renaissance",
+      "garamont",
+      "16th century",
+      "european",
+      "book",
+      "greek",
+      "cyrillic",
+    ],
     source: "file",
-    files: [file("eb-garamond", "EBGaramond-VF.ttf", [400, 800]), file("eb-garamond", "EBGaramond-Italic-VF.ttf", [400, 800], true)],
+    files: [
+      file("eb-garamond", "EBGaramond-VF.ttf", [400, 800]),
+      file("eb-garamond", "EBGaramond-Italic-VF.ttf", [400, 800], true),
+    ],
     sourceUrl: "https://github.com/octaviopardo/EBGaramond12",
     license: ofl,
     fallback: ["noto-serif"],
@@ -261,7 +329,15 @@ export const FONTS: FontDefinition[] = [
     category: "classical",
     tags: ["garamond", "elegant", "seas", "islands", "display"],
     source: "file",
-    files: [file("cormorant-garamond", "CormorantGaramond-VF.ttf", [300, 700]), file("cormorant-garamond", "CormorantGaramond-Italic-VF.ttf", [300, 700], true)],
+    files: [
+      file("cormorant-garamond", "CormorantGaramond-VF.ttf", [300, 700]),
+      file(
+        "cormorant-garamond",
+        "CormorantGaramond-Italic-VF.ttf",
+        [300, 700],
+        true,
+      ),
+    ],
     sourceUrl: "https://github.com/CatharsisFonts/Cormorant",
     license: ofl,
     fallback: ["eb-garamond", "noto-serif"],
@@ -322,7 +398,10 @@ export const FONTS: FontDefinition[] = [
     category: "fantasy",
     tags: ["calligraphic", "fantasy", "enchanted", "gothic"],
     source: "file",
-    files: [file("almendra", "Almendra-Regular.ttf"), file("almendra", "Almendra-Bold.ttf", 700)],
+    files: [
+      file("almendra", "Almendra-Regular.ttf"),
+      file("almendra", "Almendra-Bold.ttf", 700),
+    ],
     sourceUrl: "https://fonts.google.com/specimen/Almendra",
     license: ofl,
     fallback: ["eb-garamond", "noto-serif"],
@@ -347,7 +426,10 @@ export const FONTS: FontDefinition[] = [
     category: "multilingual",
     tags: ["latin", "greek", "cyrillic", "vietnamese", "readable", "universal"],
     source: "file",
-    files: [file("noto-serif", "NotoSerif-VF.ttf", [100, 900]), file("noto-serif", "NotoSerif-Italic-VF.ttf", [100, 900], true)],
+    files: [
+      file("noto-serif", "NotoSerif-VF.ttf", [100, 900]),
+      file("noto-serif", "NotoSerif-Italic-VF.ttf", [100, 900], true),
+    ],
     sourceUrl: "https://github.com/notofonts/latin-greek-cyrillic",
     license: ofl,
     fallback: [],
@@ -371,7 +453,9 @@ export const FONTS: FontDefinition[] = [
     category: "world",
     tags: ["hindi", "sanskrit", "devanagari", "india", "mughal"],
     source: "file",
-    files: [file("noto-serif-devanagari", "NotoSerifDevanagari-VF.ttf", [100, 900])],
+    files: [
+      file("noto-serif-devanagari", "NotoSerifDevanagari-VF.ttf", [100, 900]),
+    ],
     sourceUrl: "https://github.com/notofonts/devanagari",
     license: ofl,
     fallback: ["noto-serif"],
@@ -379,30 +463,50 @@ export const FONTS: FontDefinition[] = [
   },
   ...(
     [
-      ["noto-serif-jp", "Noto Serif JP", "日本", ["japanese", "kana", "kanji", "edo"]],
-      ["noto-serif-sc", "Noto Serif SC", "中文", ["chinese", "simplified", "han"]],
-      ["noto-serif-tc", "Noto Serif TC", "中文", ["chinese", "traditional", "han", "tang", "song"]],
-      ["noto-serif-kr", "Noto Serif KR", "한국", ["korean", "hangul", "joseon"]],
+      [
+        "noto-serif-jp",
+        "Noto Serif JP",
+        "日本",
+        ["japanese", "kana", "kanji", "edo"],
+      ],
+      [
+        "noto-serif-sc",
+        "Noto Serif SC",
+        "中文",
+        ["chinese", "simplified", "han"],
+      ],
+      [
+        "noto-serif-tc",
+        "Noto Serif TC",
+        "中文",
+        ["chinese", "traditional", "han", "tang", "song"],
+      ],
+      [
+        "noto-serif-kr",
+        "Noto Serif KR",
+        "한국",
+        ["korean", "hangul", "joseon"],
+      ],
     ] as const
-  ).map(
-    ([id, family, , tags]): FontDefinition => ({
-      id,
-      family,
-      category: "world",
-      tags: [...tags, "east asia"],
-      source: "web",
-      files: [],
-      css: { family, query: `${family.replace(/ /g, "+")}:wght@400;700` },
-      sourceUrl: "https://github.com/notofonts/noto-cjk",
-      license: ofl,
-      fallback: [],
-      suits: "both",
-    }),
-  ),
+  ).map(([id, family, , tags]): FontDefinition => ({
+    id,
+    family,
+    category: "world",
+    tags: [...tags, "east asia"],
+    source: "web",
+    files: [],
+    css: { family, query: `${family.replace(/ /g, "+")}:wght@400;700` },
+    sourceUrl: "https://github.com/notofonts/noto-cjk",
+    license: ofl,
+    fallback: [],
+    suits: "both",
+  })),
 ];
 
 const BY_ID = new Map(FONTS.map((f) => [f.id, f]));
-export function fontDef(id: string | null | undefined): FontDefinition | undefined {
+export function fontDef(
+  id: string | null | undefined,
+): FontDefinition | undefined {
   return id ? BY_ID.get(id) : undefined;
 }
 
@@ -445,22 +549,134 @@ export interface FontProfile {
  * test maps and are easy to adjust here.
  */
 export const FONT_PROFILES: FontProfile[] = [
-  { id: "universal-classical", slots: { arabic: { font: "noto-naskh-arabic", scale: 1.06 }, latin: { font: "noto-serif" } }, tags: ["default", "readable"] },
-  { id: "ancient-manuscript", slots: { arabic: { font: "amiri", scale: 1.12 }, latin: { font: "eb-garamond" } }, tags: ["manuscript", "islamic", "renaissance"] },
-  { id: "royal-kingdom", slots: { arabic: { font: "noto-naskh-arabic", scale: 1.05 }, latin: { font: "cinzel" } }, tags: ["kingdom", "empire", "titles"] },
-  { id: "old-atlas", slots: { arabic: { font: "amiri", scale: 1.04 }, latin: { font: "cormorant-garamond" } }, tags: ["atlas", "seas", "elegant"] },
-  { id: "geometric-empire", slots: { arabic: { font: "noto-kufi-arabic", scale: 0.92 }, latin: { font: "cinzel" } }, tags: ["kufi", "empire", "geometric"] },
-  { id: "historical-notes", slots: { arabic: { font: "aref-ruqaa", scale: 1.05 }, latin: { font: "im-fell-english" } }, tags: ["notes", "ruqaa", "handwritten"] },
-  { id: "andalusian-scholar", slots: { arabic: { font: "markazi-text", scale: 1.04 }, latin: { font: "markazi-text" } }, tags: ["andalusian", "bilingual", "scholarly"] },
-  { id: "fatimid-kufic", slots: { arabic: { font: "reem-kufi" }, latin: { font: "cinzel-decorative", scale: 0.9 } }, tags: ["fatimid", "kufi", "inscription"] },
-  { id: "persian-miniature", slots: { arabic: { font: "noto-nastaliq-urdu", scale: 0.92 }, latin: { font: "cormorant-garamond" } }, tags: ["persian", "nastaliq", "mughal", "safavid"] },
-  { id: "scholarly-naskh", slots: { arabic: { font: "scheherazade-new", scale: 1.04 }, latin: { font: "eb-garamond" } }, tags: ["scholarly", "naskh", "book"] },
-  { id: "explorers-chart", slots: { arabic: { font: "noto-naskh-arabic", scale: 1.05 }, latin: { font: "im-fell-english-sc" } }, tags: ["explorer", "17th century", "charts"] },
-  { id: "gothic-chronicle", slots: { arabic: { font: "amiri", scale: 1.08 }, latin: { font: "unifraktur-maguntia" } }, tags: ["gothic", "blackletter", "medieval"] },
-  { id: "celtic-legends", slots: { arabic: { font: "lateef", scale: 1.2 }, latin: { font: "uncial-antiqua" } }, tags: ["celtic", "uncial", "legends"] },
-  { id: "pirate-charts", slots: { arabic: { font: "aref-ruqaa", scale: 1.05 }, latin: { font: "pirata-one" } }, tags: ["pirate", "sea", "charts"] },
-  { id: "enchanted-realm", slots: { arabic: { font: "kufam", scale: 0.95 }, latin: { font: "almendra" } }, tags: ["fantasy", "enchanted"] },
-  { id: "dark-ages", slots: { arabic: { font: "noto-kufi-arabic", scale: 0.92 }, latin: { font: "medieval-sharp" } }, tags: ["fantasy", "medieval", "rpg"] },
+  {
+    id: "universal-classical",
+    slots: {
+      arabic: { font: "noto-naskh-arabic", scale: 1.06 },
+      latin: { font: "noto-serif" },
+    },
+    tags: ["default", "readable"],
+  },
+  {
+    id: "ancient-manuscript",
+    slots: {
+      arabic: { font: "amiri", scale: 1.12 },
+      latin: { font: "eb-garamond" },
+    },
+    tags: ["manuscript", "islamic", "renaissance"],
+  },
+  {
+    id: "royal-kingdom",
+    slots: {
+      arabic: { font: "noto-naskh-arabic", scale: 1.05 },
+      latin: { font: "cinzel" },
+    },
+    tags: ["kingdom", "empire", "titles"],
+  },
+  {
+    id: "old-atlas",
+    slots: {
+      arabic: { font: "amiri", scale: 1.04 },
+      latin: { font: "cormorant-garamond" },
+    },
+    tags: ["atlas", "seas", "elegant"],
+  },
+  {
+    id: "geometric-empire",
+    slots: {
+      arabic: { font: "noto-kufi-arabic", scale: 0.92 },
+      latin: { font: "cinzel" },
+    },
+    tags: ["kufi", "empire", "geometric"],
+  },
+  {
+    id: "historical-notes",
+    slots: {
+      arabic: { font: "aref-ruqaa", scale: 1.05 },
+      latin: { font: "im-fell-english" },
+    },
+    tags: ["notes", "ruqaa", "handwritten"],
+  },
+  {
+    id: "andalusian-scholar",
+    slots: {
+      arabic: { font: "markazi-text", scale: 1.04 },
+      latin: { font: "markazi-text" },
+    },
+    tags: ["andalusian", "bilingual", "scholarly"],
+  },
+  {
+    id: "fatimid-kufic",
+    slots: {
+      arabic: { font: "reem-kufi" },
+      latin: { font: "cinzel-decorative", scale: 0.9 },
+    },
+    tags: ["fatimid", "kufi", "inscription"],
+  },
+  {
+    id: "persian-miniature",
+    slots: {
+      arabic: { font: "noto-nastaliq-urdu", scale: 0.92 },
+      latin: { font: "cormorant-garamond" },
+    },
+    tags: ["persian", "nastaliq", "mughal", "safavid"],
+  },
+  {
+    id: "scholarly-naskh",
+    slots: {
+      arabic: { font: "scheherazade-new", scale: 1.04 },
+      latin: { font: "eb-garamond" },
+    },
+    tags: ["scholarly", "naskh", "book"],
+  },
+  {
+    id: "explorers-chart",
+    slots: {
+      arabic: { font: "noto-naskh-arabic", scale: 1.05 },
+      latin: { font: "im-fell-english-sc" },
+    },
+    tags: ["explorer", "17th century", "charts"],
+  },
+  {
+    id: "gothic-chronicle",
+    slots: {
+      arabic: { font: "amiri", scale: 1.08 },
+      latin: { font: "unifraktur-maguntia" },
+    },
+    tags: ["gothic", "blackletter", "medieval"],
+  },
+  {
+    id: "celtic-legends",
+    slots: {
+      arabic: { font: "lateef", scale: 1.2 },
+      latin: { font: "uncial-antiqua" },
+    },
+    tags: ["celtic", "uncial", "legends"],
+  },
+  {
+    id: "pirate-charts",
+    slots: {
+      arabic: { font: "aref-ruqaa", scale: 1.05 },
+      latin: { font: "pirata-one" },
+    },
+    tags: ["pirate", "sea", "charts"],
+  },
+  {
+    id: "enchanted-realm",
+    slots: {
+      arabic: { font: "kufam", scale: 0.95 },
+      latin: { font: "almendra" },
+    },
+    tags: ["fantasy", "enchanted"],
+  },
+  {
+    id: "dark-ages",
+    slots: {
+      arabic: { font: "noto-kufi-arabic", scale: 0.92 },
+      latin: { font: "medieval-sharp" },
+    },
+    tags: ["fantasy", "medieval", "rpg"],
+  },
 ];
 
 /** Every profile shares these for the scripts it doesn't name. */
@@ -479,6 +695,9 @@ export function fontProfile(id: string | null | undefined): FontProfile {
   return (id && PROFILES_BY_ID.get(id)) || PROFILES_BY_ID.get(DEFAULT_PROFILE)!;
 }
 /** A profile's font for a script (the shared world fonts where it names none). */
-export function profileSlot(profile: FontProfile, script: ScriptSlot): ProfileSlot | undefined {
+export function profileSlot(
+  profile: FontProfile,
+  script: ScriptSlot,
+): ProfileSlot | undefined {
   return profile.slots[script] ?? WORLD_SLOTS[script];
 }

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import "./globals.css";
 import { Providers } from "./providers";
-import {LANGUAGE_KEY, parseLanguage} from "@/lib/language";
+import { LANGUAGE_KEY, parseLanguage } from "@/lib/language";
 
 export const metadata: Metadata = {
   title: "Al-Idrisi Atelier — Map Maker & Globe Studio",
@@ -13,12 +13,21 @@ export const metadata: Metadata = {
 export default async function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
-  const lang = parseLanguage((await cookies()).get(LANGUAGE_KEY)?.value) ?? "en";
+  const lang =
+    parseLanguage((await cookies()).get(LANGUAGE_KEY)?.value) ?? "en";
   return (
-    <html lang={lang} dir={lang === "ar" ? "rtl" : "ltr"} suppressHydrationWarning>
+    <html
+      lang={lang}
+      dir={lang === "ar" ? "rtl" : "ltr"}
+      suppressHydrationWarning
+    >
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
+        <link
+          rel="preconnect"
+          href="https://fonts.gstatic.com"
+          crossOrigin=""
+        />
         {/* eslint-disable-next-line @next/next/no-page-custom-font -- one shared stylesheet for every page */}
         <link
           rel="stylesheet"

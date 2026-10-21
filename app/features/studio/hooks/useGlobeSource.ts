@@ -10,10 +10,19 @@ import { maxCanvasPixels } from "../../../lib/canvasLimits";
 import type { GlobeSettings } from "../domain/types";
 import type { SourceState } from "./useSource";
 
-async function fitted(source: SourceState, mode: "contain" | "stretch", fill: string): Promise<SourceState> {
+async function fitted(
+  source: SourceState,
+  mode: "contain" | "stretch",
+  fill: string,
+): Promise<SourceState> {
   const image = await createImageBitmap(source.blob),
     // 2:1, so width² / 2 pixels: kept within what this device can draw.
-    r = fitRect(image.width, image.height, mode, Math.min(16384, Math.floor(Math.sqrt(2 * maxCanvasPixels())))),
+    r = fitRect(
+      image.width,
+      image.height,
+      mode,
+      Math.min(16384, Math.floor(Math.sqrt(2 * maxCanvasPixels()))),
+    ),
     canvas = document.createElement("canvas");
   canvas.width = r.canvas.width;
   canvas.height = r.canvas.height;
@@ -23,17 +32,37 @@ async function fitted(source: SourceState, mode: "contain" | "stretch", fill: st
   ctx.imageSmoothingQuality = "high";
   ctx.drawImage(image, r.map.x, r.map.y, r.map.width, r.map.height);
   image.close();
-  const blob = await new Promise<Blob>((resolve, reject) => canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("errorImage"))), "image/png"));
+  const blob = await new Promise<Blob>((resolve, reject) =>
+    canvas.toBlob(
+      (b) => (b ? resolve(b) : reject(new Error("errorImage"))),
+      "image/png",
+    ),
+  );
   canvas.width = canvas.height = 0;
-  return { blob, url: URL.createObjectURL(blob), filename: source.filename, width: r.canvas.width, height: r.canvas.height };
+  return {
+    blob,
+    url: URL.createObjectURL(blob),
+    filename: source.filename,
+    width: r.canvas.width,
+    height: r.canvas.height,
+  };
 }
 
-export function useGlobeSource(source: SourceState | null, globe: GlobeSettings) {
+export function useGlobeSource(
+  source: SourceState | null,
+  globe: GlobeSettings,
+) {
   const mode = globe.fit ?? "contain",
     fill = globe.fill ?? "#2c5678",
-    applies = !!source && globe.sourceProjection === "equirectangular" && needsFit(source.width, source.height),
+    applies =
+      !!source &&
+      globe.sourceProjection === "equirectangular" &&
+      needsFit(source.width, source.height),
     key = applies ? `${source!.url}|${mode}|${fill}` : "";
-  const [result, setResult] = useState<{ key: string; source: SourceState } | null>(null);
+  const [result, setResult] = useState<{
+    key: string;
+    source: SourceState;
+  } | null>(null);
   // The image on screen. It is released only once its replacement is shown
   // (or the page closes) — never on a timer, which could pull it out from
   // under the preview while a large map is still being fitted.
@@ -68,5 +97,7 @@ export function useGlobeSource(source: SourceState | null, globe: GlobeSettings)
   );
   if (!source) return { source: null, pending: false, fitted: false };
   if (!applies) return { source, pending: false, fitted: false };
-  return result && result.key === key ? { source: result.source, pending: false, fitted: true } : { source: result?.source ?? null, pending: true, fitted: true };
+  return result && result.key === key
+    ? { source: result.source, pending: false, fitted: true }
+    : { source: result?.source ?? null, pending: true, fitted: true };
 }

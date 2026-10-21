@@ -2,14 +2,19 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslation } from "react-i18next";
-import { ASPECTS, RESOLUTIONS, computeCanvasSize, createProject } from "./domain";
+import {
+  ASPECTS,
+  RESOLUTIONS,
+  computeCanvasSize,
+  createProject,
+} from "./domain";
 import { stashInitialProject } from "./storage";
 import type { AspectPreset, ResolutionTier } from "./types";
 import { maps } from "../account/api";
 import { useAuth } from "../account/AuthProvider";
 import { GUEST_LIMITS } from "../account/types";
 import { errorMessage } from "../account/ui";
-import {ApiError} from "@/lib/api/client";
+import { ApiError } from "@/lib/api/client";
 
 /**
  * "Create a map". Signed in, the map is created in the cloud straight away
@@ -83,7 +88,9 @@ export function CreateMapModal({ onClose }: { onClose: () => void }) {
       className="mm-modal"
       onCancel={close}
       onClick={(e) => {
-        const rect = (e.currentTarget as HTMLDialogElement).getBoundingClientRect();
+        const rect = (
+          e.currentTarget as HTMLDialogElement
+        ).getBoundingClientRect();
         if (
           e.clientX < rect.left ||
           e.clientX > rect.right ||
@@ -129,7 +136,9 @@ export function CreateMapModal({ onClose }: { onClose: () => void }) {
                 onClick={() => setResolution(r.key)}
               >
                 <b>{t(r.labelKey)}</b>
-                <small>{locked ? t("mmPlanLocked") : t(`${r.labelKey}Note`)}</small>
+                <small>
+                  {locked ? t("mmPlanLocked") : t(`${r.labelKey}Note`)}
+                </small>
               </button>
             );
           })}

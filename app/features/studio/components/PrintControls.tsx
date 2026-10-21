@@ -113,7 +113,7 @@ export function PrintControls({
       <div className="field-pair">
         <NumberField
           label={t("margin")}
-              defaultValue={DEFAULT_PRINT.margin}
+          defaultValue={DEFAULT_PRINT.margin}
           value={p.margin}
           onChange={(margin) => onChange({ margin })}
           min={0}
@@ -123,7 +123,7 @@ export function PrintControls({
         />
         <NumberField
           label={t("overlap")}
-              defaultValue={DEFAULT_PRINT.overlap}
+          defaultValue={DEFAULT_PRINT.overlap}
           value={p.overlap}
           onChange={(overlap) => onChange({ overlap })}
           min={0}
@@ -160,7 +160,7 @@ export function PrintControls({
         <div className="field-pair">
           <NumberField
             label={t("measuredWidth")}
-              defaultValue={100}
+            defaultValue={100}
             value={measuredX}
             onChange={setMeasuredX}
             min={84}
@@ -170,7 +170,7 @@ export function PrintControls({
           />
           <NumberField
             label={t("measuredHeight")}
-              defaultValue={100}
+            defaultValue={100}
             value={measuredY}
             onChange={setMeasuredY}
             min={84}

@@ -131,7 +131,9 @@ function validCoast(v: unknown) {
   return (
     bool(v.enabled) &&
     (v.style === null || typeof v.style === "string") &&
-    (v.baseStyle === undefined || v.baseStyle === null || typeof v.baseStyle === "string") &&
+    (v.baseStyle === undefined ||
+      v.baseStyle === null ||
+      typeof v.baseStyle === "string") &&
     nums.every(([k, lo, hi]) => finite(v[k], lo, hi)) &&
     [
       "outlineColor",
@@ -228,7 +230,11 @@ function validObject(o: unknown): o is MMObject {
   if (!o || typeof o !== "object") return false;
   const obj = o as Record<string, unknown>;
   if (typeof obj.id !== "string") return false;
-  if (obj.group !== undefined && !(typeof obj.group === "string" && obj.group.length <= 64)) return false;
+  if (
+    obj.group !== undefined &&
+    !(typeof obj.group === "string" && obj.group.length <= 64)
+  )
+    return false;
   if (obj.locked !== undefined && !bool(obj.locked)) return false;
   if (obj.hidden !== undefined && !bool(obj.hidden)) return false;
   // Legacy symbols (converted to stamps when the map is opened).
@@ -263,7 +269,9 @@ function validObject(o: unknown): o is MMObject {
       (obj.blend === undefined || BLEND_MODES.includes(obj.blend as string)) &&
       (obj.clip === undefined || CLIPS.includes(obj.clip as string)) &&
       (obj.clipSource === undefined || validSource(obj.clipSource)) &&
-      (obj.pivot === undefined || obj.pivot === "base" || obj.pivot === "center") &&
+      (obj.pivot === undefined ||
+        obj.pivot === "base" ||
+        obj.pivot === "center") &&
       (obj.stretch === undefined || finite(obj.stretch, 0.2, 5))
     );
   if (obj.kind === "line") return validLine(obj);
@@ -328,7 +336,8 @@ function validLayer(l: unknown): l is MMLayer {
     (layer.coast === undefined || validCoast(layer.coast)) &&
     (layer.land === undefined || validLandSettings(layer.land)) &&
     (layer.stampShadow === undefined || validShadow(layer.stampShadow)) &&
-    (layer.blend === undefined || BLEND_MODES.includes(layer.blend as string)) &&
+    (layer.blend === undefined ||
+      BLEND_MODES.includes(layer.blend as string)) &&
     Array.isArray(layer.objects) &&
     layer.objects.length <= 5000 &&
     layer.objects.every(validObject)

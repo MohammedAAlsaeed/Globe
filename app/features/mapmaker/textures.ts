@@ -40,7 +40,9 @@ export function biomeTexture(biome: Biome): HTMLCanvasElement {
   for (let i = 0; i < speckCount; i++) {
     const x = rand() * size,
       y = rand() * size,
-      r = 0.6 + rand() * (biome === "forest" || biome === "mountains" ? 2.4 : 1.4),
+      r =
+        0.6 +
+        rand() * (biome === "forest" || biome === "mountains" ? 2.4 : 1.4),
       dark = rand() > 0.45;
     ctx.fillStyle = mix(base, dark ? -22 - rand() * 26 : 18 + rand() * 24);
     ctx.globalAlpha = 0.35 + rand() * 0.35;

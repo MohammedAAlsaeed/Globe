@@ -19,17 +19,30 @@ import { shortcutsEn, shortcutsAr } from "../lib/locales/shortcuts.ts";
 import { textEn } from "../lib/locales/text.ts";
 import { en } from "../lib/locales/en.ts";
 
-const key = (code, mods = {}) => ({ code, ctrlKey: false, metaKey: false, shiftKey: false, altKey: false, ...mods });
+const key = (code, mods = {}) => ({
+  code,
+  ctrlKey: false,
+  metaKey: false,
+  shiftKey: false,
+  altKey: false,
+  ...mods,
+});
 const defaults = resolveBindings();
 
 test("the Text Tool's keys: T text, V select, Ctrl+A, arrows (Shift: 10 px)", () => {
   assert.ok(pressed(key("KeyT"), "tool.text", defaults));
   assert.ok(pressed(key("KeyV"), "tool.select", defaults));
   assert.ok(!pressed(key("KeyV", { ctrlKey: true }), "tool.select", defaults));
-  assert.ok(pressed(key("KeyA", { ctrlKey: true }), "edit.selectAll", defaults));
-  assert.ok(!pressed(key("KeyA", { ctrlKey: true }), "line.editNodes", defaults));
+  assert.ok(
+    pressed(key("KeyA", { ctrlKey: true }), "edit.selectAll", defaults),
+  );
+  assert.ok(
+    !pressed(key("KeyA", { ctrlKey: true }), "line.editNodes", defaults),
+  );
   assert.ok(pressed(key("ArrowLeft"), "edit.nudgeLeft", defaults));
-  assert.ok(pressed(key("ArrowLeft", { shiftKey: true }), "edit.nudgeLeft", defaults));
+  assert.ok(
+    pressed(key("ArrowLeft", { shiftKey: true }), "edit.nudgeLeft", defaults),
+  );
   assert.ok(pressed(key("Enter", { ctrlKey: true }), "text.finish", defaults));
   assert.ok(!pressed(key("Enter", { ctrlKey: true }), "text.edit", defaults));
 });
@@ -47,8 +60,20 @@ test("the default keys: N line, L land, A edit nodes", () => {
 test("modifiers must match, except the ones an action refines with", () => {
   assert.ok(pressed(key("KeyZ", { ctrlKey: true }), "edit.undo", defaults));
   assert.ok(pressed(key("KeyZ", { metaKey: true }), "edit.undo", defaults));
-  assert.ok(!pressed(key("KeyZ", { ctrlKey: true, shiftKey: true }), "edit.undo", defaults));
-  assert.ok(pressed(key("KeyZ", { ctrlKey: true, shiftKey: true }), "edit.redo", defaults));
+  assert.ok(
+    !pressed(
+      key("KeyZ", { ctrlKey: true, shiftKey: true }),
+      "edit.undo",
+      defaults,
+    ),
+  );
+  assert.ok(
+    pressed(
+      key("KeyZ", { ctrlKey: true, shiftKey: true }),
+      "edit.redo",
+      defaults,
+    ),
+  );
   assert.ok(pressed(key("KeyY", { ctrlKey: true }), "edit.redo", defaults));
   // Ctrl+N is the browser's, never the Line tool; Ctrl+G groups.
   assert.ok(!pressed(key("KeyN", { ctrlKey: true }), "tool.line", defaults));
@@ -64,18 +89,27 @@ test("the defaults have no clashes", () => {
   assert.deepEqual(shortcutConflicts(defaults), []);
   // Every action has a unique id and at least one valid key.
   assert.equal(new Set(SHORTCUTS.map((s) => s.id)).size, SHORTCUTS.length);
-  for (const s of SHORTCUTS) for (const k of s.keys) assert.ok(normalizeBinding(k), `${s.id}: ${k}`);
+  for (const s of SHORTCUTS)
+    for (const k of s.keys) assert.ok(normalizeBinding(k), `${s.id}: ${k}`);
 });
 
 test("custom shortcuts replace defaults; invalid and fixed ones are ignored", () => {
-  const b = resolveBindings({ "tool.line": ["KeyI"], "tool.brush": ["Nope"], "edit.cancel": ["KeyQ"], "tool.region": [] });
+  const b = resolveBindings({
+    "tool.line": ["KeyI"],
+    "tool.brush": ["Nope"],
+    "edit.cancel": ["KeyQ"],
+    "tool.region": [],
+  });
   assert.ok(pressed(key("KeyI"), "tool.line", b));
   assert.ok(!pressed(key("KeyN"), "tool.line", b));
   assert.ok(pressed(key("KeyB"), "tool.brush", b));
   assert.ok(pressed(key("Escape"), "edit.cancel", b));
   assert.ok(!pressed(key("KeyQ"), "edit.cancel", b));
   assert.equal(shortcutLabel("tool.region", b), "");
-  assert.deepEqual(resolveBindings({ "edit.undo": ["Shift+Mod+KeyZ"] })["edit.undo"], ["Mod+Shift+KeyZ"]);
+  assert.deepEqual(
+    resolveBindings({ "edit.undo": ["Shift+Mod+KeyZ"] })["edit.undo"],
+    ["Mod+Shift+KeyZ"],
+  );
 });
 
 test("clashes are found where the actions meet", () => {
@@ -86,13 +120,26 @@ test("clashes are found where the actions meet", () => {
     [["tool.brush", "tool.line", "KeyN"]],
   );
   // F for the Brush clashes with Free Draw only inside the Line tool… still a clash.
-  assert.equal(shortcutConflicts(resolveBindings({ "tool.brush": ["KeyF"] })).length, 1);
+  assert.equal(
+    shortcutConflicts(resolveBindings({ "tool.brush": ["KeyF"] })).length,
+    1,
+  );
   // W in the Line tool and W for stamps never meet.
-  assert.deepEqual(shortcutConflicts(resolveBindings({ "line.free": ["KeyW"] })), []);
+  assert.deepEqual(
+    shortcutConflicts(resolveBindings({ "line.free": ["KeyW"] })),
+    [],
+  );
   // Ctrl+W isn't W.
-  assert.deepEqual(shortcutConflicts(resolveBindings({ "edit.copy": ["Mod+KeyW"] })), []);
+  assert.deepEqual(
+    shortcutConflicts(resolveBindings({ "edit.copy": ["Mod+KeyW"] })),
+    [],
+  );
   // Alt+W is still "bigger stamps" (Alt refines it), so it clashes.
-  assert.equal(shortcutConflicts(resolveBindings({ "stamp.turnLeft": ["Alt+KeyW"] })).length, 1);
+  assert.equal(
+    shortcutConflicts(resolveBindings({ "stamp.turnLeft": ["Alt+KeyW"] }))
+      .length,
+    1,
+  );
 });
 
 test("labels follow the platform and leave out number-pad twins", () => {
@@ -109,8 +156,13 @@ test("labels follow the platform and leave out number-pad twins", () => {
 
 test("every action has a name, and texts name keys only through placeholders", () => {
   const all = { ...en, ...mapmakerEn, ...linesEn, ...shortcutsEn, ...textEn };
-  for (const s of SHORTCUTS) assert.ok(all[s.labelKey] || s.labelKey === "undo" || s.labelKey === "redo", `${s.id}: ${s.labelKey}`);
-  for (const g of new Set(SHORTCUTS.map((s) => s.group))) assert.ok(shortcutsEn[`kbGroup_${g}`] && shortcutsAr[`kbGroup_${g}`]);
+  for (const s of SHORTCUTS)
+    assert.ok(
+      all[s.labelKey] || s.labelKey === "undo" || s.labelKey === "redo",
+      `${s.id}: ${s.labelKey}`,
+    );
+  for (const g of new Set(SHORTCUTS.map((s) => s.group)))
+    assert.ok(shortcutsEn[`kbGroup_${g}`] && shortcutsAr[`kbGroup_${g}`]);
   for (const dict of [mapmakerEn, mapmakerAr, linesEn, linesAr]) {
     assert.match(dict.mmBrushShortcuts ?? dict.lnKeysDraw, /\{\{/);
     assert.doesNotMatch(dict.lnEditNodesHint ?? "", /\(N\)/);

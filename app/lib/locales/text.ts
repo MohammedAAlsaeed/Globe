@@ -3,8 +3,10 @@ export const textEn = {
   mmToolText: "Text",
   txPanel: "Text tool",
   txTarget: "Texts",
-  txHintTool: "Click the map to write · double-click a text (or Enter) to retype it · drag to move · side handles: wrapping width, corners: size · Shift while turning: 15° steps",
-  txToolHint: "Click the map to write. These settings are for the next text; select a text to change it.",
+  txHintTool:
+    "Click the map to write · double-click a text (or Enter) to retype it · drag to move · side handles: wrapping width, corners: size · Shift while turning: 15° steps",
+  txToolHint:
+    "Click the map to write. These settings are for the next text; select a text to change it.",
   txEditing: "Editing {{count}} text(s) — changes apply to them only",
   txEditInline: "Edit text",
   txEditInlineHint: "Type on the map (double-click a text, or Enter)",
@@ -26,7 +28,8 @@ export const textEn = {
   txStyleCount: "{{count}} of {{max}} styles",
   txStyleLimit: "Your plan saves up to {{max}} text styles.",
   txLimitTitle: "Text style limit reached",
-  txLimitText: "The {{plan}} plan saves up to {{max}} text styles. Upgrade to save more, or delete one you no longer use — nothing you saved is removed.",
+  txLimitText:
+    "The {{plan}} plan saves up to {{max}} text styles. Upgrade to save more, or delete one you no longer use — nothing you saved is removed.",
   txStyle_default: "Default",
   txStyle_kingdomTitle: "Kingdom",
   txStyle_empire: "Empire",
@@ -48,7 +51,8 @@ export const textEn = {
   txContent: "Text",
   txNewTextStarts: "New text starts as",
   txNewTextEmpty: "(empty — just type)",
-  txManySelected: "Several texts selected: their words are edited one at a time.",
+  txManySelected:
+    "Several texts selected: their words are edited one at a time.",
   txDirection: "Direction",
   txDirAuto: "Auto",
   txDirAutoHint: "From the first letters (Unicode bidirectional rules)",
@@ -99,7 +103,8 @@ export const textEn = {
   txFavorite: "Favourite",
   txWebFont: "loaded from Google Fonts",
   txSampleWith: "Your text in {{font}}",
-  txLicenseNote: "Every font here is free to use in your maps (SIL Open Font License).",
+  txLicenseNote:
+    "Every font here is free to use in your maps (SIL Open Font License).",
   txCat_arabicManuscript: "Arabic manuscript",
   txCat_arabicKufi: "Kufic",
   txCat_ancient: "Ancient & historical",
@@ -123,22 +128,37 @@ export const textEn = {
   "txProfile_pirate-charts": "Pirate Charts",
   "txProfile_enchanted-realm": "Enchanted Realm",
   "txProfile_dark-ages": "Dark Ages",
-  "txProfileHint_universal-classical": "Noto Naskh Arabic with Noto Serif — clear in every language",
-  "txProfileHint_ancient-manuscript": "Amiri with EB Garamond — Islamic manuscripts meet the Renaissance",
-  "txProfileHint_royal-kingdom": "Noto Naskh Arabic with Cinzel — for kingdoms and empires",
-  "txProfileHint_old-atlas": "Amiri with Cormorant Garamond — elegant seas and islands",
-  "txProfileHint_geometric-empire": "Noto Kufi Arabic with Cinzel — geometric, monumental",
-  "txProfileHint_historical-notes": "Aref Ruqaa with IM Fell English — handwritten notes",
-  "txProfileHint_andalusian-scholar": "Markazi Text in both scripts — one family, Arabic and Latin",
-  "txProfileHint_fatimid-kufic": "Reem Kufi with Cinzel Decorative — Fatimid-style kufic",
-  "txProfileHint_persian-miniature": "Noto Nastaliq Urdu with Cormorant Garamond — Persian and Mughal maps",
-  "txProfileHint_scholarly-naskh": "Scheherazade New with EB Garamond — scholarly editions",
-  "txProfileHint_explorers-chart": "Noto Naskh Arabic with IM Fell small capitals — 17th-century charts",
-  "txProfileHint_gothic-chronicle": "Amiri with UnifrakturMaguntia — blackletter chronicles",
-  "txProfileHint_celtic-legends": "Lateef with Uncial Antiqua — insular, legendary",
-  "txProfileHint_pirate-charts": "Aref Ruqaa with Pirata One — sea charts and pirate tales",
+  "txProfileHint_universal-classical":
+    "Noto Naskh Arabic with Noto Serif — clear in every language",
+  "txProfileHint_ancient-manuscript":
+    "Amiri with EB Garamond — Islamic manuscripts meet the Renaissance",
+  "txProfileHint_royal-kingdom":
+    "Noto Naskh Arabic with Cinzel — for kingdoms and empires",
+  "txProfileHint_old-atlas":
+    "Amiri with Cormorant Garamond — elegant seas and islands",
+  "txProfileHint_geometric-empire":
+    "Noto Kufi Arabic with Cinzel — geometric, monumental",
+  "txProfileHint_historical-notes":
+    "Aref Ruqaa with IM Fell English — handwritten notes",
+  "txProfileHint_andalusian-scholar":
+    "Markazi Text in both scripts — one family, Arabic and Latin",
+  "txProfileHint_fatimid-kufic":
+    "Reem Kufi with Cinzel Decorative — Fatimid-style kufic",
+  "txProfileHint_persian-miniature":
+    "Noto Nastaliq Urdu with Cormorant Garamond — Persian and Mughal maps",
+  "txProfileHint_scholarly-naskh":
+    "Scheherazade New with EB Garamond — scholarly editions",
+  "txProfileHint_explorers-chart":
+    "Noto Naskh Arabic with IM Fell small capitals — 17th-century charts",
+  "txProfileHint_gothic-chronicle":
+    "Amiri with UnifrakturMaguntia — blackletter chronicles",
+  "txProfileHint_celtic-legends":
+    "Lateef with Uncial Antiqua — insular, legendary",
+  "txProfileHint_pirate-charts":
+    "Aref Ruqaa with Pirata One — sea charts and pirate tales",
   "txProfileHint_enchanted-realm": "Kufam with Almendra — fantasy worlds",
-  "txProfileHint_dark-ages": "Noto Kufi Arabic with MedievalSharp — role-playing maps",
+  "txProfileHint_dark-ages":
+    "Noto Kufi Arabic with MedievalSharp — role-playing maps",
   txSize: "Size",
   txWeight: "Weight",
   txWeight_100: "Thin",
@@ -156,7 +176,8 @@ export const textEn = {
   txLetterSpacing: "Letter spacing",
   txWordSpacing: "Word spacing",
   txLineHeight: "Line height",
-  txArabicSpacingHint: "Arabic words are never spaced letter by letter: letter spacing widens the gaps between Arabic words instead. Use kashida to stretch the words themselves.",
+  txArabicSpacingHint:
+    "Arabic words are never spaced letter by letter: letter spacing widens the gaps between Arabic words instead. Use kashida to stretch the words themselves.",
   txAlign: "Alignment",
   txAlignLeft: "Left",
   txAlignCenter: "Centre",
@@ -167,9 +188,12 @@ export const textEn = {
   txKashida_1: "Light",
   txKashida_2: "Medium",
   txKashida_3: "Long",
-  txKashidaHint: "Stretches Arabic words where letters join (never inside lam-alef, never in short words). Use with care.",
-  txSubstitute: "{{script}} letters: {{font}} is used (the chosen font doesn't have them).",
-  txUnsupported: "{{script}}: no font in the library has these letters; the browser's font is used.",
+  txKashidaHint:
+    "Stretches Arabic words where letters join (never inside lam-alef, never in short words). Use with care.",
+  txSubstitute:
+    "{{script}} letters: {{font}} is used (the chosen font doesn't have them).",
+  txUnsupported:
+    "{{script}}: no font in the library has these letters; the browser's font is used.",
   txNoWeight: "{{font}} doesn't have this weight: the nearest one is used.",
   txNoItalic: "{{font}} has no italic: shown upright.",
   txUnknownFont: "This font isn't available; the profile's fonts are used.",
@@ -233,7 +257,8 @@ export const textEn = {
   txCurveHint_straight: "A straight line of text",
   txCurveHint_up: "Bends like an arch",
   txCurveHint_down: "Bends like a bowl",
-  txCurveHint_path: "Follows a curve you shape (mountain ranges, rivers, coasts)",
+  txCurveHint_path:
+    "Follows a curve you shape (mountain ranges, rivers, coasts)",
   txPathNeedsText: "A path is given to each text: select one to set it.",
   txBend: "Bend",
   txEditPath: "Edit path",
@@ -253,10 +278,14 @@ export const textEn = {
   txLetters_warp: "Smooth warp",
   txLetters_letters: "Letter by letter",
   txLetters_words: "Word by word",
-  txLettersHint_auto: "Joined scripts (Arabic) bend smoothly as one shape; others turn letter by letter.",
-  txLettersHint_warp: "The whole line bends as one shape — joined Arabic stays joined.",
-  txLettersHint_letters: "Each letter turns on its own (classic for Latin; breaks Arabic joins).",
-  txLettersHint_words: "Each word turns as a whole — steady, a little stiff on tight bends.",
+  txLettersHint_auto:
+    "Joined scripts (Arabic) bend smoothly as one shape; others turn letter by letter.",
+  txLettersHint_warp:
+    "The whole line bends as one shape — joined Arabic stays joined.",
+  txLettersHint_letters:
+    "Each letter turns on its own (classic for Latin; breaks Arabic joins).",
+  txLettersHint_words:
+    "Each word turns as a whole — steady, a little stiff on tight bends.",
   // ---- transform
   txTransform: "Position & turn",
   txWrap: "Wrap to a width",
@@ -294,7 +323,8 @@ export const textEn = {
   txAttachPickNotice: "Click the stamp this text should follow.",
   txAttachedNotice: "The text now follows “{{stamp}}”.",
   txAttachedTo: "Follows “{{stamp}}”",
-  txAttachHint: "A city's name moves with its city; the text stays editable on its own.",
+  txAttachHint:
+    "A city's name moves with its city; the text stays editable on its own.",
   txDetach: "Stop following",
   txAttachPair: "Make the text follow this stamp",
   txAlongLine: "Add text along this line",
@@ -303,18 +333,22 @@ export const textEn = {
   txResetOutline: "Reset outline",
   txResetShadow: "Reset shadow",
   txSyncStyle: "Update {{count}} more with this style",
-  txSyncStyleHint: "Other texts made with the same style get this look too (their words and places stay)",
+  txSyncStyleHint:
+    "Other texts made with the same style get this look too (their words and places stay)",
   txCopyStyle: "Copy text style",
-  txStyleCopied: "Text style copied — paste it on other texts (right-click › Paste text style).",
+  txStyleCopied:
+    "Text style copied — paste it on other texts (right-click › Paste text style).",
   txPasteStyle: "Paste text style",
-  txResetAllHint: "Resets the look to the style (or the defaults); the words, place and layer stay.",
+  txResetAllHint:
+    "Resets the look to the style (or the defaults); the words, place and layer stay.",
   // ---- gestures & menus
   txGestureMove: "{{x}}, {{y}} px",
   txGestureTransform: "{{size}} px · {{angle}}°",
   txGestureAngle: "{{angle}}°",
   txMenuHeading: "Text",
   txKeysCreate: "{{text}} Text tool · {{select}} Select",
-  txKeysCreateHint: "click to write · Enter or double-click a text to retype it · {{finish}} or Esc: done",
+  txKeysCreateHint:
+    "click to write · Enter or double-click a text to retype it · {{finish}} or Esc: done",
   txKeysMove: "Arrows: move 1 px (Shift: 10)",
   txKeysMoveHint: "Alt-drag: copy · {{all}}: select all",
 };
@@ -323,8 +357,10 @@ export const textAr: typeof textEn = {
   mmToolText: "نص",
   txPanel: "أداة النص",
   txTarget: "النصوص",
-  txHintTool: "انقر على الخريطة لتكتب · انقر مرتين على نص (أو Enter) لتعديله · اسحب للتحريك · المقابض الجانبية: عرض الأسطر، الزوايا: الحجم · Shift أثناء التدوير: كل 15°",
-  txToolHint: "انقر على الخريطة لتكتب. هذه الإعدادات للنص التالي؛ حدّد نصًّا لتغييره.",
+  txHintTool:
+    "انقر على الخريطة لتكتب · انقر مرتين على نص (أو Enter) لتعديله · اسحب للتحريك · المقابض الجانبية: عرض الأسطر، الزوايا: الحجم · Shift أثناء التدوير: كل 15°",
+  txToolHint:
+    "انقر على الخريطة لتكتب. هذه الإعدادات للنص التالي؛ حدّد نصًّا لتغييره.",
   txEditing: "تحرير {{count}} نص — التغييرات تخصّها وحدها",
   txEditInline: "تحرير النص",
   txEditInlineHint: "اكتب على الخريطة مباشرة (انقر مرتين على النص، أو Enter)",
@@ -345,7 +381,8 @@ export const textAr: typeof textEn = {
   txStyleCount: "{{count}} من {{max}} نمطًا",
   txStyleLimit: "تتيح خطتك حفظ {{max}} نمط نص كحد أقصى.",
   txLimitTitle: "بلغت حدّ أنماط النصوص",
-  txLimitText: "تتيح خطة {{plan}} حفظ {{max}} نمط نص. رقِّ خطتك لتحفظ المزيد، أو احذف نمطًا لم تعد تستخدمه — لا يُحذف شيء مما حفظته.",
+  txLimitText:
+    "تتيح خطة {{plan}} حفظ {{max}} نمط نص. رقِّ خطتك لتحفظ المزيد، أو احذف نمطًا لم تعد تستخدمه — لا يُحذف شيء مما حفظته.",
   txStyle_default: "الافتراضي",
   txStyle_kingdomTitle: "مملكة",
   txStyle_empire: "إمبراطورية",
@@ -416,7 +453,8 @@ export const textAr: typeof textEn = {
   txFavorite: "مفضّل",
   txWebFont: "يُحمَّل من Google Fonts",
   txSampleWith: "نصك بخط {{font}}",
-  txLicenseNote: "كل الخطوط هنا مجانية الاستخدام في خرائطك (رخصة SIL المفتوحة للخطوط).",
+  txLicenseNote:
+    "كل الخطوط هنا مجانية الاستخدام في خرائطك (رخصة SIL المفتوحة للخطوط).",
   txCat_arabicManuscript: "مخطوطات عربية",
   txCat_arabicKufi: "كوفي",
   txCat_ancient: "قديم وتاريخي",
@@ -440,20 +478,29 @@ export const textAr: typeof textEn = {
   "txProfile_pirate-charts": "خرائط القراصنة",
   "txProfile_enchanted-realm": "العالم المسحور",
   "txProfile_dark-ages": "العصور المظلمة",
-  "txProfileHint_universal-classical": "نوتو نسخ مع Noto Serif — واضح في كل اللغات",
-  "txProfileHint_ancient-manuscript": "أميري مع EB Garamond — المخطوطات الإسلامية تلتقي بعصر النهضة",
+  "txProfileHint_universal-classical":
+    "نوتو نسخ مع Noto Serif — واضح في كل اللغات",
+  "txProfileHint_ancient-manuscript":
+    "أميري مع EB Garamond — المخطوطات الإسلامية تلتقي بعصر النهضة",
   "txProfileHint_royal-kingdom": "نوتو نسخ مع Cinzel — للممالك والإمبراطوريات",
   "txProfileHint_old-atlas": "أميري مع Cormorant Garamond — بحار وجزر أنيقة",
   "txProfileHint_geometric-empire": "نوتو كوفي مع Cinzel — هندسي ومهيب",
-  "txProfileHint_historical-notes": "عارف رقعة مع IM Fell English — حواشٍ بخط اليد",
-  "txProfileHint_andalusian-scholar": "مركزي بالكتابتين — عائلة واحدة للعربية واللاتينية",
-  "txProfileHint_fatimid-kufic": "ريم كوفي مع Cinzel Decorative — كوفي على الطراز الفاطمي",
-  "txProfileHint_persian-miniature": "نوتو نستعليق مع Cormorant Garamond — خرائط فارسية ومغولية",
+  "txProfileHint_historical-notes":
+    "عارف رقعة مع IM Fell English — حواشٍ بخط اليد",
+  "txProfileHint_andalusian-scholar":
+    "مركزي بالكتابتين — عائلة واحدة للعربية واللاتينية",
+  "txProfileHint_fatimid-kufic":
+    "ريم كوفي مع Cinzel Decorative — كوفي على الطراز الفاطمي",
+  "txProfileHint_persian-miniature":
+    "نوتو نستعليق مع Cormorant Garamond — خرائط فارسية ومغولية",
   "txProfileHint_scholarly-naskh": "شهرزاد مع EB Garamond — طبعات علمية",
-  "txProfileHint_explorers-chart": "نوتو نسخ مع IM Fell بالحروف الصغيرة — خرائط القرن السابع عشر",
-  "txProfileHint_gothic-chronicle": "أميري مع UnifrakturMaguntia — حوليات بالخط القوطي",
+  "txProfileHint_explorers-chart":
+    "نوتو نسخ مع IM Fell بالحروف الصغيرة — خرائط القرن السابع عشر",
+  "txProfileHint_gothic-chronicle":
+    "أميري مع UnifrakturMaguntia — حوليات بالخط القوطي",
   "txProfileHint_celtic-legends": "لطيف مع Uncial Antiqua — أسطوري وجزري",
-  "txProfileHint_pirate-charts": "عارف رقعة مع Pirata One — خرائط بحرية وحكايات قراصنة",
+  "txProfileHint_pirate-charts":
+    "عارف رقعة مع Pirata One — خرائط بحرية وحكايات قراصنة",
   "txProfileHint_enchanted-realm": "كوفام مع Almendra — عوالم خيالية",
   "txProfileHint_dark-ages": "نوتو كوفي مع MedievalSharp — خرائط ألعاب الأدوار",
   txSize: "الحجم",
@@ -473,7 +520,8 @@ export const textAr: typeof textEn = {
   txLetterSpacing: "تباعد الحروف",
   txWordSpacing: "تباعد الكلمات",
   txLineHeight: "تباعد الأسطر",
-  txArabicSpacingHint: "لا تُباعَد حروف الكلمة العربية حرفًا حرفًا: يوسّع تباعد الحروف المسافات بين الكلمات العربية بدلًا من ذلك. استخدم الكشيدة لمدّ الكلمات نفسها.",
+  txArabicSpacingHint:
+    "لا تُباعَد حروف الكلمة العربية حرفًا حرفًا: يوسّع تباعد الحروف المسافات بين الكلمات العربية بدلًا من ذلك. استخدم الكشيدة لمدّ الكلمات نفسها.",
   txAlign: "المحاذاة",
   txAlignLeft: "يسار",
   txAlignCenter: "وسط",
@@ -484,9 +532,12 @@ export const textAr: typeof textEn = {
   txKashida_1: "خفيفة",
   txKashida_2: "متوسطة",
   txKashida_3: "طويلة",
-  txKashidaHint: "تمدّ الكلمات العربية حيث تتصل الحروف (لا داخل لام ألف، ولا في الكلمات القصيرة). استخدمها باعتدال.",
-  txSubstitute: "حروف {{script}}: يُستخدم خط {{font}} (الخط المختار لا يحتويها).",
-  txUnsupported: "{{script}}: لا يوجد في المكتبة خط لهذه الحروف؛ يُستخدم خط المتصفح.",
+  txKashidaHint:
+    "تمدّ الكلمات العربية حيث تتصل الحروف (لا داخل لام ألف، ولا في الكلمات القصيرة). استخدمها باعتدال.",
+  txSubstitute:
+    "حروف {{script}}: يُستخدم خط {{font}} (الخط المختار لا يحتويها).",
+  txUnsupported:
+    "{{script}}: لا يوجد في المكتبة خط لهذه الحروف؛ يُستخدم خط المتصفح.",
   txNoWeight: "لا يحتوي {{font}} هذه السماكة: تُستخدم أقرب سماكة.",
   txNoItalic: "لا يحتوي {{font}} شكلًا مائلًا: يظهر قائمًا.",
   txUnknownFont: "هذا الخط غير متاح؛ تُستخدم خطوط الطقم.",
@@ -568,10 +619,13 @@ export const textAr: typeof textEn = {
   txLetters_warp: "انحناء سلس",
   txLetters_letters: "حرفًا حرفًا",
   txLetters_words: "كلمة كلمة",
-  txLettersHint_auto: "الكتابة المتصلة (العربية) تنحني كشكل واحد؛ وغيرها يدور حرفًا حرفًا.",
+  txLettersHint_auto:
+    "الكتابة المتصلة (العربية) تنحني كشكل واحد؛ وغيرها يدور حرفًا حرفًا.",
   txLettersHint_warp: "ينحني السطر كله كشكل واحد — تبقى الحروف العربية متصلة.",
-  txLettersHint_letters: "يدور كل حرف وحده (تقليدي للاتينية؛ يفصل الحروف العربية).",
-  txLettersHint_words: "تدور كل كلمة كاملة — ثابت، وأقل سلاسة في المنعطفات الحادة.",
+  txLettersHint_letters:
+    "يدور كل حرف وحده (تقليدي للاتينية؛ يفصل الحروف العربية).",
+  txLettersHint_words:
+    "تدور كل كلمة كاملة — ثابت، وأقل سلاسة في المنعطفات الحادة.",
   txTransform: "الموضع والدوران",
   txWrap: "التفاف ضمن عرض",
   txBoxWidth: "العرض",
@@ -616,17 +670,21 @@ export const textAr: typeof textEn = {
   txResetOutline: "إعادة الحدود",
   txResetShadow: "إعادة الظل",
   txSyncStyle: "حدّث {{count}} نصًّا آخر بهذا النمط",
-  txSyncStyleHint: "تأخذ النصوص الأخرى المصنوعة بالنمط نفسه هذا الشكل أيضًا (تبقى كلماتها ومواضعها)",
+  txSyncStyleHint:
+    "تأخذ النصوص الأخرى المصنوعة بالنمط نفسه هذا الشكل أيضًا (تبقى كلماتها ومواضعها)",
   txCopyStyle: "نسخ نمط النص",
-  txStyleCopied: "نُسخ نمط النص — الصقه على نصوص أخرى (نقر بالزر الأيمن › لصق نمط النص).",
+  txStyleCopied:
+    "نُسخ نمط النص — الصقه على نصوص أخرى (نقر بالزر الأيمن › لصق نمط النص).",
   txPasteStyle: "لصق نمط النص",
-  txResetAllHint: "يعيد الشكل إلى النمط (أو الافتراضي)؛ وتبقى الكلمات والموضع والطبقة.",
+  txResetAllHint:
+    "يعيد الشكل إلى النمط (أو الافتراضي)؛ وتبقى الكلمات والموضع والطبقة.",
   txGestureMove: "{{x}}، {{y}} بكسل",
   txGestureTransform: "{{size}} بكسل · {{angle}}°",
   txGestureAngle: "{{angle}}°",
   txMenuHeading: "النص",
   txKeysCreate: "{{text}} أداة النص · {{select}} التحديد",
-  txKeysCreateHint: "انقر لتكتب · Enter أو نقر مزدوج على نص لتعديله · {{finish}} أو Esc: إنهاء",
+  txKeysCreateHint:
+    "انقر لتكتب · Enter أو نقر مزدوج على نص لتعديله · {{finish}} أو Esc: إنهاء",
   txKeysMove: "الأسهم: تحريك 1 بكسل (Shift: ‏10)",
   txKeysMoveHint: "سحب مع Alt: نسخة · {{all}}: تحديد الكل",
 };

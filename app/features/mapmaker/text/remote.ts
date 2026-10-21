@@ -14,7 +14,11 @@ import { validLook } from "./validate";
 
 /** A look as the server returns it: "" comes back as null and {} as []. */
 function serverLook(look: TextLook): TextLook {
-  return { ...look, lang: look.lang ?? "", features: Array.isArray(look.features) ? {} : look.features };
+  return {
+    ...look,
+    lang: look.lang ?? "",
+    features: Array.isArray(look.features) ? {} : look.features,
+  };
 }
 
 function toStyle(r: TextStyleRecord): TextStyle | null {
@@ -23,26 +27,40 @@ function toStyle(r: TextStyleRecord): TextStyle | null {
     id: `s:${r.id}`,
     source: r.official ? "official" : "own",
     name: r.name,
-    look: r.look ? { ...FACTORY_TEXT_LOOK, ...serverLook(r.look) } : FACTORY_TEXT_LOOK,
+    look: r.look
+      ? { ...FACTORY_TEXT_LOOK, ...serverLook(r.look) }
+      : FACTORY_TEXT_LOOK,
     locked: r.locked || !r.look,
   };
 }
 
-export function useTextLibrary(user: User | null | undefined, describeError: (e: unknown) => string) {
+export function useTextLibrary(
+  user: User | null | undefined,
+  describeError: (e: unknown) => string,
+) {
   const [own, setOwn] = useState<TextStyle[]>([]),
     [official, setOfficial] = useState<TextStyle[]>([]),
     [max, setMax] = useState<number | null>(null),
     [busy, setBusy] = useState(false),
     [error, setError] = useState<string | null>(null),
-    [limitPrompt, setLimitPrompt] = useState<{ max: number | null; plan: string | null } | null>(null);
+    [limitPrompt, setLimitPrompt] = useState<{
+      max: number | null;
+      plan: string | null;
+    } | null>(null);
 
-  const apply = useCallback((r: Awaited<ReturnType<typeof textStyles.list>>) => {
-    const styles = r.data.map(toStyle).filter((s): s is TextStyle => !!s);
-    setOwn(styles.filter((s) => s.source === "own"));
-    setOfficial(styles.filter((s) => s.source === "official"));
-    setMax(r.limits.max);
-  }, []);
-  const refresh = useCallback(() => textStyles.list().then(apply, () => {}), [apply]);
+  const apply = useCallback(
+    (r: Awaited<ReturnType<typeof textStyles.list>>) => {
+      const styles = r.data.map(toStyle).filter((s): s is TextStyle => !!s);
+      setOwn(styles.filter((s) => s.source === "own"));
+      setOfficial(styles.filter((s) => s.source === "official"));
+      setMax(r.limits.max);
+    },
+    [],
+  );
+  const refresh = useCallback(
+    () => textStyles.list().then(apply, () => {}),
+    [apply],
+  );
 
   useEffect(() => {
     if (!user) return;
@@ -66,8 +84,15 @@ export function useTextLibrary(user: User | null | undefined, describeError: (e:
         await textStyles.create({ name, look });
         await refresh();
       } catch (e) {
-        if (e instanceof ApiError && e.code === "plan_limit_reached" && e.body.limit === "text_styles") {
-          setLimitPrompt({ max: typeof e.body.max === "number" ? e.body.max : null, plan: typeof e.body.plan === "string" ? e.body.plan : null });
+        if (
+          e instanceof ApiError &&
+          e.code === "plan_limit_reached" &&
+          e.body.limit === "text_styles"
+        ) {
+          setLimitPrompt({
+            max: typeof e.body.max === "number" ? e.body.max : null,
+            plan: typeof e.body.plan === "string" ? e.body.plan : null,
+          });
           void refresh();
         } else setError(describeError(e));
       } finally {
@@ -88,7 +113,10 @@ export function useTextLibrary(user: User | null | undefined, describeError: (e:
     },
     [refresh, describeError],
   );
-  const promptLimit = useCallback(() => setLimitPrompt({ max, plan: null }), [max]);
+  const promptLimit = useCallback(
+    () => setLimitPrompt({ max, plan: null }),
+    [max],
+  );
   const closeLimitPrompt = useCallback(() => setLimitPrompt(null), []);
 
   return {

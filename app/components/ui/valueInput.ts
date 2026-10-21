@@ -11,8 +11,26 @@
  */
 
 const DIGITS: Record<string, string> = {
-  "٠": "0", "١": "1", "٢": "2", "٣": "3", "٤": "4", "٥": "5", "٦": "6", "٧": "7", "٨": "8", "٩": "9",
-  "۰": "0", "۱": "1", "۲": "2", "۳": "3", "۴": "4", "۵": "5", "۶": "6", "۷": "7", "۸": "8", "۹": "9",
+  "٠": "0",
+  "١": "1",
+  "٢": "2",
+  "٣": "3",
+  "٤": "4",
+  "٥": "5",
+  "٦": "6",
+  "٧": "7",
+  "٨": "8",
+  "٩": "9",
+  "۰": "0",
+  "۱": "1",
+  "۲": "2",
+  "۳": "3",
+  "۴": "4",
+  "۵": "5",
+  "۶": "6",
+  "۷": "7",
+  "۸": "8",
+  "۹": "9",
 };
 
 /** The first number in a text: "160 px" → 160, "−30°" → −30, "+25" → 25,
@@ -30,7 +48,8 @@ export function firstNumber(text: string): number {
     dots = (digits.match(/\./g) ?? []).length;
   if (commas && dots) digits = digits.replace(/,/g, "");
   // "1,5" is a decimal comma; "1,200" (three digits after) a thousands one.
-  else if (commas === 1 && !/,\d{3}$/.test(digits)) digits = digits.replace(",", ".");
+  else if (commas === 1 && !/,\d{3}$/.test(digits))
+    digits = digits.replace(",", ".");
   else digits = digits.replace(/,/g, "");
   const n = Number(digits);
   return m[1] === "-" ? -n : n;
@@ -45,7 +64,12 @@ export function firstNumber(text: string): number {
  * rounding is used, and 160 px becomes exactly 160 / width. Otherwise a
  * straight line fitted through the samples is used.
  */
-export function valueFromDisplay(shown: number, min: number, max: number, format?: (v: number) => string): number {
+export function valueFromDisplay(
+  shown: number,
+  min: number,
+  max: number,
+  format?: (v: number) => string,
+): number {
   if (!format || !(max > min)) return shown;
   const xs: number[] = [],
     ys: number[] = [];
@@ -80,7 +104,8 @@ export function valueFromDisplay(shown: number, min: number, max: number, format
   let best: number | null = null,
     bestErr = Infinity;
   for (let w = lo; w <= hi && hi - lo < 10000; w++) {
-    if (w === 0 || !xs.every((x, i) => Math.abs(ys[i] - w * x) <= half)) continue;
+    if (w === 0 || !xs.every((x, i) => Math.abs(ys[i] - w * x) <= half))
+      continue;
     const err = xs.reduce((sum, x, i) => sum + (ys[i] - w * x) ** 2, 0);
     if (err < bestErr) [best, bestErr] = [w, err];
   }
@@ -93,17 +118,34 @@ export function valueFromDisplay(shown: number, min: number, max: number, format
  * counts, even gore counts) are kept on their step; fine steps keep the
  * exact value typed.
  */
-export function settleValue(v: number, min: number, max: number, step: number): number {
+export function settleValue(
+  v: number,
+  min: number,
+  max: number,
+  step: number,
+): number {
   let out = Math.min(max, Math.max(min, v));
-  if (step >= 1) out = Math.min(max, Math.max(min, min + Math.round((out - min) / step) * step));
+  if (step >= 1)
+    out = Math.min(
+      max,
+      Math.max(min, min + Math.round((out - min) / step) * step),
+    );
   // Float noise from the unit conversion (0.35000000000000003).
   return Number(out.toPrecision(12));
 }
 
 /** The number to put in the box while typing ("160" for "160 px"), with what surrounds it. */
-export function editParts(display: string): { number: string; prefix: string; suffix: string } {
+export function editParts(display: string): {
+  number: string;
+  prefix: string;
+  suffix: string;
+} {
   const m = /^(\D*?)([-+−]?\s*[\d٠-٩۰-۹][\d٠-٩۰-۹.,٫٬]*)(.*)$/.exec(display);
   if (!m) return { number: display, prefix: "", suffix: "" };
   const short = (s: string) => (s.trim().length <= 3 ? s.trim() : "");
-  return { number: m[2].replace(/\s/g, "").replace("−", "-").replace(/^\+/, ""), prefix: short(m[1]), suffix: short(m[3]) };
+  return {
+    number: m[2].replace(/\s/g, "").replace("−", "-").replace(/^\+/, ""),
+    prefix: short(m[1]),
+    suffix: short(m[3]),
+  };
 }

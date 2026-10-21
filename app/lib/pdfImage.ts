@@ -9,7 +9,14 @@
  * RGB with an optional soft mask for transparency. PNG files are unpacked
  * the same way (native inflate; only the row filters are undone here).
  */
-import { drawImage, degrees, type PDFDocument, type PDFPage, type PDFRef, type Rotation } from "pdf-lib";
+import {
+  drawImage,
+  degrees,
+  type PDFDocument,
+  type PDFPage,
+  type PDFRef,
+  type Rotation,
+} from "pdf-lib";
 
 /** RGBA pixels, read a strip of rows at a time. */
 export interface PixelSource {
@@ -51,7 +58,10 @@ function compressor() {
 }
 
 /** Embeds RGBA pixels as a PDF image (with a soft mask only where some pixel is transparent). */
-export async function embedPixels(pdf: PDFDocument, source: PixelSource): Promise<PdfImage> {
+export async function embedPixels(
+  pdf: PDFDocument,
+  source: PixelSource,
+): Promise<PdfImage> {
   const { width, height } = source,
     rgb = compressor(),
     alpha = compressor(),
@@ -77,9 +87,26 @@ export async function embedPixels(pdf: PDFDocument, source: PixelSource): Promis
   }
   const [colorBytes, maskBytes] = await Promise.all([rgb.done(), alpha.done()]);
   const ctx = pdf.context,
-    image = { Type: "XObject", Subtype: "Image", Width: width, Height: height, BitsPerComponent: 8, Filter: "FlateDecode" };
-  const smask = opaque ? undefined : ctx.register(ctx.stream(maskBytes, { ...image, ColorSpace: "DeviceGray" }));
-  const ref = ctx.register(ctx.stream(colorBytes, { ...image, ColorSpace: "DeviceRGB", ...(smask ? { SMask: smask } : {}) }));
+    image = {
+      Type: "XObject",
+      Subtype: "Image",
+      Width: width,
+      Height: height,
+      BitsPerComponent: 8,
+      Filter: "FlateDecode",
+    };
+  const smask = opaque
+    ? undefined
+    : ctx.register(
+        ctx.stream(maskBytes, { ...image, ColorSpace: "DeviceGray" }),
+      );
+  const ref = ctx.register(
+    ctx.stream(colorBytes, {
+      ...image,
+      ColorSpace: "DeviceRGB",
+      ...(smask ? { SMask: smask } : {}),
+    }),
+  );
   return placed(ref, width, height);
 }
 
@@ -89,15 +116,32 @@ function placed(ref: PDFRef, width: number, height: number): PdfImage {
     height,
     draw(page, o) {
       const name = page.node.newXObject("Image", ref);
-      page.pushOperators(...drawImage(name, { x: o.x, y: o.y, width: o.width, height: o.height, rotate: o.rotate ?? degrees(0), xSkew: degrees(0), ySkew: degrees(0) }));
+      page.pushOperators(
+        ...drawImage(name, {
+          x: o.x,
+          y: o.y,
+          width: o.width,
+          height: o.height,
+          rotate: o.rotate ?? degrees(0),
+          xSkew: degrees(0),
+          ySkew: degrees(0),
+        }),
+      );
     },
   };
 }
 
 /** A canvas as pixels, read in strips (never the whole canvas at once). */
-export function canvasPixels(canvas: HTMLCanvasElement | OffscreenCanvas): PixelSource {
-  const ctx = canvas.getContext("2d") as CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
-  return { width: canvas.width, height: canvas.height, read: (y, rows) => ctx.getImageData(0, y, canvas.width, rows).data };
+export function canvasPixels(
+  canvas: HTMLCanvasElement | OffscreenCanvas,
+): PixelSource {
+  const ctx = canvas.getContext("2d") as
+    CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
+  return {
+    width: canvas.width,
+    height: canvas.height,
+    read: (y, rows) => ctx.getImageData(0, y, canvas.width, rows).data,
+  };
 }
 
 // ---- PNG ----
@@ -105,25 +149,38 @@ export function canvasPixels(canvas: HTMLCanvasElement | OffscreenCanvas): Pixel
 const PNG_SIGNATURE = [137, 80, 78, 71, 13, 10, 26, 10];
 
 async function inflate(bytes: Uint8Array): Promise<Uint8Array> {
-  const stream = new Blob([bytes as BlobPart]).stream().pipeThrough(new DecompressionStream("deflate"));
+  const stream = new Blob([bytes as BlobPart])
+    .stream()
+    .pipeThrough(new DecompressionStream("deflate"));
   return new Uint8Array(await new Response(stream).arrayBuffer());
 }
 
 /** Undoes one row's PNG filter into `line` (`prev` is the row above). */
-function unfilter(filter: number, src: Uint8Array, at: number, line: Uint8Array, prev: Uint8Array, bpp: number): boolean {
+function unfilter(
+  filter: number,
+  src: Uint8Array,
+  at: number,
+  line: Uint8Array,
+  prev: Uint8Array,
+  bpp: number,
+): boolean {
   const n = line.length;
   switch (filter) {
     case 0:
       line.set(src.subarray(at, at + n));
       return true;
     case 1:
-      for (let i = 0; i < n; i++) line[i] = (src[at + i] + (i >= bpp ? line[i - bpp] : 0)) & 255;
+      for (let i = 0; i < n; i++)
+        line[i] = (src[at + i] + (i >= bpp ? line[i - bpp] : 0)) & 255;
       return true;
     case 2:
       for (let i = 0; i < n; i++) line[i] = (src[at + i] + prev[i]) & 255;
       return true;
     case 3:
-      for (let i = 0; i < n; i++) line[i] = (src[at + i] + (((i >= bpp ? line[i - bpp] : 0) + prev[i]) >> 1)) & 255;
+      for (let i = 0; i < n; i++)
+        line[i] =
+          (src[at + i] + (((i >= bpp ? line[i - bpp] : 0) + prev[i]) >> 1)) &
+          255;
       return true;
     case 4:
       for (let i = 0; i < n; i++) {
@@ -133,7 +190,8 @@ function unfilter(filter: number, src: Uint8Array, at: number, line: Uint8Array,
           pa = Math.abs(b - c),
           pb = Math.abs(a - c),
           pc = Math.abs(a + b - 2 * c);
-        line[i] = (src[at + i] + (pa <= pb && pa <= pc ? a : pb <= pc ? b : c)) & 255;
+        line[i] =
+          (src[at + i] + (pa <= pb && pa <= pc ? a : pb <= pc ? b : c)) & 255;
       }
       return true;
     default:
@@ -147,15 +205,21 @@ function unfilter(filter: number, src: Uint8Array, at: number, line: Uint8Array,
  * bottom). Anything else returns null (use pdf-lib's own decoder).
  */
 export async function pngPixels(png: Uint8Array): Promise<PixelSource | null> {
-  if (png.length < 33 || PNG_SIGNATURE.some((b, i) => png[i] !== b)) return null;
+  if (png.length < 33 || PNG_SIGNATURE.some((b, i) => png[i] !== b))
+    return null;
   const view = new DataView(png.buffer, png.byteOffset, png.byteLength),
     parts: Uint8Array[] = [];
   let width = 0,
     height = 0,
     channels = 0;
-  for (let p = 8; p + 8 <= png.length; ) {
+  for (let p = 8; p + 8 <= png.length;) {
     const length = view.getUint32(p),
-      type = String.fromCharCode(png[p + 4], png[p + 5], png[p + 6], png[p + 7]),
+      type = String.fromCharCode(
+        png[p + 4],
+        png[p + 5],
+        png[p + 6],
+        png[p + 7],
+      ),
       data = png.subarray(p + 8, p + 8 + length);
     if (type === "IHDR") {
       width = view.getUint32(p + 8);
@@ -163,7 +227,8 @@ export async function pngPixels(png: Uint8Array): Promise<PixelSource | null> {
       const depth = data[8],
         color = data[9],
         interlace = data[12];
-      if (depth !== 8 || interlace !== 0 || (color !== 2 && color !== 6)) return null;
+      if (depth !== 8 || interlace !== 0 || (color !== 2 && color !== 6))
+        return null;
       channels = color === 6 ? 4 : 3;
     } else if (type === "IDAT") parts.push(data);
     else if (type === "IEND") break;
@@ -186,7 +251,8 @@ export async function pngPixels(png: Uint8Array): Promise<PixelSource | null> {
       const out = new Uint8Array(width * rows * 4);
       for (let r = 0; r < rows; r++, next++) {
         const at = next * (stride + 1);
-        if (!unfilter(raw[at], raw, at + 1, line, prev, channels)) throw new Error("errorImage");
+        if (!unfilter(raw[at], raw, at + 1, line, prev, channels))
+          throw new Error("errorImage");
         const o = r * width * 4;
         if (channels === 4) out.set(line, o);
         else
@@ -204,7 +270,9 @@ export async function pngPixels(png: Uint8Array): Promise<PixelSource | null> {
 }
 
 /** The whole PNG as RGBA (small images and tests; see `pngPixels`). */
-export async function decodePng(png: Uint8Array): Promise<{ width: number; height: number; rgba: Uint8Array } | null> {
+export async function decodePng(
+  png: Uint8Array,
+): Promise<{ width: number; height: number; rgba: Uint8Array } | null> {
   const px = await pngPixels(png);
   if (!px) return null;
   const rgba = (await px.read(0, px.height)) as Uint8Array;
@@ -212,7 +280,10 @@ export async function decodePng(png: Uint8Array): Promise<{ width: number; heigh
 }
 
 /** Embeds PNG bytes: natively when they are a canvas-style PNG, else via pdf-lib. */
-export async function embedPngFast(pdf: PDFDocument, png: Uint8Array): Promise<PdfImage> {
+export async function embedPngFast(
+  pdf: PDFDocument,
+  png: Uint8Array,
+): Promise<PdfImage> {
   const pixels = await pngPixels(png).catch(() => null);
   if (pixels) {
     try {
@@ -225,7 +296,13 @@ export async function embedPngFast(pdf: PDFDocument, png: Uint8Array): Promise<P
   return {
     width: image.width,
     height: image.height,
-    draw: (page, o) => page.drawImage(image, { x: o.x, y: o.y, width: o.width, height: o.height, rotate: o.rotate }),
+    draw: (page, o) =>
+      page.drawImage(image, {
+        x: o.x,
+        y: o.y,
+        width: o.width,
+        height: o.height,
+        rotate: o.rotate,
+      }),
   };
 }
-

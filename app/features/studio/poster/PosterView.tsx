@@ -29,14 +29,20 @@ function waitingTab(message: string): Window | null {
   try {
     const doc = tab.document;
     doc.title = message;
-    doc.body.style.cssText = "margin:0;min-height:100vh;display:grid;place-items:center;background:#0f1d33;color:#e9d9a8;font:16px system-ui,sans-serif";
+    doc.body.style.cssText =
+      "margin:0;min-height:100vh;display:grid;place-items:center;background:#0f1d33;color:#e9d9a8;font:16px system-ui,sans-serif";
     doc.body.textContent = message;
   } catch {
     // A blank tab is fine too.
   }
   return tab;
 }
-const safe = (v: string) => v.trim().replace(/[\\/:*?"<>|\s]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 80) || "map";
+const safe = (v: string) =>
+  v
+    .trim()
+    .replace(/[\\/:*?"<>|\s]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 80) || "map";
 
 export function PosterView({
   source,
@@ -57,14 +63,26 @@ export function PosterView({
     [preview, setPreview] = useState<{ key: string; url: string } | null>(null),
     [job, setJob] = useState<{ stage: string; progress: number } | null>(null);
   const bitmap = useRef<{ url: string; image: ImageBitmap } | null>(null);
-  const key = JSON.stringify([source?.url, plan.canvas, plan.artwork.map, s.frame, s.frameColor, s.mat, s.title, s.subtitle]);
+  const key = JSON.stringify([
+    source?.url,
+    plan.canvas,
+    plan.artwork.map,
+    s.frame,
+    s.frameColor,
+    s.mat,
+    s.title,
+    s.subtitle,
+  ]);
 
   /** The source decoded once (and again only when it changes). */
   async function image(): Promise<ImageBitmap> {
     if (!source) throw new Error("missingSource");
     if (bitmap.current?.url !== source.url) {
       bitmap.current?.image.close();
-      bitmap.current = { url: source.url, image: await createImageBitmap(source.blob) };
+      bitmap.current = {
+        url: source.url,
+        image: await createImageBitmap(source.blob),
+      };
     }
     return bitmap.current.image;
   }
@@ -77,9 +95,14 @@ export function PosterView({
       made = "";
     const timer = setTimeout(async () => {
       try {
-        const k = Math.min(1600 / Math.max(plan.canvas.width, plan.canvas.height), printScale(plan, source.width)),
+        const k = Math.min(
+            1600 / Math.max(plan.canvas.width, plan.canvas.height),
+            printScale(plan, source.width),
+          ),
           canvas = await renderPoster(await image(), plan, s, k),
-          blob = await new Promise<Blob | null>((r) => canvas.toBlob(r, "image/jpeg", 0.88));
+          blob = await new Promise<Blob | null>((r) =>
+            canvas.toBlob(r, "image/jpeg", 0.88),
+          );
         canvas.width = canvas.height = 0;
         if (!blob || !live) return;
         made = URL.createObjectURL(blob);
@@ -106,15 +129,24 @@ export function PosterView({
     setJob({ stage: "preparing", progress: 0 });
     try {
       await new Promise((r) => setTimeout(r, 30));
-      const canvas = await renderPoster(await image(), plan, s, printScale(plan, source.width));
+      const canvas = await renderPoster(
+        await image(),
+        plan,
+        s,
+        printScale(plan, source.width),
+      );
       setJob({ stage: "assembling", progress: 0.3 });
       if (kind === "png") {
-        const blob = await new Promise<Blob | null>((r) => canvas.toBlob(r, "image/png"));
+        const blob = await new Promise<Blob | null>((r) =>
+          canvas.toBlob(r, "image/png"),
+        );
         if (!blob) throw new Error("exFailed");
         download(blob, `${safe(name)}-poster.png`);
         notify("jobComplete");
       } else {
-        const pdf = await posterPdf(plan, s, canvas, name, (v) => setJob({ stage: "assembling", progress: 0.3 + v * 0.7 }));
+        const pdf = await posterPdf(plan, s, canvas, name, (v) =>
+          setJob({ stage: "assembling", progress: 0.3 + v * 0.7 }),
+        );
         if (kind === "pdf") {
           download(pdf, `${safe(name)}-poster.pdf`);
           notify("jobComplete");
@@ -160,14 +192,21 @@ export function PosterView({
         <div className="preview-toolbar">
           <div className="tabs preview-tabs">
             {(["overview", "sheets"] as const).map((v) => (
-              <button key={v} className={view === v ? "active" : ""} aria-pressed={view === v} onClick={() => setView(v)}>
+              <button
+                key={v}
+                className={view === v ? "active" : ""}
+                aria-pressed={view === v}
+                onClick={() => setView(v)}
+              >
                 {t(v === "overview" ? "prOverview" : "sheets")}
               </button>
             ))}
           </div>
         </div>
         {plan.error ? (
-          <p className="notice warning">{t(plan.error === "pageLimit" ? "prPageLimit" : "layoutError")}</p>
+          <p className="notice warning">
+            {t(plan.error === "pageLimit" ? "prPageLimit" : "layoutError")}
+          </p>
         ) : !ready ? (
           <div className="preview-loading">
             <span className="spinner" />
@@ -175,15 +214,43 @@ export function PosterView({
           </div>
         ) : view === "overview" ? (
           <div className="pr-overview">
-            <div className="pr-overview-art" style={{ aspectRatio: `${plan.canvas.width} / ${plan.canvas.height}` }}>
+            <div
+              className="pr-overview-art"
+              style={{
+                aspectRatio: `${plan.canvas.width} / ${plan.canvas.height}`,
+              }}
+            >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={preview.url} alt={t("prOverview")} />
               {plan.sheets.length > 1 && (
-                <svg viewBox={`0 0 ${plan.canvas.width} ${plan.canvas.height}`} preserveAspectRatio="none" aria-hidden="true">
+                <svg
+                  viewBox={`0 0 ${plan.canvas.width} ${plan.canvas.height}`}
+                  preserveAspectRatio="none"
+                  aria-hidden="true"
+                >
                   {plan.sheets.map((sh) => (
                     <g key={`${sh.row}-${sh.col}`}>
-                      <rect x={sh.sourceX} y={sh.sourceY} width={sh.clip.width} height={sh.clip.height} fill="none" stroke="#d9a93b" strokeWidth={Math.max(plan.canvas.width, plan.canvas.height) / 400} strokeDasharray="6 4" vectorEffect="non-scaling-stroke" />
-                      <text x={sh.sourceX + 4} y={sh.sourceY + 12} fontSize={Math.max(plan.canvas.width, plan.canvas.height) / 40} fill="#d9a93b">
+                      <rect
+                        x={sh.sourceX}
+                        y={sh.sourceY}
+                        width={sh.clip.width}
+                        height={sh.clip.height}
+                        fill="none"
+                        stroke="#d9a93b"
+                        strokeWidth={
+                          Math.max(plan.canvas.width, plan.canvas.height) / 400
+                        }
+                        strokeDasharray="6 4"
+                        vectorEffect="non-scaling-stroke"
+                      />
+                      <text
+                        x={sh.sourceX + 4}
+                        y={sh.sourceY + 12}
+                        fontSize={
+                          Math.max(plan.canvas.width, plan.canvas.height) / 40
+                        }
+                        fill="#d9a93b"
+                      >
                         {sheetName(sh)}
                       </text>
                     </g>
@@ -195,21 +262,40 @@ export function PosterView({
         ) : (
           <>
             <div className="sheet-scroll">
-              <div className="sheet-paper" style={{ width: "72%" }} dangerouslySetInnerHTML={{ __html: sheetSvg(plan, plan.sheets[index], s, preview.url, name, index) }} />
+              <div
+                className="sheet-paper"
+                style={{ width: "72%" }}
+                dangerouslySetInnerHTML={{
+                  __html: sheetSvg(
+                    plan,
+                    plan.sheets[index],
+                    s,
+                    preview.url,
+                    name,
+                    index,
+                  ),
+                }}
+              />
             </div>
             <div className="page-navigation">
               <button disabled={index === 0} onClick={() => setPage(index - 1)}>
                 {t("previous")}
               </button>
               <span>
-                {plan.sheets.length > 1 ? `${sheetName(plan.sheets[index])} · ` : ""}
+                {plan.sheets.length > 1
+                  ? `${sheetName(plan.sheets[index])} · `
+                  : ""}
                 {t("page")} {index + 1} {t("of")} {plan.sheets.length}
                 <small>
                   {" "}
-                  · {Math.round(plan.paper.width)} × {Math.round(plan.paper.height)} mm
+                  · {Math.round(plan.paper.width)} ×{" "}
+                  {Math.round(plan.paper.height)} mm
                 </small>
               </span>
-              <button disabled={index === plan.sheets.length - 1} onClick={() => setPage(index + 1)}>
+              <button
+                disabled={index === plan.sheets.length - 1}
+                onClick={() => setPage(index + 1)}
+              >
                 {t("next")}
               </button>
             </div>
@@ -219,7 +305,8 @@ export function PosterView({
           <div>
             <span>{t("prPosterSize")}</span>
             <strong dir="ltr">
-              {(plan.artwork.width / 10).toFixed(1)} × {(plan.artwork.height / 10).toFixed(1)} cm
+              {(plan.artwork.width / 10).toFixed(1)} ×{" "}
+              {(plan.artwork.height / 10).toFixed(1)} cm
             </strong>
           </div>
           <div>
@@ -245,15 +332,36 @@ export function PosterView({
             <p>{t("prPrintNote")}</p>
           </div>
         </div>
-        <p className={`quality-note ${ppi < 150 ? "warning" : ""}`}>{t(ppi < 150 ? "prQualityLow" : ppi < 240 ? "prQualityOk" : "prQualityHigh", { ppi: Math.round(ppi) })}</p>
+        <p className={`quality-note ${ppi < 150 ? "warning" : ""}`}>
+          {t(
+            ppi < 150
+              ? "prQualityLow"
+              : ppi < 240
+                ? "prQualityOk"
+                : "prQualityHigh",
+            { ppi: Math.round(ppi) },
+          )}
+        </p>
         <div className="export-actions">
-          <button className="export-button" disabled={!!job || !source || !!plan.error} onClick={() => void run("print")}>
+          <button
+            className="export-button"
+            disabled={!!job || !source || !!plan.error}
+            onClick={() => void run("print")}
+          >
             ▤ {t("printNow")}
           </button>
-          <button className="secondary-button" disabled={!!job || !source || !!plan.error} onClick={() => void run("pdf")}>
+          <button
+            className="secondary-button"
+            disabled={!!job || !source || !!plan.error}
+            onClick={() => void run("pdf")}
+          >
             {t("downloadPdf")}
           </button>
-          <button className="secondary-button" disabled={!!job || !source || !!plan.error} onClick={() => void run("png")}>
+          <button
+            className="secondary-button"
+            disabled={!!job || !source || !!plan.error}
+            onClick={() => void run("png")}
+          >
             {t("prDownloadImage")}
           </button>
         </div>
@@ -266,7 +374,9 @@ export function PosterView({
             <progress value={job.progress} max={1} />
           </div>
         )}
-        <p className="help-copy">{t(plan.sheets.length > 1 ? "prAssembleNote" : "prActualSize")}</p>
+        <p className="help-copy">
+          {t(plan.sheets.length > 1 ? "prAssembleNote" : "prActualSize")}
+        </p>
       </section>
     </>
   );

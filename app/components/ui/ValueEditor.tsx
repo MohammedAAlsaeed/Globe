@@ -11,7 +11,12 @@
  */
 import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { editParts, firstNumber, settleValue, valueFromDisplay } from "./valueInput";
+import {
+  editParts,
+  firstNumber,
+  settleValue,
+  valueFromDisplay,
+} from "./valueInput";
 
 export interface ValueEditorProps {
   value: number;
@@ -28,7 +33,17 @@ export interface ValueEditorProps {
   className?: string;
 }
 
-export function ValueEditor({ value, min, max, step, onChange, format, parse, label, className = "" }: ValueEditorProps) {
+export function ValueEditor({
+  value,
+  min,
+  max,
+  step,
+  onChange,
+  format,
+  parse,
+  label,
+  className = "",
+}: ValueEditorProps) {
   const { t } = useTranslation();
   const [draft, setDraft] = useState<string | null>(null);
   const input = useRef<HTMLInputElement>(null);
@@ -55,7 +70,9 @@ export function ValueEditor({ value, min, max, step, onChange, format, parse, la
   if (draft !== null)
     return (
       <span className={`value-editor editing ${className}`}>
-        {parts.prefix && <span className="value-editor-unit">{parts.prefix}</span>}
+        {parts.prefix && (
+          <span className="value-editor-unit">{parts.prefix}</span>
+        )}
         <input
           ref={input}
           className="value-editor-input"
@@ -77,7 +94,15 @@ export function ValueEditor({ value, min, max, step, onChange, format, parse, la
             } else if (e.key === "ArrowUp" || e.key === "ArrowDown") {
               e.preventDefault();
               const base = toValue(draft) ?? value,
-                next = settleValue(base + (e.key === "ArrowUp" ? 1 : -1) * step * (e.shiftKey ? 10 : 1), min, max, step);
+                next = settleValue(
+                  base +
+                    (e.key === "ArrowUp" ? 1 : -1) *
+                      step *
+                      (e.shiftKey ? 10 : 1),
+                  min,
+                  max,
+                  step,
+                );
               onChange(next);
               setDraft(editParts(format ? format(next) : String(next)).number);
             }
@@ -85,7 +110,9 @@ export function ValueEditor({ value, min, max, step, onChange, format, parse, la
             e.stopPropagation();
           }}
         />
-        {parts.suffix && <span className="value-editor-unit">{parts.suffix}</span>}
+        {parts.suffix && (
+          <span className="value-editor-unit">{parts.suffix}</span>
+        )}
       </span>
     );
   return (
@@ -125,7 +152,9 @@ export function ResetButton({
 }) {
   const { t } = useTranslation();
   const changed = Math.abs(value - defaultValue) > 1e-9;
-  const title = t("valueResetTo", { value: format ? format(defaultValue) : String(defaultValue) });
+  const title = t("valueResetTo", {
+    value: format ? format(defaultValue) : String(defaultValue),
+  });
   return (
     <button
       type="button"
@@ -137,7 +166,17 @@ export function ResetButton({
       style={{ visibility: changed ? "visible" : "hidden" }}
       onClick={onReset}
     >
-      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <svg
+        width="12"
+        height="12"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2.2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden="true"
+      >
         <path d="M3 12a9 9 0 1 0 3-6.7" />
         <path d="M3 4v5h5" />
       </svg>

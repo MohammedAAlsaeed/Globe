@@ -18,7 +18,15 @@
  */
 import { mulberry32 } from "../brush/noise";
 import { DEFAULT_SOURCE } from "../brush/presets";
-import type { BlendMode, MMStamp, PaintSource, Point, ShadowSettings, StampClip, StampPivot } from "../types";
+import type {
+  BlendMode,
+  MMStamp,
+  PaintSource,
+  Point,
+  ShadowSettings,
+  StampClip,
+  StampPivot,
+} from "../types";
 import { builtinKey, stampSet, type StampSet } from "./catalog";
 import { DEFAULT_SHADOW } from "./render";
 
@@ -26,7 +34,18 @@ export type StampPlacement = "single" | "multiple" | "auto";
 
 export type StampLook = Pick<
   MMStamp,
-  "size" | "rotation" | "flipX" | "flipY" | "ink" | "fill" | "opacity" | "hue" | "saturation" | "brightness" | "contrast" | "shadow"
+  | "size"
+  | "rotation"
+  | "flipX"
+  | "flipY"
+  | "ink"
+  | "fill"
+  | "opacity"
+  | "hue"
+  | "saturation"
+  | "brightness"
+  | "contrast"
+  | "shadow"
 > & {
   customShadow: ShadowSettings;
   blend: BlendMode;
@@ -92,7 +111,15 @@ const BASE_LOOK: StampLook = {
 
 /** A set's own look: what its stamps start with, and what Reset returns to. */
 export function factoryLook(set: StampSet | undefined): StampLook {
-  return set ? { ...BASE_LOOK, ink: set.ink, fill: set.fill, size: set.size, pivot: set.pivot } : BASE_LOOK;
+  return set
+    ? {
+        ...BASE_LOOK,
+        ink: set.ink,
+        fill: set.fill,
+        size: set.size,
+        pivot: set.pivot,
+      }
+    : BASE_LOOK;
 }
 /** A stamp's size as a scale of its set's default size (1 = 100%). */
 export function scaleOf(size: number, set: StampSet | undefined) {
@@ -104,8 +131,22 @@ export function scaleOf(size: number, set: StampSet | undefined) {
  * defaults), and the set you leave remembers your settings. Placement,
  * scatter and variety stay as they are.
  */
-export function selectSet(s: StampToolState, set: StampSet, variant = 0): StampToolState {
-  const memory = s.set === set.id ? s.memory : { ...s.memory, [s.set]: { look: s.look, rotationJitter: s.rotationJitter, randomFlip: s.randomFlip } },
+export function selectSet(
+  s: StampToolState,
+  set: StampSet,
+  variant = 0,
+): StampToolState {
+  const memory =
+      s.set === set.id
+        ? s.memory
+        : {
+            ...s.memory,
+            [s.set]: {
+              look: s.look,
+              rotationJitter: s.rotationJitter,
+              randomFlip: s.randomFlip,
+            },
+          },
     back = memory[set.id];
   return {
     ...s,
@@ -119,7 +160,12 @@ export function selectSet(s: StampToolState, set: StampSet, variant = 0): StampT
 }
 
 /** Scatter and variety settings of a fresh Stamp tool (what their resets return to). */
-export const STAMP_TOOL_DEFAULTS = { sizeJitter: 0.25, toneJitter: 0.2, spacing: 0.8, spread: 0.6 } as const;
+export const STAMP_TOOL_DEFAULTS = {
+  sizeJitter: 0.25,
+  toneJitter: 0.2,
+  spacing: 0.8,
+  spread: 0.6,
+} as const;
 
 export function initialStampState(): StampToolState {
   const base: StampToolState = {
@@ -144,11 +190,20 @@ const STORAGE_KEY = "mapmaker-stamp-tool";
 export function loadStampState(): StampToolState {
   const base = initialStampState();
   try {
-    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "null") as Partial<StampToolState> | null;
+    const saved = JSON.parse(
+      localStorage.getItem(STORAGE_KEY) ?? "null",
+    ) as Partial<StampToolState> | null;
     if (!saved || typeof saved !== "object") return base;
     // Uploaded sets may not be loaded yet: fall back to a built-in one.
-    const merged = { ...base, ...saved, look: { ...base.look, ...saved.look }, memory: saved.memory ?? {} };
-    return stampSet(merged.set) ? merged : { ...merged, set: base.set, variant: 0 };
+    const merged = {
+      ...base,
+      ...saved,
+      look: { ...base.look, ...saved.look },
+      memory: saved.memory ?? {},
+    };
+    return stampSet(merged.set)
+      ? merged
+      : { ...merged, set: base.set, variant: 0 };
   } catch {
     return base;
   }
@@ -186,11 +241,17 @@ export function lookOf(o: MMStamp): StampLook {
 const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
 
 /** One new stamp at `at` (fractions of the map), with the tool's variety. */
-export function makeStamp(s: StampToolState, at: Point, rand: () => number): MMStamp | null {
+export function makeStamp(
+  s: StampToolState,
+  at: Point,
+  rand: () => number,
+): MMStamp | null {
   const set = stampSet(s.set);
   if (!set || set.locked || !set.assets.length) return null;
   const r = () => rand() * 2 - 1,
-    asset = s.randomVariant ? set.assets[Math.floor(rand() * set.assets.length)] : (set.assets[s.variant] ?? set.assets[0]),
+    asset = s.randomVariant
+      ? set.assets[Math.floor(rand() * set.assets.length)]
+      : (set.assets[s.variant] ?? set.assets[0]),
     l = s.look,
     flip = s.randomFlip && rand() < 0.5;
   return {
@@ -244,7 +305,14 @@ export class Scatter {
     const radius = (this.s.spread * this.s.look.size * this.w) / 2,
       a = this.rand() * Math.PI * 2,
       d = Math.sqrt(this.rand()) * radius;
-    return makeStamp(this.s, { x: clamp((x + Math.cos(a) * d) / this.w, 0, 1), y: clamp((y + Math.sin(a) * d) / this.h, 0, 1) }, this.rand);
+    return makeStamp(
+      this.s,
+      {
+        x: clamp((x + Math.cos(a) * d) / this.w, 0, 1),
+        y: clamp((y + Math.sin(a) * d) / this.h, 0, 1),
+      },
+      this.rand,
+    );
   }
   /** Stamps placed by moving the pointer to (x, y). */
   feed(x: number, y: number): MMStamp[] {

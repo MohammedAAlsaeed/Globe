@@ -109,10 +109,18 @@ export function applyFavorite(
  * the paint picked (texture or colour) is kept, only its adjustments reset.
  * A favorite brings back its own paint, as it does when chosen.
  */
-export function brushBase(state: Pick<BrushState, "presetId" | "baseId" | "source">, favorites: FavoriteBrush[]): BrushState {
+export function brushBase(
+  state: Pick<BrushState, "presetId" | "baseId" | "source">,
+  favorites: FavoriteBrush[],
+): BrushState {
   const id = state.presetId ?? state.baseId ?? null,
     // The paint chosen (texture or colour) stays; its adjustments reset.
-    source: PaintSource = { ...DEFAULT_SOURCE, type: state.source.type, color: state.source.color, texture: state.source.texture },
+    source: PaintSource = {
+      ...DEFAULT_SOURCE,
+      type: state.source.type,
+      color: state.source.color,
+      texture: state.source.texture,
+    },
     start = { ...DEFAULT_BRUSH_STATE, source };
   if (!id) return start;
   const fav = favorites.find((f) => f.id === id);
@@ -148,7 +156,12 @@ export function loadBrushState(): BrushState {
       erase: false,
       presetId: typeof s.presetId === "string" ? s.presetId : null,
       // Saved before the base was remembered: the preset it shows, if any.
-      baseId: typeof s.baseId === "string" ? s.baseId : typeof s.presetId === "string" ? s.presetId : null,
+      baseId:
+        typeof s.baseId === "string"
+          ? s.baseId
+          : typeof s.presetId === "string"
+            ? s.presetId
+            : null,
     };
   } catch {
     return DEFAULT_BRUSH_STATE;

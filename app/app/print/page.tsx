@@ -6,7 +6,11 @@ import "@/features/studio/print.css";
  * here, on the server, because during a client-side navigation the browser's
  * address bar only changes after the page has rendered.
  */
-export default async function PrintPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+export default async function PrintPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const handoff = (await searchParams).handoff === "1";
   return <Studio handoff={handoff} />;
 }

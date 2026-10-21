@@ -23,7 +23,12 @@ export async function prepareStampImage(file: File): Promise<Blob> {
   bitmap.close();
 
   // The box around everything that isn't (almost) fully transparent.
-  const { data, width, height } = sctx.getImageData(0, 0, src.width, src.height);
+  const { data, width, height } = sctx.getImageData(
+    0,
+    0,
+    src.width,
+    src.height,
+  );
   let x0 = width,
     y0 = height,
     x1 = -1,
@@ -46,17 +51,28 @@ export async function prepareStampImage(file: File): Promise<Blob> {
   const octx = out.getContext("2d")!;
   octx.imageSmoothingQuality = "high";
   octx.drawImage(src, x0, y0, w, h, 0, 0, out.width, out.height);
-  const webp = await new Promise<Blob | null>((r) => out.toBlob(r, "image/webp", 0.92));
+  const webp = await new Promise<Blob | null>((r) =>
+    out.toBlob(r, "image/webp", 0.92),
+  );
   if (webp && webp.type === "image/webp") return webp;
-  return new Promise<Blob>((resolve, reject) => out.toBlob((b) => (b ? resolve(b) : reject(new Error("encode"))), "image/png"));
+  return new Promise<Blob>((resolve, reject) =>
+    out.toBlob(
+      (b) => (b ? resolve(b) : reject(new Error("encode"))),
+      "image/png",
+    ),
+  );
 }
 
-const baseName = (file: File) => file.name.replace(/\.[^.]+$/, "").slice(0, 80) || "Stamp";
+const baseName = (file: File) =>
+  file.name.replace(/\.[^.]+$/, "").slice(0, 80) || "Stamp";
 
 /** The person's own stamp pack, made on first upload. */
 async function ownPack(): Promise<AssetPack> {
   const packs = await library.packs();
-  return packs.find((p) => !p.official) ?? (await library.createPack({ name: "My stamps" }));
+  return (
+    packs.find((p) => !p.official) ??
+    (await library.createPack({ name: "My stamps" }))
+  );
 }
 
 /**
@@ -64,7 +80,10 @@ async function ownPack(): Promise<AssetPack> {
  * variants of one stamp — and refreshes the catalog. Returns the set id of
  * the first new stamp, to select it.
  */
-export async function uploadStamps(files: File[], asSet: boolean): Promise<string | null> {
+export async function uploadStamps(
+  files: File[],
+  asSet: boolean,
+): Promise<string | null> {
   if (!files.length) return null;
   const pack = await ownPack(),
     setKey = asSet ? `set-${Date.now().toString(36)}` : null;
@@ -73,7 +92,12 @@ export async function uploadStamps(files: File[], asSet: boolean): Promise<strin
     for (const file of files) {
       const blob = await prepareStampImage(file),
         ext = blob.type === "image/webp" ? "webp" : "png",
-        asset = await library.upload(pack.id, blob, `${baseName(file)}.${ext}`, { name: baseName(file), set_key: setKey });
+        asset = await library.upload(
+          pack.id,
+          blob,
+          `${baseName(file)}.${ext}`,
+          { name: baseName(file), set_key: setKey },
+        );
       first ??= `s:${pack.id}:${asset.set_key ?? `one-${asset.id}`}`;
     }
   } finally {

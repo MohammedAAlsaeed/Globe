@@ -17,12 +17,17 @@ export const MAX_CANVAS_SIDE = 32_767;
 
 /** iPhone, iPod, or an iPad (which reports itself as a Mac with touch). */
 export function isAppleMobile(userAgent: string, maxTouchPoints = 0): boolean {
-  return /iPhone|iPad|iPod/i.test(userAgent) || (/Macintosh/i.test(userAgent) && maxTouchPoints > 1);
+  return (
+    /iPhone|iPad|iPod/i.test(userAgent) ||
+    (/Macintosh/i.test(userAgent) && maxTouchPoints > 1)
+  );
 }
 
 /** The largest canvas area (pixels) on a device. */
 export function canvasPixelsFor(userAgent: string, maxTouchPoints = 0): number {
-  return isAppleMobile(userAgent, maxTouchPoints) ? APPLE_MOBILE_CANVAS_PIXELS : DEFAULT_CANVAS_PIXELS;
+  return isAppleMobile(userAgent, maxTouchPoints)
+    ? APPLE_MOBILE_CANVAS_PIXELS
+    : DEFAULT_CANVAS_PIXELS;
 }
 
 /** The largest canvas area (pixels) on this device. Works in workers too. */
@@ -32,6 +37,10 @@ export function maxCanvasPixels(): number {
 }
 
 /** Whether a width × height canvas can be drawn within `limit`. */
-export function canvasFits(width: number, height: number, limit = maxCanvasPixels()): boolean {
+export function canvasFits(
+  width: number,
+  height: number,
+  limit = maxCanvasPixels(),
+): boolean {
   return width * height <= limit && Math.max(width, height) <= MAX_CANVAS_SIDE;
 }

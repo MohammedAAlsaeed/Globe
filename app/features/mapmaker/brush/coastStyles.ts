@@ -180,7 +180,9 @@ const NO_DECORATION: Partial<CoastEffect> = {
  * edits — including decoration settings while the decoration is off). */
 /** The style a coast's settings return to when reset: its preset, or the one it was customized from. */
 export function coastBase(cur: CoastEffect): CoastEffect {
-  return coastStyle(cur.style ?? cur.baseStyle ?? DEFAULT_COAST.style ?? "classic");
+  return coastStyle(
+    cur.style ?? cur.baseStyle ?? DEFAULT_COAST.style ?? "classic",
+  );
 }
 
 export function coastSettings(layer: MMLayer): CoastEffect {

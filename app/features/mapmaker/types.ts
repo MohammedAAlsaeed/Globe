@@ -12,12 +12,7 @@ import type { LineNode } from "./lines/geometry";
 export type { IconId, LineNode };
 export type Point = { x: number; y: number };
 export type Biome =
-  | "forest"
-  | "mountains"
-  | "desert"
-  | "water"
-  | "grass"
-  | "swamp";
+  "forest" | "mountains" | "desert" | "water" | "grass" | "swamp";
 export type PathKind = "river" | "road" | "border";
 export type LabelAlign = "start" | "center" | "end";
 
@@ -571,7 +566,8 @@ export interface MMText extends MMObjectBase, TextLook {
 
 /** Every object kind a layer can hold. Legacy kinds (MMIcon, MMPath,
  * MMLabel) are converted when a map opens (see ./stamps/migrate). */
-export type MMObject = MMBrush | MMStamp | MMLine | MMRegion | MMText | MMPaint | MMLand;
+export type MMObject =
+  MMBrush | MMStamp | MMLine | MMRegion | MMText | MMPaint | MMLand;
 
 /** Brush-layer role (Inkarnate-style). Optional — older layers read as "custom". */
 export type LayerRole = "land" | "water" | "custom";

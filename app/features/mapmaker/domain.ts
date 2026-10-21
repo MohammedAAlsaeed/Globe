@@ -38,7 +38,11 @@ export const ASPECTS: AspectOption[] = [
 ];
 
 /** Fits a cols×rows grid to the resolution tier's long edge, keeping tiles square. */
-export function computeCanvasSize(longEdge: number, cols: number, rows: number) {
+export function computeCanvasSize(
+  longEdge: number,
+  cols: number,
+  rows: number,
+) {
   const ratio = cols / Math.max(1, rows);
   const width = ratio >= 1 ? longEdge : Math.round(longEdge * ratio),
     height = ratio >= 1 ? Math.round(longEdge / ratio) : longEdge;
@@ -71,7 +75,12 @@ export const PATH_KIND_LABEL_KEY: Record<PathKind, string> = {
 export const DEFAULT_BACKGROUND = "#2c5678";
 
 /** Starting settings of the Region and Text tools (what their resets return to). */
-export const TOOL_DEFAULTS = { textureScale: 1, textureRotation: 0, fillOpacity: 0.75, labelSize: 0.03 } as const;
+export const TOOL_DEFAULTS = {
+  textureScale: 1,
+  textureRotation: 0,
+  fillOpacity: 0.75,
+  labelSize: 0.03,
+} as const;
 
 /** Arabic script block — used to auto-detect right-to-left label text. */
 export const ARABIC_RANGE = /[\u0600-\u06FF]/;
@@ -95,8 +104,13 @@ export function createProject(opts: {
   cols: number;
   rows: number;
 }): MMProject {
-  const res = RESOLUTIONS.find((r) => r.key === opts.resolutionTier) ?? RESOLUTIONS[1];
-  const { width, height } = computeCanvasSize(res.longEdge, opts.cols, opts.rows);
+  const res =
+    RESOLUTIONS.find((r) => r.key === opts.resolutionTier) ?? RESOLUTIONS[1];
+  const { width, height } = computeCanvasSize(
+    res.longEdge,
+    opts.cols,
+    opts.rows,
+  );
   return {
     id: crypto.randomUUID(),
     name: opts.name.trim() || "Untitled map",
@@ -109,7 +123,11 @@ export function createProject(opts: {
     background: DEFAULT_BACKGROUND,
     snapToGrid: false,
     // Brush layers first (Water below Land), then a layer for stamps & labels.
-    layers: [createLayer("Water", "water"), createLayer("Land", "land"), createLayer("Layer 1")],
+    layers: [
+      createLayer("Water", "water"),
+      createLayer("Land", "land"),
+      createLayer("Layer 1"),
+    ],
     updatedAt: Date.now(),
   };
 }

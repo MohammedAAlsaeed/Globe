@@ -24,7 +24,7 @@ export function rgba(hex: string, alpha: number) {
 
 const pathCache = new WeakMap<TextGeometry, Path2D>();
 function addOps(target: Path2D | CanvasRenderingContext2D, ops: Ops) {
-  for (let i = 0; i < ops.length; ) {
+  for (let i = 0; i < ops.length;) {
     const op = ops[i];
     if (op === 0) {
       target.moveTo(ops[i + 1], ops[i + 2]);
@@ -36,7 +36,14 @@ function addOps(target: Path2D | CanvasRenderingContext2D, ops: Ops) {
       target.quadraticCurveTo(ops[i + 1], ops[i + 2], ops[i + 3], ops[i + 4]);
       i += 5;
     } else if (op === 3) {
-      target.bezierCurveTo(ops[i + 1], ops[i + 2], ops[i + 3], ops[i + 4], ops[i + 5], ops[i + 6]);
+      target.bezierCurveTo(
+        ops[i + 1],
+        ops[i + 2],
+        ops[i + 3],
+        ops[i + 4],
+        ops[i + 5],
+        ops[i + 6],
+      );
       i += 7;
     } else {
       target.closePath();
@@ -63,7 +70,11 @@ export function textPath(geo: TextGeometry): Path2D {
 }
 
 /** Browser-drawn letters (East Asian, scripts without a shipped font). */
-function drawWeb(ctx: CanvasRenderingContext2D, geo: TextGeometry, paint: (ctx: CanvasRenderingContext2D, text: string) => void) {
+function drawWeb(
+  ctx: CanvasRenderingContext2D,
+  geo: TextGeometry,
+  paint: (ctx: CanvasRenderingContext2D, text: string) => void,
+) {
   for (const w of geo.web) {
     ctx.save();
     ctx.transform(...w.m);
@@ -81,7 +92,11 @@ function deviceScale(ctx: CanvasRenderingContext2D) {
   return Math.hypot(m.a, m.b) || 1;
 }
 
-function strokeStyle(ctx: CanvasRenderingContext2D, look: TextLook, width: number) {
+function strokeStyle(
+  ctx: CanvasRenderingContext2D,
+  look: TextLook,
+  width: number,
+) {
   ctx.lineWidth = width;
   ctx.lineJoin = look.outline.join;
   ctx.miterLimit = 3;
@@ -91,12 +106,20 @@ function strokeStyle(ctx: CanvasRenderingContext2D, look: TextLook, width: numbe
 type Look = Pick<TextLook, "fill" | "fillOpacity" | "outline" | "shadow">;
 
 /** Draws a text. `ctx` is in em units; its own globalAlpha/composite are kept. */
-export function drawText(ctx: CanvasRenderingContext2D, geo: TextGeometry, look: Look) {
+export function drawText(
+  ctx: CanvasRenderingContext2D,
+  geo: TextGeometry,
+  look: Look,
+) {
   if (!geo.ops.length && !geo.web.length) return;
   const path = textPath(geo);
   const scale = deviceScale(ctx);
-  const outline = look.outline.enabled && look.outline.width > 0 && look.outline.opacity > 0;
-  const outsideWidth = look.outline.position === "outside" ? look.outline.width * 2 : look.outline.width;
+  const outline =
+    look.outline.enabled && look.outline.width > 0 && look.outline.opacity > 0;
+  const outsideWidth =
+    look.outline.position === "outside"
+      ? look.outline.width * 2
+      : look.outline.width;
 
   // ---- shadow: a silhouette thrown far off-canvas, so only its shadow lands
   if (look.shadow.enabled && look.shadow.opacity > 0) {
@@ -129,7 +152,8 @@ export function drawText(ctx: CanvasRenderingContext2D, geo: TextGeometry, look:
   const outlineColor = rgba(look.outline.color, 1);
   // ---- outline behind the letters
   if (outline && look.outline.position === "outside") {
-    if (look.fillOpacity < 0.999) drawCutOutline(ctx, geo, path, look, outsideWidth);
+    if (look.fillOpacity < 0.999)
+      drawCutOutline(ctx, geo, path, look, outsideWidth);
     else {
       ctx.save();
       ctx.globalAlpha *= look.outline.opacity;
@@ -174,7 +198,13 @@ export function drawText(ctx: CanvasRenderingContext2D, geo: TextGeometry, look:
 }
 
 /** The outside outline with the letters' shape cut out of it (for faded fills). */
-function drawCutOutline(ctx: CanvasRenderingContext2D, geo: TextGeometry, path: Path2D, look: Look, width: number) {
+function drawCutOutline(
+  ctx: CanvasRenderingContext2D,
+  geo: TextGeometry,
+  path: Path2D,
+  look: Look,
+  width: number,
+) {
   const m = ctx.getTransform();
   const pad = width;
   const { x0, y0, x1, y1 } = geo.bounds;
@@ -216,13 +246,24 @@ function drawCutOutline(ctx: CanvasRenderingContext2D, geo: TextGeometry, path: 
 }
 
 /** Hit area: the letters, their outline and a little more, so small names are easy to click. */
-export function hitText(ctx: CanvasRenderingContext2D, geo: TextGeometry, look: Pick<TextLook, "outline">, color: string, box: boolean, minPx = 8) {
+export function hitText(
+  ctx: CanvasRenderingContext2D,
+  geo: TextGeometry,
+  look: Pick<TextLook, "outline">,
+  color: string,
+  box: boolean,
+  minPx = 8,
+) {
   const path = textPath(geo);
   const scale = deviceScale(ctx);
   ctx.fillStyle = color;
   ctx.strokeStyle = color;
   ctx.fill(path);
-  ctx.lineWidth = Math.max(minPx / scale, look.outline.enabled ? look.outline.width * 2 : 0, 0.15);
+  ctx.lineWidth = Math.max(
+    minPx / scale,
+    look.outline.enabled ? look.outline.width * 2 : 0,
+    0.15,
+  );
   ctx.lineJoin = "round";
   ctx.stroke(path);
   // Straight texts: the block's box too (spaces, thin letters). Curved ones

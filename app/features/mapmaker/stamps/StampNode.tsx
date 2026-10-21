@@ -34,7 +34,8 @@ type Handlers = {
 export const STAMP_IMAGE = "stampImage";
 
 /** Device pixels per CSS pixel, capped (sharp on retina, not wasteful). */
-const dpr = () => (typeof window === "undefined" ? 1 : Math.min(2, window.devicePixelRatio || 1));
+const dpr = () =>
+  typeof window === "undefined" ? 1 : Math.min(2, window.devicePixelRatio || 1);
 
 export const StampNode = memo(function StampNode({
   o,
@@ -79,7 +80,13 @@ export const StampNode = memo(function StampNode({
   const a = ((shadow?.angle ?? 0) * Math.PI) / 180,
     d = (shadow?.distance ?? 0) * w;
   return (
-    <Group {...handlers} listening={handlers?.listening ?? false} x={o.x * W} y={o.y * H} rotation={o.rotation}>
+    <Group
+      {...handlers}
+      listening={handlers?.listening ?? false}
+      x={o.x * W}
+      y={o.y * H}
+      rotation={o.rotation}
+    >
       {image ? (
         <KonvaImage
           {...flip}
@@ -97,7 +104,13 @@ export const StampNode = memo(function StampNode({
         />
       ) : (
         // Missing or still loading: a faint box, so it can still be selected.
-        <Rect {...flip} stroke="rgba(255,255,255,0.5)" dash={[4, 3]} strokeWidth={1} fill="rgba(255,255,255,0.05)" />
+        <Rect
+          {...flip}
+          stroke="rgba(255,255,255,0.5)"
+          dash={[4, 3]}
+          strokeWidth={1}
+          fill="rgba(255,255,255,0.05)"
+        />
       )}
     </Group>
   );

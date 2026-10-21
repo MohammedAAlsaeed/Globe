@@ -20,7 +20,14 @@ import { useMemo, useRef, useState } from "react";
 import type Konva from "konva";
 import { Circle, Group, Line, Rect, Shape } from "react-konva";
 import type { MMLine } from "../types";
-import { insertNode, moveHandle, nearest, toggleNodeType, type LineNode, type Vec } from "./geometry";
+import {
+  insertNode,
+  moveHandle,
+  nearest,
+  toggleNodeType,
+  type LineNode,
+  type Vec,
+} from "./geometry";
 import { tracePath } from "./render";
 
 const ACCENT = "#f2a65a",
@@ -50,12 +57,18 @@ export function LineNodeEditor({
 }) {
   // The draft belongs to one version of the line: a new version (undo, a
   // panel edit, the committed drag) drops it.
-  const [draftOf, setDraftOf] = useState<{ line: MMLine; nodes: LineNode[] } | null>(null);
+  const [draftOf, setDraftOf] = useState<{
+    line: MMLine;
+    nodes: LineNode[];
+  } | null>(null);
   const draft = draftOf && draftOf.line === line ? draftOf.nodes : null;
   const nodes = draft ?? line.nodes;
   // Where the drag began (written only by event handlers).
   const dragStart = useRef<{ nodes: LineNode[]; at: Vec } | null>(null);
-  const sel = useMemo(() => new Set(selected.filter((i) => i < nodes.length)), [selected, nodes.length]);
+  const sel = useMemo(
+    () => new Set(selected.filter((i) => i < nodes.length)),
+    [selected, nodes.length],
+  );
   const single = sel.size === 1 ? [...sel][0] : -1;
 
   const update = (next: LineNode[]) => {
@@ -82,7 +95,11 @@ export function LineNodeEditor({
     const dx = (target.x - start.at.x) / W,
       dy = (target.y - start.at.y) / H,
       moving = sel.has(i) ? sel : new Set([i]);
-    update(start.nodes.map((nd, k) => (moving.has(k) ? { ...nd, x: nd.x + dx, y: nd.y + dy } : nd)));
+    update(
+      start.nodes.map((nd, k) =>
+        moving.has(k) ? { ...nd, x: nd.x + dx, y: nd.y + dy } : nd,
+      ),
+    );
   };
 
   // ---- handles ----------------------------------------------------------------------
@@ -93,10 +110,18 @@ export function LineNodeEditor({
   const dragEnd = () => {
     if (draft) commit(draft);
   };
-  const handleDragMove = (i: number, which: "hi" | "ho", e: Konva.KonvaEventObject<DragEvent>) => {
+  const handleDragMove = (
+    i: number,
+    which: "hi" | "ho",
+    e: Konva.KonvaEventObject<DragEvent>,
+  ) => {
     const nd = nodes[i],
       rel = { x: e.target.x() / W - nd.x, y: e.target.y() / H - nd.y };
-    update(nodes.map((n, k) => (k === i ? moveHandle(n, which, rel, W, H, e.evt.altKey) : n)));
+    update(
+      nodes.map((n, k) =>
+        k === i ? moveHandle(n, which, rel, W, H, e.evt.altKey) : n,
+      ),
+    );
   };
 
   // ---- the path: click to add a node ---------------------------------------------------
@@ -118,7 +143,8 @@ export function LineNodeEditor({
     <Group name="lineNodeEditor">
       <Shape
         sceneFunc={(ctx) => {
-          const c = (ctx as unknown as { _context: CanvasRenderingContext2D })._context;
+          const c = (ctx as unknown as { _context: CanvasRenderingContext2D })
+            ._context;
           c.beginPath();
           tracePath(c, nodes, line.closed, W, H);
           c.lineWidth = 1.2;
@@ -127,7 +153,8 @@ export function LineNodeEditor({
           c.stroke();
         }}
         hitFunc={(ctx, shape) => {
-          const c = (ctx as unknown as { _context: CanvasRenderingContext2D })._context;
+          const c = (ctx as unknown as { _context: CanvasRenderingContext2D })
+            ._context;
           c.beginPath();
           tracePath(c, nodes, line.closed, W, H);
           c.lineWidth = 12;
@@ -151,14 +178,24 @@ export function LineNodeEditor({
           // Only handles that exist (double-click a corner to give it some);
           // an end of an open line has none on its outer side.
           if (!h || (Math.abs(h.x) < 1e-9 && Math.abs(h.y) < 1e-9)) return null;
-          if (!line.closed && ((which === "hi" && single === 0) || (which === "ho" && single === nodes.length - 1))) return null;
+          if (
+            !line.closed &&
+            ((which === "hi" && single === 0) ||
+              (which === "ho" && single === nodes.length - 1))
+          )
+            return null;
           const hx = (nd.x + (h?.x ?? 0)) * W,
             hy = (nd.y + (h?.y ?? 0)) * H,
             nx = nd.x * W,
             ny = nd.y * H;
           return (
             <Group key={which}>
-              <Line points={[nx, ny, hx, hy]} stroke={ACCENT} strokeWidth={1} listening={false} />
+              <Line
+                points={[nx, ny, hx, hy]}
+                stroke={ACCENT}
+                strokeWidth={1}
+                listening={false}
+              />
               <Circle
                 x={hx}
                 y={hy}
@@ -198,15 +235,18 @@ export function LineNodeEditor({
             onPointerDown: (e: Konva.KonvaEventObject<PointerEvent>) => {
               e.cancelBubble = true;
               if (e.evt.button !== 0) return;
-              if (e.evt.shiftKey) onSelect(on ? [...sel].filter((k) => k !== i) : [...sel, i]);
+              if (e.evt.shiftKey)
+                onSelect(on ? [...sel].filter((k) => k !== i) : [...sel, i]);
               else if (!on) onSelect([i]);
             },
             onDblClick: (e: Konva.KonvaEventObject<MouseEvent>) => {
               e.cancelBubble = true;
               commit(toggleNodeType(nodes, i, line.closed, W, H));
             },
-            onDragStart: (e: Konva.KonvaEventObject<DragEvent>) => nodeDragStart(i, e),
-            onDragMove: (e: Konva.KonvaEventObject<DragEvent>) => nodeDragMove(i, e),
+            onDragStart: (e: Konva.KonvaEventObject<DragEvent>) =>
+              nodeDragStart(i, e),
+            onDragMove: (e: Konva.KonvaEventObject<DragEvent>) =>
+              nodeDragMove(i, e),
             onDragEnd: dragEnd,
             onMouseEnter: (e: Konva.KonvaEventObject<MouseEvent>) => {
               const s = e.target.getStage()?.container();
@@ -217,15 +257,22 @@ export function LineNodeEditor({
               if (s) s.style.cursor = "";
             },
           };
-          // Smooth nodes are round, corners square (as in vector editors);
-          // the first node is a little larger, to show where the line starts.
-          const size = i === 0 ? r * 1.25 : r;
-          return nd.t === "smooth" ? (
-            <Circle key={i} {...common} radius={size} />
-          ) : (
-            <Rect key={i} {...common} width={size * 2} height={size * 2} offsetX={size} offsetY={size} />
-          );
-        })}
+        // Smooth nodes are round, corners square (as in vector editors);
+        // the first node is a little larger, to show where the line starts.
+        const size = i === 0 ? r * 1.25 : r;
+        return nd.t === "smooth" ? (
+          <Circle key={i} {...common} radius={size} />
+        ) : (
+          <Rect
+            key={i}
+            {...common}
+            width={size * 2}
+            height={size * 2}
+            offsetX={size}
+            offsetY={size}
+          />
+        );
+      })}
     </Group>
   );
 }

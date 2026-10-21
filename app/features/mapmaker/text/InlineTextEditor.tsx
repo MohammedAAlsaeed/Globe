@@ -21,15 +21,25 @@ import { scriptsIn } from "./scripts";
 /** The browser font stack that matches the engine's choice of fonts. */
 export function cssStack(look: TextLook, text: string): string {
   const profile = fontProfile(look.profile);
-  const arabicFirst = scriptsIn(text).has("arabic") && !/^[\s\d\p{P}]*\p{Script=Latin}/u.test(text);
-  const order = arabicFirst ? (["arabic", "latin"] as const) : (["latin", "arabic"] as const);
+  const arabicFirst =
+    scriptsIn(text).has("arabic") &&
+    !/^[\s\d\p{P}]*\p{Script=Latin}/u.test(text);
+  const order = arabicFirst
+    ? (["arabic", "latin"] as const)
+    : (["latin", "arabic"] as const);
   const ids: string[] = [];
   if (look.font) ids.push(look.font);
   for (const s of order) {
     const f = profileSlot(profile, s)?.font;
     if (f) ids.push(f);
   }
-  for (const s of ["greek", "cyrillic", "hebrew", "devanagari", "cjk"] as const) {
+  for (const s of [
+    "greek",
+    "cyrillic",
+    "hebrew",
+    "devanagari",
+    "cjk",
+  ] as const) {
     const f = profileSlot(profile, s)?.font;
     if (f) ids.push(f);
   }
@@ -95,7 +105,12 @@ export function InlineTextEditor({
     const w = el.offsetWidth,
       h = el.offsetHeight;
     const rtl = getComputedStyle(el).direction === "rtl";
-    const align = look.align === "center" || look.align === "left" || look.align === "right" ? look.align : (look.align === "start") !== rtl ? "left" : "right";
+    const align =
+      look.align === "center" || look.align === "left" || look.align === "right"
+        ? look.align
+        : (look.align === "start") !== rtl
+          ? "left"
+          : "right";
     const ox = align === "center" ? w / 2 : align === "left" ? 0 : w;
     el.style.left = `${x - ox}px`;
     el.style.top = `${y - h / 2}px`;
@@ -118,7 +133,10 @@ export function InlineTextEditor({
       onPointerDown={(e) => e.stopPropagation()}
       onKeyDown={(e) => {
         e.stopPropagation();
-        if (e.key === "Escape" || (e.key === "Enter" && (e.ctrlKey || e.metaKey))) {
+        if (
+          e.key === "Escape" ||
+          (e.key === "Enter" && (e.ctrlKey || e.metaKey))
+        ) {
           e.preventDefault();
           done.current();
         }

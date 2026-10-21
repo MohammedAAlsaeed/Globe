@@ -8,8 +8,8 @@ import { Suspense, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useTranslation } from "react-i18next";
-import {CreateMapModal} from "@/features/mapmaker/CreateMapModal";
-import {SiteHeader} from "@/features/account/ui";
+import { CreateMapModal } from "@/features/mapmaker/CreateMapModal";
+import { SiteHeader } from "@/features/account/ui";
 
 function VerifiedNotice() {
   const { t } = useTranslation();
@@ -49,7 +49,10 @@ export default function Home() {
           <div className="landing-path">
             <h2>{t("mmCreateCardTitle")}</h2>
             <p>{t("mmCreateCardText")}</p>
-            <button className="site-btn quiet small" onClick={() => setCreating(true)}>
+            <button
+              className="site-btn quiet small"
+              onClick={() => setCreating(true)}
+            >
               {t("mmCreateCardButton")}
             </button>
           </div>

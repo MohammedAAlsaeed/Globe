@@ -120,7 +120,8 @@ export const ICONS: Record<IconId, IconDefinition> = {
   },
   capital: {
     id: "capital",
-    stroke: "M3 21L3 15L7 15L7 21M9 21L9 12L13 12L13 21M15 21L15 16L19 16L19 21",
+    stroke:
+      "M3 21L3 15L7 15L7 21M9 21L9 12L13 12L13 21M15 21L15 16L19 16L19 21",
     fill: "M12 2L13.2 4.8L16 6L13.2 7.2L12 10L10.8 7.2L8 6L10.8 4.8Z",
     labelKey: "capital",
   },
@@ -132,8 +133,7 @@ export const ICONS: Record<IconId, IconDefinition> = {
   },
   tower: {
     id: "tower",
-    stroke:
-      "M9 20L9 8L15 8L15 20ZM9 8L7 5L17 5L15 8M11 20L11 15L13 15L13 20",
+    stroke: "M9 20L9 8L15 8L15 20ZM9 8L7 5L17 5L15 8M11 20L11 15L13 15L13 20",
     labelKey: "tower",
   },
   temple: {
@@ -144,8 +144,7 @@ export const ICONS: Record<IconId, IconDefinition> = {
   },
   lighthouse: {
     id: "lighthouse",
-    stroke:
-      "M10 20L10 10L12 3L14 10L14 20ZM8 20L16 20M10 13L14 13M10 16L14 16",
+    stroke: "M10 20L10 10L12 3L14 10L14 20ZM8 20L16 20M10 13L14 13M10 16L14 16",
     fill: "M12 3L15 1.5L15 4.5Z",
     labelKey: "lighthouse",
   },
@@ -157,20 +156,17 @@ export const ICONS: Record<IconId, IconDefinition> = {
   },
   bridge: {
     id: "bridge",
-    stroke:
-      "M2 16Q12 6 22 16M4 16L4 20M9 16L9 20M14 16L14 20M19 16L19 20",
+    stroke: "M2 16Q12 6 22 16M4 16L4 20M9 16L9 20M14 16L14 20M19 16L19 20",
     labelKey: "bridge",
   },
   mine: {
     id: "mine",
-    stroke:
-      "M4 20L4 12L8 8L16 8L20 12L20 20ZM4 14L20 14M9 20L9 14M15 20L15 14",
+    stroke: "M4 20L4 12L8 8L16 8L20 12L20 20ZM4 14L20 14M9 20L9 14M15 20L15 14",
     labelKey: "mine",
   },
   farm: {
     id: "farm",
-    stroke:
-      "M4 20L4 11L12 5L20 11L20 20ZM4 11L20 11M9 20L9 14L15 14L15 20",
+    stroke: "M4 20L4 11L12 5L20 11L20 20ZM4 11L20 11M9 20L9 14L15 14L15 20",
     labelKey: "farm",
   },
   ship: {

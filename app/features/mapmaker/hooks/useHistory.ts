@@ -18,7 +18,12 @@ interface HistoryState {
   run: { key: string; at: number } | null;
 }
 type HistoryAction =
-  | { type: "update"; updater: (p: MMProject) => MMProject; coalesce?: string; at: number }
+  | {
+      type: "update";
+      updater: (p: MMProject) => MMProject;
+      coalesce?: string;
+      at: number;
+    }
   | { type: "undo" }
   | { type: "redo" }
   | { type: "seal" };
@@ -26,16 +31,32 @@ type HistoryAction =
 /** Updates with the same key this close together (ms) merge into one step. */
 export const COALESCE_MS = 1200;
 
-export function historyReducer(state: HistoryState, action: HistoryAction): HistoryState {
+export function historyReducer(
+  state: HistoryState,
+  action: HistoryAction,
+): HistoryState {
   if (action.type === "update") {
     const next = action.updater(state.present);
     if (next === state.present) return state;
-    const run = action.coalesce ? { key: action.coalesce, at: action.at } : null;
-    if (run && state.run && state.run.key === run.key && action.at - state.run.at < COALESCE_MS)
+    const run = action.coalesce
+      ? { key: action.coalesce, at: action.at }
+      : null;
+    if (
+      run &&
+      state.run &&
+      state.run.key === run.key &&
+      action.at - state.run.at < COALESCE_MS
+    )
       return { present: next, past: state.past, future: [], run };
-    return { present: next, past: [...state.past, state.present].slice(-60), future: [], run };
+    return {
+      present: next,
+      past: [...state.past, state.present].slice(-60),
+      future: [],
+      run,
+    };
   }
-  if (action.type === "seal") return state.run ? { ...state, run: null } : state;
+  if (action.type === "seal")
+    return state.run ? { ...state, run: null } : state;
   if (action.type === "undo") {
     if (!state.past.length) return state;
     return {
@@ -47,7 +68,12 @@ export function historyReducer(state: HistoryState, action: HistoryAction): Hist
   }
   if (action.type === "redo") {
     if (!state.future.length) return state;
-    return { present: state.future[0], past: [...state.past, state.present], future: state.future.slice(1), run: null };
+    return {
+      present: state.future[0],
+      past: [...state.past, state.present],
+      future: state.future.slice(1),
+      run: null,
+    };
   }
   return state;
 }
@@ -60,7 +86,8 @@ export function useHistory(initial: MMProject) {
     run: null,
   });
   const updateProject = useCallback(
-    (updater: (p: MMProject) => MMProject, coalesce?: string) => dispatchHistory({ type: "update", updater, coalesce, at: Date.now() }),
+    (updater: (p: MMProject) => MMProject, coalesce?: string) =>
+      dispatchHistory({ type: "update", updater, coalesce, at: Date.now() }),
     [],
   );
   const undo = useCallback(() => dispatchHistory({ type: "undo" }), []);

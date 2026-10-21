@@ -2,32 +2,62 @@
  * Encodes a rendered map canvas in one of the image formats (see
  * ./imageFormats for the formats and the pure encoders).
  */
-import { encodeTiff, jpegWithDpi, pngWithDpi, type ImageFormat } from "./imageFormats";
+import {
+  encodeTiff,
+  jpegWithDpi,
+  pngWithDpi,
+  type ImageFormat,
+} from "./imageFormats";
 
-function toBlob(canvas: HTMLCanvasElement, type: string, quality?: number): Promise<Blob> {
-  return new Promise((resolve, reject) => canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("encodeFailed"))), type, quality));
+function toBlob(
+  canvas: HTMLCanvasElement,
+  type: string,
+  quality?: number,
+): Promise<Blob> {
+  return new Promise((resolve, reject) =>
+    canvas.toBlob(
+      (b) => (b ? resolve(b) : reject(new Error("encodeFailed"))),
+      type,
+      quality,
+    ),
+  );
 }
 
 export async function encodeMapImage(
   canvas: HTMLCanvasElement,
   format: ImageFormat,
-  { quality = 0.92, dpi = 300, title = "Map" }: { quality?: number; dpi?: number; title?: string } = {},
+  {
+    quality = 0.92,
+    dpi = 300,
+    title = "Map",
+  }: { quality?: number; dpi?: number; title?: string } = {},
 ): Promise<Blob> {
   switch (format) {
     case "png": {
-      const bytes = new Uint8Array(await (await toBlob(canvas, "image/png")).arrayBuffer());
-      return new Blob([pngWithDpi(bytes, dpi) as BlobPart], { type: "image/png" });
+      const bytes = new Uint8Array(
+        await (await toBlob(canvas, "image/png")).arrayBuffer(),
+      );
+      return new Blob([pngWithDpi(bytes, dpi) as BlobPart], {
+        type: "image/png",
+      });
     }
     case "jpeg": {
-      const bytes = new Uint8Array(await (await toBlob(canvas, "image/jpeg", quality)).arrayBuffer());
-      return new Blob([jpegWithDpi(bytes, dpi) as BlobPart], { type: "image/jpeg" });
+      const bytes = new Uint8Array(
+        await (await toBlob(canvas, "image/jpeg", quality)).arrayBuffer(),
+      );
+      return new Blob([jpegWithDpi(bytes, dpi) as BlobPart], {
+        type: "image/jpeg",
+      });
     }
     case "webp":
       return toBlob(canvas, "image/webp", quality);
     case "tiff": {
       const ctx = canvas.getContext("2d")!,
         data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
-      return new Blob([encodeTiff(data, canvas.width, canvas.height, dpi) as BlobPart], { type: "image/tiff" });
+      return new Blob(
+        [encodeTiff(data, canvas.width, canvas.height, dpi) as BlobPart],
+        { type: "image/tiff" },
+      );
     }
     case "pdf": {
       const { PDFDocument } = await import("pdf-lib");
@@ -35,12 +65,15 @@ export async function encodeMapImage(
       pdf.setTitle(title);
       pdf.setCreator("Al-Idrisi Atelier");
       // Compressed natively, a strip at a time: a big map no longer freezes the page.
-      const { embedPixels, canvasPixels } = await import("../../../lib/pdfImage");
+      const { embedPixels, canvasPixels } =
+        await import("../../../lib/pdfImage");
       const image = await embedPixels(pdf, canvasPixels(canvas)),
         w = (canvas.width / dpi) * 72,
         h = (canvas.height / dpi) * 72;
       image.draw(pdf.addPage([w, h]), { x: 0, y: 0, width: w, height: h });
-      return new Blob([new Uint8Array(await pdf.save())], { type: "application/pdf" });
+      return new Blob([new Uint8Array(await pdf.save())], {
+        type: "application/pdf",
+      });
     }
     case "svg":
       // Made from the map's parts (./vectorExport), not from one picture.

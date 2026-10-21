@@ -9,7 +9,13 @@ import { DEFAULT_TEXT_PATH, tidyLook } from "./state";
 
 /** The patch that moves a text by (dx, dy) map fractions (its path too). */
 export function shiftText(o: MMText, dx: number, dy: number): Partial<MMText> {
-  return { x: o.x + dx, y: o.y + dy, ...(o.path ? { path: { ...o.path, nodes: shiftNodes(o.path.nodes, dx, dy) } } : {}) };
+  return {
+    x: o.x + dx,
+    y: o.y + dy,
+    ...(o.path
+      ? { path: { ...o.path, nodes: shiftNodes(o.path.nodes, dx, dy) } }
+      : {}),
+  };
 }
 
 /**
@@ -17,14 +23,21 @@ export function shiftText(o: MMText, dx: number, dy: number): Partial<MMText> {
  * as the text, turned like it (map fractions). `widthEm` is the text's
  * width in em; `aspect` the map's height / width.
  */
-export function defaultTextPath(o: MMText, widthEm: number, aspect: number): LineNode[] {
+export function defaultTextPath(
+  o: MMText,
+  widthEm: number,
+  aspect: number,
+): LineNode[] {
   const half = Math.max(0.03, (widthEm * o.size) / 2) * 1.15;
   const r = (o.rotation * Math.PI) / 180,
     cos = Math.cos(r),
     sin = Math.sin(r);
   const bow = half * 0.35;
   // Local points (map-width units), then into map fractions.
-  const at = (u: number, v: number) => ({ x: o.x + u * cos - v * sin, y: o.y + (u * sin + v * cos) / aspect });
+  const at = (u: number, v: number) => ({
+    x: o.x + u * cos - v * sin,
+    y: o.y + (u * sin + v * cos) / aspect,
+  });
   const a = at(-half, bow * 0.4),
     m = at(0, -bow * 0.6),
     b = at(half, bow * 0.4);
@@ -32,7 +45,13 @@ export function defaultTextPath(o: MMText, widthEm: number, aspect: number): Lin
     hy = ((half / 2) * sin) / aspect;
   return [
     { x: a.x, y: a.y },
-    { x: m.x, y: m.y, t: "smooth", hi: { x: -hx, y: -hy }, ho: { x: hx, y: hy } },
+    {
+      x: m.x,
+      y: m.y,
+      t: "smooth",
+      hi: { x: -hx, y: -hy },
+      ho: { x: hx, y: hy },
+    },
     { x: b.x, y: b.y },
   ];
 }
@@ -46,7 +65,12 @@ export function pathMiddle(nodes: LineNode[]) {
 }
 
 /** A new text following a line (a river's name along the river). The line stays. */
-export function textAlongLine(line: MMLine, look: TextLook, text: string, styleId: string | null): MMText {
+export function textAlongLine(
+  line: MMLine,
+  look: TextLook,
+  text: string,
+  styleId: string | null,
+): MMText {
   const nodes = line.nodes.map((n) => ({ ...n }));
   const mid = pathMiddle(nodes);
   return {
@@ -59,13 +83,26 @@ export function textAlongLine(line: MMLine, look: TextLook, text: string, styleI
     boxWidth: null,
     ...tidyLook(look),
     curveMode: "path",
-    path: { ...DEFAULT_TEXT_PATH, nodes, side: "above", baseline: 0.15 + (line.mode === "color" ? line.stroke.width / 2 / look.size : line.stamp.size / 2 / look.size) },
+    path: {
+      ...DEFAULT_TEXT_PATH,
+      nodes,
+      side: "above",
+      baseline:
+        0.15 +
+        (line.mode === "color"
+          ? line.stroke.width / 2 / look.size
+          : line.stamp.size / 2 / look.size),
+    },
     styleId,
   };
 }
 
 /** Where a text sits relative to a stamp, for attaching it. */
-export function attachTo(text: MMText, stampId: string, stamp: { x: number; y: number }): MMText["attach"] {
+export function attachTo(
+  text: MMText,
+  stampId: string,
+  stamp: { x: number; y: number },
+): MMText["attach"] {
   return { to: stampId, dx: text.x - stamp.x, dy: text.y - stamp.y };
 }
 
@@ -97,18 +134,27 @@ export function followStamps(prev: MMProject, next: MMProject): MMProject {
         return { ...o, attach: null };
       }
       const old = before.get(o.id);
-      const textMoved = !old || old.kind !== "text" || old.x !== o.x || old.y !== o.y;
+      const textMoved =
+        !old || old.kind !== "text" || old.x !== o.x || old.y !== o.y;
       const wantX = stamp.x + o.attach.dx,
         wantY = stamp.y + o.attach.dy;
       if (textMoved) {
         // Moved by hand: keep the new place relative to the stamp.
-        if (old && old.kind === "text" && (Math.abs(o.x - wantX) > 1e-9 || Math.abs(o.y - wantY) > 1e-9)) {
+        if (
+          old &&
+          old.kind === "text" &&
+          (Math.abs(o.x - wantX) > 1e-9 || Math.abs(o.y - wantY) > 1e-9)
+        ) {
           layerChanged = true;
-          return { ...o, attach: { to: o.attach.to, dx: o.x - stamp.x, dy: o.y - stamp.y } };
+          return {
+            ...o,
+            attach: { to: o.attach.to, dx: o.x - stamp.x, dy: o.y - stamp.y },
+          };
         }
         return o;
       }
-      if (Math.abs(o.x - wantX) < 1e-9 && Math.abs(o.y - wantY) < 1e-9) return o;
+      if (Math.abs(o.x - wantX) < 1e-9 && Math.abs(o.y - wantY) < 1e-9)
+        return o;
       layerChanged = true;
       return { ...o, ...shiftText(o, wantX - o.x, wantY - o.y) };
     });
@@ -120,7 +166,10 @@ export function followStamps(prev: MMProject, next: MMProject): MMProject {
 }
 
 /** Copies of attached texts follow the copy of their stamp, or nothing. */
-export function remapAttachments(clones: MMObject[], idMap: Map<string, string>): MMObject[] {
+export function remapAttachments(
+  clones: MMObject[],
+  idMap: Map<string, string>,
+): MMObject[] {
   return clones.map((c) => {
     if (c.kind !== "text" || !c.attach) return c;
     const to = idMap.get(c.attach.to);

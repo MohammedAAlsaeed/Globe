@@ -34,7 +34,10 @@ export interface VectorArt {
   parts: ArtPart[];
 }
 
-type Cmd = { op: "M" | "L"; x: number; y: number } | { op: "Q"; cx: number; cy: number; x: number; y: number } | { op: "Z" };
+type Cmd =
+  | { op: "M" | "L"; x: number; y: number }
+  | { op: "Q"; cx: number; cy: number; x: number; y: number }
+  | { op: "Z" };
 interface RawPart {
   role: PartRole;
   cmds: Cmd[];
@@ -76,7 +79,15 @@ export class Pen {
     return out;
   }
   /** Points around an ellipse, with a random radial wobble (blobs, canopies). */
-  blob(cx: number, cy: number, rx: number, ry: number, n: number, wobble: number, start = 0): Pt[] {
+  blob(
+    cx: number,
+    cy: number,
+    rx: number,
+    ry: number,
+    n: number,
+    wobble: number,
+    start = 0,
+  ): Pt[] {
     const out: Pt[] = [];
     for (let i = 0; i < n; i++) {
       const a = start + (i / n) * Math.PI * 2,
@@ -90,11 +101,23 @@ export class Pen {
     this.add({ role, cmds: toCmds(pts, true, smooth) });
   }
   /** An ink line (open unless `closed`). */
-  line(pts: Pt[], opts: { width?: number; closed?: boolean; smooth?: boolean } = {}) {
-    this.add({ role: "ink", cmds: toCmds(pts, !!opts.closed, !!opts.smooth), width: opts.width ?? this.ink });
+  line(
+    pts: Pt[],
+    opts: { width?: number; closed?: boolean; smooth?: boolean } = {},
+  ) {
+    this.add({
+      role: "ink",
+      cmds: toCmds(pts, !!opts.closed, !!opts.smooth),
+      width: opts.width ?? this.ink,
+    });
   }
   /** A filled shape outlined in ink — the most common stamp part. */
-  inked(role: Exclude<PartRole, "ink">, pts: Pt[], smooth = false, width?: number) {
+  inked(
+    role: Exclude<PartRole, "ink">,
+    pts: Pt[],
+    smooth = false,
+    width?: number,
+  ) {
     this.shape(role, pts, smooth);
     this.line(pts, { closed: true, smooth, width });
   }
@@ -151,7 +174,11 @@ export class Pen {
 function toCmds(pts: Pt[], closed: boolean, smooth: boolean): Cmd[] {
   if (pts.length === 0) return [];
   if (!smooth || pts.length < 3) {
-    const cmds: Cmd[] = pts.map(([x, y], i) => ({ op: i === 0 ? "M" : "L", x, y }));
+    const cmds: Cmd[] = pts.map(([x, y], i) => ({
+      op: i === 0 ? "M" : "L",
+      x,
+      y,
+    }));
     if (closed) cmds.push({ op: "Z" });
     return cmds;
   }

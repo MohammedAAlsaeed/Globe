@@ -19,23 +19,50 @@ export const MAX_POSTER_PIXELS = 90_000_000;
  * and never a canvas this device can't draw (an iPhone or iPad stops at
  * about 16 MP — see lib/canvasLimits).
  */
-export function printScale(plan: PosterPlan, sourceWidthPx: number, maxDpi = 300, maxPixels = Math.min(MAX_POSTER_PIXELS, maxCanvasPixels())): number {
-  const native = plan.artwork.map.width > 0 ? sourceWidthPx / plan.artwork.map.width : maxDpi / 25.4,
-    byPixels = Math.sqrt(maxPixels / Math.max(1, plan.canvas.width * plan.canvas.height)),
-    bySide = MAX_CANVAS_SIDE / Math.max(1, plan.canvas.width, plan.canvas.height);
-  return Math.min(Math.max(0.5, Math.min(maxDpi / 25.4, native)), byPixels, bySide);
+export function printScale(
+  plan: PosterPlan,
+  sourceWidthPx: number,
+  maxDpi = 300,
+  maxPixels = Math.min(MAX_POSTER_PIXELS, maxCanvasPixels()),
+): number {
+  const native =
+      plan.artwork.map.width > 0
+        ? sourceWidthPx / plan.artwork.map.width
+        : maxDpi / 25.4,
+    byPixels = Math.sqrt(
+      maxPixels / Math.max(1, plan.canvas.width * plan.canvas.height),
+    ),
+    bySide =
+      MAX_CANVAS_SIDE / Math.max(1, plan.canvas.width, plan.canvas.height);
+  return Math.min(
+    Math.max(0.5, Math.min(maxDpi / 25.4, native)),
+    byPixels,
+    bySide,
+  );
 }
 
 /** The map's detail as printed (PPI): its own pixels, at most 300, or fewer where the canvas is capped. */
-export function printedPpi(plan: PosterPlan, sourceWidthPx: number, maxPixels?: number): number {
+export function printedPpi(
+  plan: PosterPlan,
+  sourceWidthPx: number,
+  maxPixels?: number,
+): number {
   if (!(plan.artwork.map.width > 0)) return 0;
   const native = sourceWidthPx / (plan.artwork.map.width / 25.4);
-  return Math.min(native, printScale(plan, sourceWidthPx, 300, maxPixels) * 25.4);
+  return Math.min(
+    native,
+    printScale(plan, sourceWidthPx, 300, maxPixels) * 25.4,
+  );
 }
 
 const ARABIC = /[؀-ۿ]/;
 
-function frame(ctx: CanvasRenderingContext2D, plan: PosterPlan, s: PosterSettings, k: number) {
+function frame(
+  ctx: CanvasRenderingContext2D,
+  plan: PosterPlan,
+  s: PosterSettings,
+  k: number,
+) {
   const { artwork, bleed } = plan,
     m = artwork.map,
     b = artwork.border,
@@ -44,7 +71,10 @@ function frame(ctx: CanvasRenderingContext2D, plan: PosterPlan, s: PosterSetting
     x = (bleed + m.x - gap) * k,
     y = (bleed + m.y - gap) * k,
     w = (m.width + 2 * gap) * k,
-    h = (artwork.title ? artwork.title.y + artwork.title.height - m.y + 2 * gap : m.height + 2 * gap) * k,
+    h =
+      (artwork.title
+        ? artwork.title.y + artwork.title.height - m.y + 2 * gap
+        : m.height + 2 * gap) * k,
     unit = artwork.width * k * 0.0012;
   ctx.save();
   ctx.strokeStyle = s.frameColor;
@@ -69,14 +99,26 @@ function frame(ctx: CanvasRenderingContext2D, plan: PosterPlan, s: PosterSetting
         step = Math.max(unit * 14, Math.min(bw, bh) / 40);
       ctx.lineWidth = unit * 0.6;
       ctx.strokeRect(bx, by, bw, bh);
-      for (let i = 0, t = 0; t < bw; i++, t += step) if (i % 2 === 0) {
-        ctx.fillRect(bx + t, by, Math.min(step, bw - t), band * 0.5);
-        ctx.fillRect(bx + t, by + bh - band * 0.5, Math.min(step, bw - t), band * 0.5);
-      }
-      for (let i = 0, t = 0; t < bh; i++, t += step) if (i % 2 === 0) {
-        ctx.fillRect(bx, by + t, band * 0.5, Math.min(step, bh - t));
-        ctx.fillRect(bx + bw - band * 0.5, by + t, band * 0.5, Math.min(step, bh - t));
-      }
+      for (let i = 0, t = 0; t < bw; i++, t += step)
+        if (i % 2 === 0) {
+          ctx.fillRect(bx + t, by, Math.min(step, bw - t), band * 0.5);
+          ctx.fillRect(
+            bx + t,
+            by + bh - band * 0.5,
+            Math.min(step, bw - t),
+            band * 0.5,
+          );
+        }
+      for (let i = 0, t = 0; t < bh; i++, t += step)
+        if (i % 2 === 0) {
+          ctx.fillRect(bx, by + t, band * 0.5, Math.min(step, bh - t));
+          ctx.fillRect(
+            bx + bw - band * 0.5,
+            by + t,
+            band * 0.5,
+            Math.min(step, bh - t),
+          );
+        }
       const d = inset * 1.1;
       for (const [cx, cy] of [
         [x, y],
@@ -97,7 +139,12 @@ function frame(ctx: CanvasRenderingContext2D, plan: PosterPlan, s: PosterSetting
   ctx.restore();
 }
 
-function title(ctx: CanvasRenderingContext2D, plan: PosterPlan, s: PosterSettings, k: number) {
+function title(
+  ctx: CanvasRenderingContext2D,
+  plan: PosterPlan,
+  s: PosterSettings,
+  k: number,
+) {
   const band = plan.artwork.title;
   if (!band) return;
   const cx = (plan.bleed + band.x + band.width / 2) * k,
@@ -120,19 +167,35 @@ function title(ctx: CanvasRenderingContext2D, plan: PosterPlan, s: PosterSetting
   if (s.title.trim()) {
     ctx.direction = ARABIC.test(s.title) ? "rtl" : "ltr";
     fit(s.title.trim(), titleSize, "700");
-    ctx.fillText(s.title.trim(), cx, top + band.height * k * (hasSub ? 0.36 : 0.5));
+    ctx.fillText(
+      s.title.trim(),
+      cx,
+      top + band.height * k * (hasSub ? 0.36 : 0.5),
+    );
   }
   if (hasSub) {
     ctx.direction = ARABIC.test(s.subtitle) ? "rtl" : "ltr";
     fit(s.subtitle.trim(), subSize, "400");
     ctx.globalAlpha = 0.8;
-    ctx.fillText(s.subtitle.trim(), cx, top + band.height * k * (s.title.trim() ? 0.76 : 0.5));
+    ctx.fillText(
+      s.subtitle.trim(),
+      cx,
+      top + band.height * k * (s.title.trim() ? 0.76 : 0.5),
+    );
   }
   ctx.restore();
 }
 
 /** Draws the image into a rectangle and repeats its edge pixels outward by `bleed` (all in pixels). */
-function drawWithBleed(ctx: CanvasRenderingContext2D, img: CanvasImageSource & { width: number; height: number }, x: number, y: number, w: number, h: number, bleed: number) {
+function drawWithBleed(
+  ctx: CanvasRenderingContext2D,
+  img: CanvasImageSource & { width: number; height: number },
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  bleed: number,
+) {
   ctx.drawImage(img, x, y, w, h);
   if (bleed <= 0) return;
   const iw = img.width,
@@ -150,7 +213,12 @@ function drawWithBleed(ctx: CanvasRenderingContext2D, img: CanvasImageSource & {
 }
 
 /** The poster's artwork at `k` pixels per millimetre. */
-export async function renderPoster(image: ImageBitmap, plan: PosterPlan, s: PosterSettings, k: number): Promise<HTMLCanvasElement> {
+export async function renderPoster(
+  image: ImageBitmap,
+  plan: PosterPlan,
+  s: PosterSettings,
+  k: number,
+): Promise<HTMLCanvasElement> {
   const canvas = document.createElement("canvas");
   canvas.width = Math.max(1, Math.round(plan.canvas.width * k));
   canvas.height = Math.max(1, Math.round(plan.canvas.height * k));
@@ -162,12 +230,30 @@ export async function renderPoster(image: ImageBitmap, plan: PosterPlan, s: Post
     // The mat fills the artwork and its bleed; the map sits on it.
     ctx.fillStyle = s.mat;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.drawImage(image, (plan.bleed + m.x) * k, (plan.bleed + m.y) * k, m.width * k, m.height * k);
-  } else drawWithBleed(ctx, image, plan.bleed * k, plan.bleed * k, m.width * k, m.height * k, plan.bleed * k);
+    ctx.drawImage(
+      image,
+      (plan.bleed + m.x) * k,
+      (plan.bleed + m.y) * k,
+      m.width * k,
+      m.height * k,
+    );
+  } else
+    drawWithBleed(
+      ctx,
+      image,
+      plan.bleed * k,
+      plan.bleed * k,
+      m.width * k,
+      m.height * k,
+      plan.bleed * k,
+    );
   if (s.frame !== "none") frame(ctx, plan, s, k);
   if (plan.artwork.title) {
     try {
-      await Promise.all([document.fonts.load(`700 40px Amiri`), document.fonts.load(`400 20px Amiri`)]);
+      await Promise.all([
+        document.fonts.load(`700 40px Amiri`),
+        document.fonts.load(`400 20px Amiri`),
+      ]);
     } catch {
       // Offline: the serif fallback is used.
     }

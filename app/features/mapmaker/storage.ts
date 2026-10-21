@@ -34,7 +34,10 @@ export async function loadProject(id: string): Promise<MMProject | null> {
   const database = await db();
   try {
     return await new Promise((resolve, reject) => {
-      const request = database.transaction("projects").objectStore("projects").get(id);
+      const request = database
+        .transaction("projects")
+        .objectStore("projects")
+        .get(id);
       request.onsuccess = () => resolve(request.result ?? null);
       request.onerror = () => reject(new Error("storageError"));
     });
@@ -48,7 +51,10 @@ export async function listProjects(): Promise<MMProject[]> {
   const database = await db();
   try {
     const all = await new Promise<MMProject[]>((resolve, reject) => {
-      const request = database.transaction("projects").objectStore("projects").getAll();
+      const request = database
+        .transaction("projects")
+        .objectStore("projects")
+        .getAll();
       request.onsuccess = () => resolve(request.result ?? []);
       request.onerror = () => reject(new Error("storageError"));
     });
@@ -115,8 +121,14 @@ interface MMProjectFile {
 
 /** Triggers a browser download of `project` as a `.mapmaker.json` file. */
 export function exportProjectToFile(project: MMProject) {
-  const payload: MMProjectFile = { format: EXPORT_FORMAT, version: EXPORT_VERSION, project };
-  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+  const payload: MMProjectFile = {
+    format: EXPORT_FORMAT,
+    version: EXPORT_VERSION,
+    project,
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], {
+    type: "application/json",
+  });
   const url = URL.createObjectURL(blob);
   try {
     const a = document.createElement("a");
@@ -143,9 +155,15 @@ export async function parseProjectFile(raw: string): Promise<MMProject> {
     throw new Error("invalidProject");
   }
   const { validateProject } = await import("./validation");
-  const obj = data && typeof data === "object" ? (data as Record<string, unknown>) : null;
+  const obj =
+    data && typeof data === "object" ? (data as Record<string, unknown>) : null;
   const candidate =
-    obj && obj.format === EXPORT_FORMAT && obj.project && typeof obj.project === "object" ? obj.project : obj;
+    obj &&
+    obj.format === EXPORT_FORMAT &&
+    obj.project &&
+    typeof obj.project === "object"
+      ? obj.project
+      : obj;
   const project = validateProject(candidate);
   return { ...project, id: crypto.randomUUID(), updatedAt: Date.now() };
 }

@@ -3,7 +3,15 @@
  * Who is signed in, for the whole app. Loads the user once (GET auth/me)
  * and lets pages refresh or clear it after signing in or out.
  */
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 import { auth } from "./api";
 import type { User } from "./types";
 
@@ -50,7 +58,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const value = useMemo(() => ({ user, offline, refresh, setUser, signOut }), [user, offline, refresh, signOut]);
+  const value = useMemo(
+    () => ({ user, offline, refresh, setUser, signOut }),
+    [user, offline, refresh, signOut],
+  );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 

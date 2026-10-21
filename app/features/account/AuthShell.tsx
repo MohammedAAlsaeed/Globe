@@ -7,7 +7,15 @@
 import type { ReactNode } from "react";
 import { SiteHeader } from "./ui";
 
-export function AuthShell({ title, lead, children }: { title: string; lead?: string; children: ReactNode }) {
+export function AuthShell({
+  title,
+  lead,
+  children,
+}: {
+  title: string;
+  lead?: string;
+  children: ReactNode;
+}) {
   return (
     <div className="site auth-page">
       <SiteHeader />

@@ -24,14 +24,16 @@ export const accountEn = {
   acHaveAccount: "Already have an account?",
 
   acRegisterTitle: "Create your account",
-  acRegisterLead: "Free: keep up to 3 maps in the cloud and open them anywhere.",
+  acRegisterLead:
+    "Free: keep up to 3 maps in the cloud and open them anywhere.",
   acName: "Name",
   acPasswordConfirm: "Confirm password",
   acPasswordHint: "At least 8 characters, with letters and numbers.",
   acPasswordsDiffer: "The passwords don't match.",
 
   acForgotTitle: "Reset your password",
-  acForgotLead: "Enter your email and we'll send you a link to choose a new password.",
+  acForgotLead:
+    "Enter your email and we'll send you a link to choose a new password.",
   acSendLink: "Send link",
   acLinkSent: "If an account uses that email, a reset link is on its way.",
   acBackToSignIn: "Back to sign in",
@@ -45,7 +47,8 @@ export const accountEn = {
   acGoogleFailed: "Google sign-in didn't complete. Try again.",
   acGoogleEmail: "Your Google account has no verified email.",
 
-  acErrorNetwork: "Can't reach the server. Check your connection and try again.",
+  acErrorNetwork:
+    "Can't reach the server. Check your connection and try again.",
   acErrorGeneric: "Something went wrong. Try again.",
   acErrorTooMany: "Too many attempts. Wait a minute and try again.",
   acErrorCredentials: "That email and password don't match.",
@@ -63,8 +66,10 @@ export const accountEn = {
   acPlanUnlimited: "{{used}} maps, no limit",
   acCloudMaps: "In the cloud",
   acDeviceMaps: "On this device",
-  acDeviceNote: "Saved only in this browser. Upload them to open them anywhere.",
-  acDeviceNoteGuest: "Saved only in this browser. Sign in to keep them in the cloud.",
+  acDeviceNote:
+    "Saved only in this browser. Upload them to open them anywhere.",
+  acDeviceNoteGuest:
+    "Saved only in this browser. Sign in to keep them in the cloud.",
   acUpload: "Upload to cloud",
   acDownload: "Download file",
   acDelete: "Delete",
@@ -72,7 +77,8 @@ export const accountEn = {
   acCancel: "Cancel",
   acEmptyCloud: "No maps in the cloud yet. Start one; it saves as you draw.",
   acEmptyDevice: "No maps on this device yet.",
-  acLimitReached: "Your {{plan}} plan holds {{max}} maps. Delete one to make room.",
+  acLimitReached:
+    "Your {{plan}} plan holds {{max}} maps. Delete one to make room.",
   acUpdated: "Edited {{date}}",
   acLoading: "Loading…",
   acOpeningMap: "Opening your map…",
@@ -89,16 +95,19 @@ export const accountEn = {
   mmSignInToSave: "Sign in to save to the cloud",
   mmCloudLimit: "Plan limit reached: this map is saved on this device only.",
   mmConflictTitle: "This map changed on another device",
-  mmConflictText: "A newer version was saved while you were editing. Choose which version to keep.",
+  mmConflictText:
+    "A newer version was saved while you were editing. Choose which version to keep.",
   mmConflictLoad: "Open the newer version",
   mmConflictLoadNote: "Your recent changes here are discarded.",
   mmConflictCopy: "Save mine as a new map",
   mmConflictCopyNote: "Both versions are kept.",
   mmConflictReplace: "Replace it with mine",
   mmConflictReplaceNote: "The newer version stays in the map's history.",
-  mmExportLimit: "Your plan exports up to {{px}} px; this map is {{w}} px wide.",
+  mmExportLimit:
+    "Your plan exports up to {{px}} px; this map is {{w}} px wide.",
   mmPlanLocked: "Paid plans",
-  mmMapLimitCreate: "Your plan holds {{max}} maps. Delete one in My maps to make another.",
+  mmMapLimitCreate:
+    "Your plan holds {{max}} maps. Delete one in My maps to make another.",
   mmCopySuffix: "(copy)",
   // ---- upgrade prompt (UpgradeDialog) ----
   acUpgradeEyebrow: "Plan limit",
@@ -110,7 +119,8 @@ export const accountEn = {
   acUpgradeSoon: "Online upgrades coming soon",
   acUpgradeKeep: "Nothing you've saved is ever removed, on any plan.",
   acUpgradeUsage: "{{used}} of {{max}} used",
-  acUpgradeLoadError: "The plans couldn't be loaded right now. Try again in a moment.",
+  acUpgradeLoadError:
+    "The plans couldn't be loaded right now. Try again in a moment.",
   acFeatLineStyles: "{{count}} saved line styles",
   acFeatLineStylesUnlimited: "Unlimited saved line styles",
   acFeatTextStyles: "{{count}} saved text styles",
@@ -189,7 +199,8 @@ export const accountAr: typeof accountEn = {
   acCloudMaps: "في السحابة",
   acDeviceMaps: "على هذا الجهاز",
   acDeviceNote: "محفوظة في هذا المتصفح فقط. ارفعها لتفتحها من أي مكان.",
-  acDeviceNoteGuest: "محفوظة في هذا المتصفح فقط. سجّل دخولك لتحفظها في السحابة.",
+  acDeviceNoteGuest:
+    "محفوظة في هذا المتصفح فقط. سجّل دخولك لتحفظها في السحابة.",
   acUpload: "رفع إلى السحابة",
   acDownload: "تنزيل ملف",
   acDelete: "حذف",
@@ -197,7 +208,8 @@ export const accountAr: typeof accountEn = {
   acCancel: "إلغاء",
   acEmptyCloud: "لا خرائط في السحابة بعد. ابدأ واحدة، وستُحفظ أثناء الرسم.",
   acEmptyDevice: "لا خرائط على هذا الجهاز بعد.",
-  acLimitReached: "خطة {{plan}} تتسع لـ {{max}} خرائط. احذف واحدة لتفسح مكاناً.",
+  acLimitReached:
+    "خطة {{plan}} تتسع لـ {{max}} خرائط. احذف واحدة لتفسح مكاناً.",
   acUpdated: "عُدّلت {{date}}",
   acLoading: "جارٍ التحميل…",
   acOpeningMap: "جارٍ فتح خريطتك…",
@@ -214,16 +226,19 @@ export const accountAr: typeof accountEn = {
   mmSignInToSave: "سجّل دخولك للحفظ في السحابة",
   mmCloudLimit: "وصلت لحد خطتك: هذه الخريطة محفوظة على هذا الجهاز فقط.",
   mmConflictTitle: "عُدّلت هذه الخريطة من جهاز آخر",
-  mmConflictText: "حُفظت نسخة أحدث أثناء تعديلك. اختر النسخة التي تريد الإبقاء عليها.",
+  mmConflictText:
+    "حُفظت نسخة أحدث أثناء تعديلك. اختر النسخة التي تريد الإبقاء عليها.",
   mmConflictLoad: "فتح النسخة الأحدث",
   mmConflictLoadNote: "تُلغى تعديلاتك الأخيرة هنا.",
   mmConflictCopy: "حفظ نسختي كخريطة جديدة",
   mmConflictCopyNote: "تبقى النسختان.",
   mmConflictReplace: "استبدالها بنسختي",
   mmConflictReplaceNote: "تبقى النسخة الأحدث في سجل الخريطة.",
-  mmExportLimit: "خطتك تسمح بالتصدير حتى {{px}} بكسل، وعرض هذه الخريطة {{w}} بكسل.",
+  mmExportLimit:
+    "خطتك تسمح بالتصدير حتى {{px}} بكسل، وعرض هذه الخريطة {{w}} بكسل.",
   mmPlanLocked: "للخطط المدفوعة",
-  mmMapLimitCreate: "خطتك تتسع لـ {{max}} خرائط. احذف واحدة من خرائطي لتنشئ أخرى.",
+  mmMapLimitCreate:
+    "خطتك تتسع لـ {{max}} خرائط. احذف واحدة من خرائطي لتنشئ أخرى.",
   mmCopySuffix: "(نسخة)",
   // ---- upgrade prompt (UpgradeDialog) ----
   acUpgradeEyebrow: "حد الخطة",

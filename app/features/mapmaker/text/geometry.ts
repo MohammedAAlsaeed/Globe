@@ -24,7 +24,13 @@
 import type { MMText } from "../types";
 import { flatten, reverseNodes } from "../lines/geometry";
 import { hbFontAt } from "./fontStore";
-import { CAP, shapeText, type HbGlyphRef, type PlacedGlyph, type ShapedText } from "./shape";
+import {
+  CAP,
+  shapeText,
+  type HbGlyphRef,
+  type PlacedGlyph,
+  type ShapedText,
+} from "./shape";
 import { CURSIVE } from "./scripts";
 
 /** Outline commands: [op, …coords]: 0 M x y · 1 L x y · 2 Q cx cy x y · 3 C c1x c1y c2x c2y x y · 4 Z. */
@@ -71,8 +77,12 @@ function glyphOps(ref: HbGlyphRef): Ops {
 }
 
 /** Walks ops, handing each point to `pt` (in place). */
-function eachPoint(ops: Ops, pt: (x: number, y: number) => [number, number], out: Ops) {
-  for (let i = 0; i < ops.length; ) {
+function eachPoint(
+  ops: Ops,
+  pt: (x: number, y: number) => [number, number],
+  out: Ops,
+) {
+  for (let i = 0; i < ops.length;) {
     const op = ops[i];
     const n = op === 0 || op === 1 ? 1 : op === 2 ? 2 : op === 3 ? 3 : 0;
     out.push(op);
@@ -92,7 +102,7 @@ function subdivide(ops: Ops, max: number): Ops {
     sx = 0,
     sy = 0;
   const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
-  for (let i = 0; i < ops.length; ) {
+  for (let i = 0; i < ops.length;) {
     const op = ops[i];
     if (op === 0) {
       cx = sx = ops[i + 1];
@@ -103,14 +113,23 @@ function subdivide(ops: Ops, max: number): Ops {
       const x = op === 1 ? ops[i + 1] : sx,
         y = op === 1 ? ops[i + 2] : sy;
       const n = Math.min(64, Math.ceil(Math.hypot(x - cx, y - cy) / max));
-      for (let k = 1; k <= n; k++) out.push(1, lerp(cx, x, k / n), lerp(cy, y, k / n));
+      for (let k = 1; k <= n; k++)
+        out.push(1, lerp(cx, x, k / n), lerp(cy, y, k / n));
       if (op === 4) out.push(4);
       cx = x;
       cy = y;
       i += op === 1 ? 3 : 1;
     } else if (op === 2) {
       const [qx, qy, x, y] = [ops[i + 1], ops[i + 2], ops[i + 3], ops[i + 4]];
-      const n = Math.min(32, Math.max(1, Math.ceil((Math.hypot(qx - cx, qy - cy) + Math.hypot(x - qx, y - qy)) / max)));
+      const n = Math.min(
+        32,
+        Math.max(
+          1,
+          Math.ceil(
+            (Math.hypot(qx - cx, qy - cy) + Math.hypot(x - qx, y - qy)) / max,
+          ),
+        ),
+      );
       // Split the quadratic into n equal-parameter pieces.
       let px = cx,
         py = cy;
@@ -118,7 +137,10 @@ function subdivide(ops: Ops, max: number): Ops {
         const t0 = (k - 1) / n,
           t1 = k / n,
           tm = (t0 + t1) / 2;
-        const at = (t: number) => [lerp(lerp(cx, qx, t), lerp(qx, x, t), t), lerp(lerp(cy, qy, t), lerp(qy, y, t), t)];
+        const at = (t: number) => [
+          lerp(lerp(cx, qx, t), lerp(qx, x, t), t),
+          lerp(lerp(cy, qy, t), lerp(qy, y, t), t),
+        ];
         const [ex, ey] = at(t1),
           [mx, my] = at(tm);
         // Control point of the sub-curve through its midpoint.
@@ -130,8 +152,18 @@ function subdivide(ops: Ops, max: number): Ops {
       cy = y;
       i += 5;
     } else {
-      const [ax, ay, bx, by, x, y] = [ops[i + 1], ops[i + 2], ops[i + 3], ops[i + 4], ops[i + 5], ops[i + 6]];
-      const len = Math.hypot(ax - cx, ay - cy) + Math.hypot(bx - ax, by - ay) + Math.hypot(x - bx, y - by);
+      const [ax, ay, bx, by, x, y] = [
+        ops[i + 1],
+        ops[i + 2],
+        ops[i + 3],
+        ops[i + 4],
+        ops[i + 5],
+        ops[i + 6],
+      ];
+      const len =
+        Math.hypot(ax - cx, ay - cy) +
+        Math.hypot(bx - ax, by - ay) +
+        Math.hypot(x - bx, y - by);
       const n = Math.min(32, Math.max(1, Math.ceil(len / max)));
       let p0 = [cx, cy],
         p1 = [ax, ay],
@@ -202,7 +234,11 @@ interface Guide {
 }
 function guideFrom(points: number[], closed: boolean): Guide {
   const cum = [0];
-  for (let i = 2; i < points.length; i += 2) cum.push(cum[cum.length - 1] + Math.hypot(points[i] - points[i - 2], points[i + 1] - points[i - 1]));
+  for (let i = 2; i < points.length; i += 2)
+    cum.push(
+      cum[cum.length - 1] +
+        Math.hypot(points[i] - points[i - 2], points[i + 1] - points[i - 1]),
+    );
   return { xy: points, cum, length: cum[cum.length - 1] ?? 0, closed };
 }
 /** Resamples evenly and averages over `window` em (ends kept), rounding off sharp bends. */
@@ -256,14 +292,21 @@ function guidePoint(g: Guide, s: number): [number, number] {
     else hi = mid;
   }
   const t = (s - cum[lo]) / (cum[hi] - cum[lo] || 1);
-  return [xy[lo * 2] + (xy[hi * 2] - xy[lo * 2]) * t, xy[lo * 2 + 1] + (xy[hi * 2 + 1] - xy[lo * 2 + 1]) * t];
+  return [
+    xy[lo * 2] + (xy[hi * 2] - xy[lo * 2]) * t,
+    xy[lo * 2 + 1] + (xy[hi * 2 + 1] - xy[lo * 2 + 1]) * t,
+  ];
 }
 
 /**
  * A path text's curve. `aspect` is the map's height / width (path nodes are
  * map fractions; em = map-width fraction / size).
  */
-export function pathCurve(o: MMText, shaped: ShapedText, aspect: number): { curve: Curve; guide: number[] } | null {
+export function pathCurve(
+  o: MMText,
+  shaped: ShapedText,
+  aspect: number,
+): { curve: Curve; guide: number[] } | null {
   const p = o.path;
   if (!p || p.nodes.length < 2 || o.size <= 0) return null;
   const nodes = p.reverse ? reverseNodes(p.nodes) : p.nodes;
@@ -274,11 +317,21 @@ export function pathCurve(o: MMText, shaped: ShapedText, aspect: number): { curv
   const L = g.length;
   const xmin = shaped.left,
     xmax = shaped.left + shaped.width;
-  const s0 = p.align === "start" ? -xmin : p.align === "end" ? L - xmax : L / 2 - (xmin + xmax) / 2;
+  const s0 =
+    p.align === "start"
+      ? -xmin
+      : p.align === "end"
+        ? L - xmax
+        : L / 2 - (xmin + xmax) / 2;
   const shift = s0 + p.offset * L;
   const first = shaped.lines[0],
     last = shaped.lines[shaped.lines.length - 1];
-  const yRef = p.side === "above" ? (last?.baseline ?? 0) : p.side === "below" ? (first?.baseline ?? 0) - CAP : 0;
+  const yRef =
+    p.side === "above"
+      ? (last?.baseline ?? 0)
+      : p.side === "below"
+        ? (first?.baseline ?? 0) - CAP
+        : 0;
   const lift = p.side === "below" ? -p.baseline : p.baseline;
   const eps = 0.08;
   const angle = (x: number) => {
@@ -303,15 +356,20 @@ export function pathCurve(o: MMText, shaped: ShapedText, aspect: number): { curv
 // ---- assembling -------------------------------------------------------------------------------
 type Mode = "warp" | "letters" | "words";
 function modeOf(o: MMText, g: PlacedGlyph): Mode {
-  if (o.letters === "warp" || o.letters === "letters" || o.letters === "words") return o.letters;
+  if (o.letters === "warp" || o.letters === "letters" || o.letters === "words")
+    return o.letters;
   return CURSIVE.has(g.script) ? "warp" : "letters";
 }
 
 /** Glyph units placed whole on a curve: clusters (letters) or words. */
-function units(glyphs: PlacedGlyph[], mode: "letters" | "words"): PlacedGlyph[][] {
+function units(
+  glyphs: PlacedGlyph[],
+  mode: "letters" | "words",
+): PlacedGlyph[][] {
   const map = new Map<string, PlacedGlyph[]>();
   for (const g of glyphs) {
-    const key = mode === "words" ? `${g.line}:w${g.word}` : `${g.line}:c${g.cluster}`;
+    const key =
+      mode === "words" ? `${g.line}:w${g.word}` : `${g.line}:c${g.cluster}`;
     const list = map.get(key);
     if (list) list.push(g);
     else map.set(key, [g]);
@@ -348,7 +406,10 @@ export function textGeometry(o: MMText, aspect: number): TextGeometry {
     const k = g.ref.k;
     eachPoint(glyphOps(g.ref), (x, y) => [g.x + x * k, g.y - y * k], out);
   };
-  const placeWeb = (g: PlacedGlyph, m: [number, number, number, number, number, number]) => {
+  const placeWeb = (
+    g: PlacedGlyph,
+    m: [number, number, number, number, number, number],
+  ) => {
     if (g.ref.kind === "web") web.push({ text: g.ref.text, css: g.ref.css, m });
   };
 
@@ -359,14 +420,20 @@ export function textGeometry(o: MMText, aspect: number): TextGeometry {
     }
   } else {
     const c = curve;
-    const warp = all.filter((g) => g.ref.kind === "hb" && modeOf(o, g) === "warp");
+    const warp = all.filter(
+      (g) => g.ref.kind === "hb" && modeOf(o, g) === "warp",
+    );
     for (const g of warp) {
       const local: Ops = [];
       straight(g, local);
       eachPoint(subdivide(local, 0.05), (x, y) => c.map(x, y), ops);
     }
     for (const mode of ["letters", "words"] as const) {
-      const rigid = all.filter((g) => (g.ref.kind === "web" || modeOf(o, g) !== "warp") && (g.ref.kind === "web" ? mode === "letters" : modeOf(o, g) === mode));
+      const rigid = all.filter(
+        (g) =>
+          (g.ref.kind === "web" || modeOf(o, g) !== "warp") &&
+          (g.ref.kind === "web" ? mode === "letters" : modeOf(o, g) === mode),
+      );
       for (const unit of units(rigid, mode)) {
         const x0 = Math.min(...unit.map((g) => g.x)),
           x1 = Math.max(...unit.map((g) => g.x + g.adv));
@@ -388,7 +455,14 @@ export function textGeometry(o: MMText, aspect: number): TextGeometry {
             eachPoint(local, tf, ops);
           } else {
             const [ex, ey] = tf(g.x, g.y);
-            placeWeb(g, [0.01 * cos, 0.01 * sin, -0.01 * sin, 0.01 * cos, ex, ey]);
+            placeWeb(g, [
+              0.01 * cos,
+              0.01 * sin,
+              -0.01 * sin,
+              0.01 * cos,
+              ex,
+              ey,
+            ]);
           }
         }
       }
@@ -400,7 +474,7 @@ export function textGeometry(o: MMText, aspect: number): TextGeometry {
     y0 = Infinity,
     x1 = -Infinity,
     y1 = -Infinity;
-  for (let i = 0; i < ops.length; ) {
+  for (let i = 0; i < ops.length;) {
     const op = ops[i];
     const n = op === 0 || op === 1 ? 1 : op === 2 ? 2 : op === 3 ? 3 : 0;
     for (let p = 0; p < n; p++) {
@@ -427,7 +501,14 @@ export function textGeometry(o: MMText, aspect: number): TextGeometry {
     y0 = shaped.top;
     y1 = shaped.bottom;
   }
-  const geo: TextGeometry = { ops, web, bounds: { x0, y0, x1, y1 }, ready: shaped.ready, shaped, guide };
+  const geo: TextGeometry = {
+    ops,
+    web,
+    bounds: { x0, y0, x1, y1 },
+    ready: shaped.ready,
+    shaped,
+    guide,
+  };
   geoCache.set(o, { key, geo });
   return geo;
 }
@@ -436,7 +517,7 @@ export function textGeometry(o: MMText, aspect: number): TextGeometry {
 export function opsToSvg(ops: Ops, k = 1, dx = 0, dy = 0, digits = 2): string {
   const f = (v: number, d: number) => +(v * k + d).toFixed(digits);
   const parts: string[] = [];
-  for (let i = 0; i < ops.length; ) {
+  for (let i = 0; i < ops.length;) {
     const op = ops[i];
     if (op === 0) {
       parts.push(`M${f(ops[i + 1], dx)} ${f(ops[i + 2], dy)}`);
@@ -445,10 +526,14 @@ export function opsToSvg(ops: Ops, k = 1, dx = 0, dy = 0, digits = 2): string {
       parts.push(`L${f(ops[i + 1], dx)} ${f(ops[i + 2], dy)}`);
       i += 3;
     } else if (op === 2) {
-      parts.push(`Q${f(ops[i + 1], dx)} ${f(ops[i + 2], dy)} ${f(ops[i + 3], dx)} ${f(ops[i + 4], dy)}`);
+      parts.push(
+        `Q${f(ops[i + 1], dx)} ${f(ops[i + 2], dy)} ${f(ops[i + 3], dx)} ${f(ops[i + 4], dy)}`,
+      );
       i += 5;
     } else if (op === 3) {
-      parts.push(`C${f(ops[i + 1], dx)} ${f(ops[i + 2], dy)} ${f(ops[i + 3], dx)} ${f(ops[i + 4], dy)} ${f(ops[i + 5], dx)} ${f(ops[i + 6], dy)}`);
+      parts.push(
+        `C${f(ops[i + 1], dx)} ${f(ops[i + 2], dy)} ${f(ops[i + 3], dx)} ${f(ops[i + 4], dy)} ${f(ops[i + 5], dx)} ${f(ops[i + 6], dy)}`,
+      );
       i += 7;
     } else {
       parts.push("Z");

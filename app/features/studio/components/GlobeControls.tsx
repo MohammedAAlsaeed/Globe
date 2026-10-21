@@ -76,8 +76,20 @@ export function GlobeControls({
         <div className="range-label">
           <label htmlFor="gores">{t("gores")}</label>
           <span className="range-label-value">
-            <ValueEditor value={s.gores} min={6} max={72} step={2} onChange={(gores) => onChange({ gores })} label={t("gores")} />
-            <ResetButton value={s.gores} defaultValue={DEFAULT_GLOBE.gores} onReset={() => onChange({ gores: DEFAULT_GLOBE.gores })} label={t("gores")} />
+            <ValueEditor
+              value={s.gores}
+              min={6}
+              max={72}
+              step={2}
+              onChange={(gores) => onChange({ gores })}
+              label={t("gores")}
+            />
+            <ResetButton
+              value={s.gores}
+              defaultValue={DEFAULT_GLOBE.gores}
+              onReset={() => onChange({ gores: DEFAULT_GLOBE.gores })}
+              label={t("gores")}
+            />
           </span>
         </div>
         <input
@@ -104,7 +116,7 @@ export function GlobeControls({
           <summary>{t("suggest")}</summary>
           <NumberField
             label={t("maxGore")}
-              defaultValue={MAX_GORE_DEFAULT}
+            defaultValue={MAX_GORE_DEFAULT}
             value={maxWidth}
             onChange={setMaxWidth}
             min={5}
@@ -130,7 +142,7 @@ export function GlobeControls({
         <div className="field-pair">
           <NumberField
             label={t("seam")}
-              defaultValue={DEFAULT_GLOBE.offset}
+            defaultValue={DEFAULT_GLOBE.offset}
             value={s.offset}
             onChange={(offset) => onChange({ offset })}
             min={-180}
@@ -139,7 +151,7 @@ export function GlobeControls({
           />
           <NumberField
             label={t("gap")}
-              defaultValue={DEFAULT_GLOBE.gap}
+            defaultValue={DEFAULT_GLOBE.gap}
             value={s.gap}
             onChange={(gap) => onChange({ gap })}
             min={0}
@@ -151,7 +163,7 @@ export function GlobeControls({
         <div className="field-pair">
           <NumberField
             label={t("tabWidth")}
-              defaultValue={DEFAULT_GLOBE.tab}
+            defaultValue={DEFAULT_GLOBE.tab}
             value={s.tab}
             onChange={(tab) => onChange({ tab })}
             min={0}
@@ -161,7 +173,7 @@ export function GlobeControls({
           />
           <NumberField
             label={t("bleedWidth")}
-              defaultValue={DEFAULT_GLOBE.bleed}
+            defaultValue={DEFAULT_GLOBE.bleed}
             value={s.bleed}
             onChange={(bleed) => onChange({ bleed })}
             min={0}

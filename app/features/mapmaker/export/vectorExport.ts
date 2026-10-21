@@ -13,7 +13,13 @@
  *         PDFs can't blur, go in as small pictures under their text.
  */
 import type { MMText } from "../types";
-import { isVectorText, shadowPicture, textPathD, textToSvg, type TextExportMode } from "../text/exportVector";
+import {
+  isVectorText,
+  shadowPicture,
+  textPathD,
+  textToSvg,
+  type TextExportMode,
+} from "../text/exportVector";
 
 export type MapPart =
   | { kind: "raster"; canvas: HTMLCanvasElement }
@@ -22,7 +28,12 @@ export type MapPart =
 export { isVectorText, type TextExportMode };
 
 function blobOf(canvas: HTMLCanvasElement): Promise<Blob> {
-  return new Promise((resolve, reject) => canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("encodeFailed"))), "image/png"));
+  return new Promise((resolve, reject) =>
+    canvas.toBlob(
+      (b) => (b ? resolve(b) : reject(new Error("encodeFailed"))),
+      "image/png",
+    ),
+  );
 }
 async function dataUrl(canvas: HTMLCanvasElement): Promise<string> {
   const blob = await blobOf(canvas);
@@ -33,20 +44,32 @@ async function dataUrl(canvas: HTMLCanvasElement): Promise<string> {
     r.readAsDataURL(blob);
   });
 }
-const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+const esc = (s: string) =>
+  s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
 /** An SVG of the map: pictures and texts in their order. */
-export async function encodeSvg(parts: MapPart[], outW: number, outH: number, { title, mode }: { title: string; mode: TextExportMode }): Promise<Blob> {
+export async function encodeSvg(
+  parts: MapPart[],
+  outW: number,
+  outH: number,
+  { title, mode }: { title: string; mode: TextExportMode },
+): Promise<Blob> {
   const chunks: string[] = [];
   const defs: string[] = [];
   let n = 0;
   for (const p of parts) {
     if (p.kind === "raster") {
-      chunks.push(`<image width="${outW}" height="${outH}" preserveAspectRatio="none" href="${await dataUrl(p.canvas)}"/>`);
+      chunks.push(
+        `<image width="${outW}" height="${outH}" preserveAspectRatio="none" href="${await dataUrl(p.canvas)}"/>`,
+      );
     } else {
       const svg = textToSvg(p.o, outW, outH, mode, `t${++n}`);
       defs.push(svg.defs);
-      chunks.push(p.opacity < 0.999 ? `<g opacity="${p.opacity}">${svg.body}</g>` : svg.body);
+      chunks.push(
+        p.opacity < 0.999
+          ? `<g opacity="${p.opacity}">${svg.body}</g>`
+          : svg.body,
+      );
     }
   }
   const svg =
@@ -62,7 +85,11 @@ export function parseColor(c: string): { r: number; g: number; b: number } {
   const hex = /^#([0-9a-f]{3,8})$/i.exec(s)?.[1];
   if (hex) {
     const full = hex.length <= 4 ? [...hex].map((h) => h + h).join("") : hex;
-    return { r: parseInt(full.slice(0, 2), 16) / 255, g: parseInt(full.slice(2, 4), 16) / 255, b: parseInt(full.slice(4, 6), 16) / 255 };
+    return {
+      r: parseInt(full.slice(0, 2), 16) / 255,
+      g: parseInt(full.slice(2, 4), 16) / 255,
+      b: parseInt(full.slice(4, 6), 16) / 255,
+    };
   }
   const m = /rgba?\(\s*([\d.]+)[\s,]+([\d.]+)[\s,]+([\d.]+)/i.exec(s);
   if (m) return { r: +m[1] / 255, g: +m[2] / 255, b: +m[3] / 255 };
@@ -84,9 +111,22 @@ const PDF_BLENDS: Record<string, string> = {
 };
 
 /** A PDF page at the map's printed size (`dpi`): pictures as images, texts as vector outlines. */
-export async function encodeVectorPdf(parts: MapPart[], outW: number, outH: number, { title, dpi }: { title: string; dpi: number }): Promise<Blob> {
+export async function encodeVectorPdf(
+  parts: MapPart[],
+  outW: number,
+  outH: number,
+  { title, dpi }: { title: string; dpi: number },
+): Promise<Blob> {
   const lib = await import("pdf-lib");
-  const { PDFDocument, rgb, pushGraphicsState, popGraphicsState, setLineJoin, LineJoinStyle, LineCapStyle } = lib;
+  const {
+    PDFDocument,
+    rgb,
+    pushGraphicsState,
+    popGraphicsState,
+    setLineJoin,
+    LineJoinStyle,
+    LineCapStyle,
+  } = lib;
   const { embedPixels, canvasPixels } = await import("../../../lib/pdfImage");
   const pdf = await PDFDocument.create();
   pdf.setTitle(title);
@@ -108,20 +148,41 @@ export async function encodeVectorPdf(parts: MapPart[], outW: number, outH: numb
     const shadow = shadowPicture(o, outW, outH);
     if (shadow) {
       const image = await embedPixels(pdf, canvasPixels(shadow.canvas));
-      image.draw(page, { x: shadow.x * k, y: h - (shadow.y + shadow.canvas.height) * k, width: shadow.canvas.width * k, height: shadow.canvas.height * k });
+      image.draw(page, {
+        x: shadow.x * k,
+        y: h - (shadow.y + shadow.canvas.height) * k,
+        width: shadow.canvas.width * k,
+        height: shadow.canvas.height * k,
+      });
     }
     const { d, scale } = textPathD(o, outW, outH);
     if (!d) continue;
     const opacity = o.opacity * p.opacity;
-    const blendName = o.blend && o.blend !== "normal" ? PDF_BLENDS[o.blend] : undefined;
-    const blendMode = blendName ? (lib.BlendMode as Record<string, string>)[blendName] : undefined;
+    const blendName =
+      o.blend && o.blend !== "normal" ? PDF_BLENDS[o.blend] : undefined;
+    const blendMode = blendName
+      ? (lib.BlendMode as Record<string, string>)[blendName]
+      : undefined;
     const at = { x: 0, y: h, scale: k, blendMode: blendMode as never };
-    const outline = o.outline.enabled && o.outline.width > 0 && o.outline.opacity > 0;
-    const ow = o.outline.width * scale * (o.outline.position === "outside" ? 2 : 1);
-    const join = o.outline.join === "round" ? LineJoinStyle.Round : o.outline.join === "bevel" ? LineJoinStyle.Bevel : LineJoinStyle.Miter;
+    const outline =
+      o.outline.enabled && o.outline.width > 0 && o.outline.opacity > 0;
+    const ow =
+      o.outline.width * scale * (o.outline.position === "outside" ? 2 : 1);
+    const join =
+      o.outline.join === "round"
+        ? LineJoinStyle.Round
+        : o.outline.join === "bevel"
+          ? LineJoinStyle.Bevel
+          : LineJoinStyle.Miter;
     const stroke = () => {
       page.pushOperators(pushGraphicsState(), setLineJoin(join));
-      page.drawSvgPath(d, { ...at, borderColor: rgbOf(o.outline.color), borderWidth: ow, borderOpacity: o.outline.opacity * opacity, borderLineCap: LineCapStyle.Round });
+      page.drawSvgPath(d, {
+        ...at,
+        borderColor: rgbOf(o.outline.color),
+        borderWidth: ow,
+        borderOpacity: o.outline.opacity * opacity,
+        borderLineCap: LineCapStyle.Round,
+      });
       page.pushOperators(popGraphicsState());
     };
     const rgbOf = (c: string) => {
@@ -129,9 +190,16 @@ export async function encodeVectorPdf(parts: MapPart[], outW: number, outH: numb
       return rgb(v.r, v.g, v.b);
     };
     if (outline && o.outline.position === "outside") stroke();
-    if (o.fillOpacity > 0) page.drawSvgPath(d, { ...at, color: rgbOf(o.fill), opacity: o.fillOpacity * opacity });
+    if (o.fillOpacity > 0)
+      page.drawSvgPath(d, {
+        ...at,
+        color: rgbOf(o.fill),
+        opacity: o.fillOpacity * opacity,
+      });
     if (outline && o.outline.position === "center") stroke();
   }
   if (words.length) pdf.setKeywords(words.filter(Boolean));
-  return new Blob([new Uint8Array(await pdf.save())], { type: "application/pdf" });
+  return new Blob([new Uint8Array(await pdf.save())], {
+    type: "application/pdf",
+  });
 }

@@ -78,7 +78,7 @@ export function PreviewPanel({
           </div>
         )}
       </div>
-      {(
+      {
         <>
           {preview.error ? (
             <p className="notice warning">{t(preview.error)}</p>
@@ -161,7 +161,7 @@ export function PreviewPanel({
             </div>
           )}
         </>
-      )}
+      }
       <div className="preview-stats">
         <div>
           <span>{t("count")}</span>

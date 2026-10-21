@@ -22,7 +22,12 @@ import {
 } from "./presets";
 import { SourcePicker } from "./SourcePicker";
 import { TIP_LIST } from "./tips";
-import { applyFavorite, applyPreset, brushBase, type BrushState } from "./state";
+import {
+  applyFavorite,
+  applyPreset,
+  brushBase,
+  type BrushState,
+} from "./state";
 import type {
   BlendMode,
   BrushSettings,
@@ -206,8 +211,19 @@ export function BrushPanel({
           aria-expanded={presetsOpen}
         >
           <img src={brushPreview(s.brush, s.source)} alt="" />
-          <span title={edited ? t("mmPresetModified", { name: presetLabel }) : undefined}>{presetLabel}</span>
-          {edited && <i className="mm-bp-edited-dot" aria-label={t("mmPresetModified", { name: presetLabel })} />}
+          <span
+            title={
+              edited ? t("mmPresetModified", { name: presetLabel }) : undefined
+            }
+          >
+            {presetLabel}
+          </span>
+          {edited && (
+            <i
+              className="mm-bp-edited-dot"
+              aria-label={t("mmPresetModified", { name: presetLabel })}
+            />
+          )}
           <Glyph name="chevronDown" size={14} />
         </button>
         <button
@@ -222,7 +238,16 @@ export function BrushPanel({
             className="mm-bp-icon-button"
             title={t("mmPresetRevert", { name: baseName })}
             aria-label={t("mmPresetRevert", { name: baseName })}
-            onClick={() => onChange({ ...base, mode: s.mode, erase: s.erase, edge: s.edge, rough: s.rough, grid: s.grid })}
+            onClick={() =>
+              onChange({
+                ...base,
+                mode: s.mode,
+                erase: s.erase,
+                edge: s.edge,
+                rough: s.rough,
+                grid: s.grid,
+              })
+            }
           >
             <Glyph name="reset" size={15} />
           </button>
@@ -317,7 +342,8 @@ export function BrushPanel({
       <div className="mm-bp-props">
         {free && (
           <Slider
-            label={t("mmBrushSize")} defaultValue={Math.round(base.brush.size * mapWidthPx)}
+            label={t("mmBrushSize")}
+            defaultValue={Math.round(base.brush.size * mapWidthPx)}
             value={Math.round(s.brush.size * mapWidthPx)}
             min={1}
             max={Math.round(mapWidthPx * 0.25)}
@@ -327,7 +353,8 @@ export function BrushPanel({
           />
         )}
         <Slider
-          label={s.erase ? t("mmEraseStrength") : t("mmBrushOpacity")} defaultValue={base.opacity}
+          label={s.erase ? t("mmEraseStrength") : t("mmBrushOpacity")}
+          defaultValue={base.opacity}
           value={s.opacity}
           min={0.02}
           max={1}
@@ -336,7 +363,8 @@ export function BrushPanel({
           format={pct}
         />
         <Slider
-          label={t("mmBrushSoftness")} defaultValue={free ? base.brush.softness : base.edge.feather / 0.01}
+          label={t("mmBrushSoftness")}
+          defaultValue={free ? base.brush.softness : base.edge.feather / 0.01}
           value={softness}
           min={0}
           max={1}
@@ -365,7 +393,8 @@ export function BrushPanel({
       {!s.erase && (
         <Section title={t("mmColorFilters")}>
           <Slider
-            label={t("mmHue")} defaultValue={base.source.hue}
+            label={t("mmHue")}
+            defaultValue={base.source.hue}
             value={s.source.hue}
             min={-180}
             max={180}
@@ -374,7 +403,8 @@ export function BrushPanel({
             format={(v) => `${v}°`}
           />
           <Slider
-            label={t("mmSaturation")} defaultValue={base.source.saturation}
+            label={t("mmSaturation")}
+            defaultValue={base.source.saturation}
             value={s.source.saturation}
             min={-1}
             max={1}
@@ -383,7 +413,8 @@ export function BrushPanel({
             format={signedPct}
           />
           <Slider
-            label={t("mmBrightness")} defaultValue={base.source.brightness}
+            label={t("mmBrightness")}
+            defaultValue={base.source.brightness}
             value={s.source.brightness}
             min={-1}
             max={1}
@@ -392,7 +423,8 @@ export function BrushPanel({
             format={signedPct}
           />
           <Slider
-            label={t("mmContrast")} defaultValue={base.source.contrast}
+            label={t("mmContrast")}
+            defaultValue={base.source.contrast}
             value={s.source.contrast}
             min={-1}
             max={1}
@@ -482,7 +514,8 @@ export function BrushPanel({
             </select>
           </label>
           <Slider
-            label={t("mmFlow")} defaultValue={base.brush.flow}
+            label={t("mmFlow")}
+            defaultValue={base.brush.flow}
             value={s.brush.flow}
             min={0.02}
             max={1}
@@ -491,7 +524,8 @@ export function BrushPanel({
             format={pct}
           />
           <Slider
-            label={t("mmSpacing")} defaultValue={base.brush.spacing}
+            label={t("mmSpacing")}
+            defaultValue={base.brush.spacing}
             value={s.brush.spacing}
             min={0.02}
             max={2}
@@ -500,7 +534,8 @@ export function BrushPanel({
             format={pct}
           />
           <Slider
-            label={t("mmRotation")} defaultValue={base.brush.rotation}
+            label={t("mmRotation")}
+            defaultValue={base.brush.rotation}
             value={s.brush.rotation}
             min={-180}
             max={180}
@@ -509,7 +544,8 @@ export function BrushPanel({
             format={(v) => `${v}°`}
           />
           <Slider
-            label={t("mmSizeJitter")} defaultValue={base.brush.sizeJitter}
+            label={t("mmSizeJitter")}
+            defaultValue={base.brush.sizeJitter}
             value={s.brush.sizeJitter}
             min={0}
             max={1}
@@ -518,7 +554,8 @@ export function BrushPanel({
             format={pct}
           />
           <Slider
-            label={t("mmOpacityJitter")} defaultValue={base.brush.opacityJitter}
+            label={t("mmOpacityJitter")}
+            defaultValue={base.brush.opacityJitter}
             value={s.brush.opacityJitter}
             min={0}
             max={1}
@@ -527,7 +564,8 @@ export function BrushPanel({
             format={pct}
           />
           <Slider
-            label={t("mmRotationJitter")} defaultValue={base.brush.rotationJitter}
+            label={t("mmRotationJitter")}
+            defaultValue={base.brush.rotationJitter}
             value={s.brush.rotationJitter}
             min={0}
             max={1}
@@ -536,7 +574,8 @@ export function BrushPanel({
             format={pct}
           />
           <Slider
-            label={t("mmScatter")} defaultValue={base.brush.scatter}
+            label={t("mmScatter")}
+            defaultValue={base.brush.scatter}
             value={s.brush.scatter}
             min={0}
             max={2}
@@ -595,7 +634,8 @@ export function BrushPanel({
       {shape && s.rough && !s.erase && (
         <Section title={t("mmEdgeSettings")} open>
           <Slider
-            label={t("mmRoughness")} defaultValue={base.edge.roughness}
+            label={t("mmRoughness")}
+            defaultValue={base.edge.roughness}
             value={s.edge.roughness}
             min={0}
             max={1}
@@ -604,7 +644,8 @@ export function BrushPanel({
             format={pct}
           />
           <Slider
-            label={t("mmEdgeDetail")} defaultValue={base.edge.detail}
+            label={t("mmEdgeDetail")}
+            defaultValue={base.edge.detail}
             value={s.edge.detail}
             min={0}
             max={1}
@@ -633,7 +674,8 @@ export function BrushPanel({
             </button>
           </div>
           <Slider
-            label={t("mmCellSize")} defaultValue={tileCell}
+            label={t("mmCellSize")}
+            defaultValue={tileCell}
             value={s.grid.cell}
             min={0.005}
             max={0.15}

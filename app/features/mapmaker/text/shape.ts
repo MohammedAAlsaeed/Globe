@@ -24,10 +24,37 @@
 import bidiFactory from "bidi-js";
 import type * as HB from "harfbuzzjs";
 import type { TextLook } from "../types";
-import { FONTS, SCRIPT_FALLBACK, fontDef, fontProfile, profileSlot, type FontDefinition, type ProfileSlot } from "./fonts";
+import {
+  FONTS,
+  SCRIPT_FALLBACK,
+  fontDef,
+  fontProfile,
+  profileSlot,
+  type FontDefinition,
+  type ProfileSlot,
+} from "./fonts";
 import { FONT_INFO } from "./fontInfo.generated";
-import { faceOf, fontsVersion, harfbuzz, hbFontAt, isFailed, loadHarfBuzz, loadWebFont, pickFile, webFontReady, type LoadedFace } from "./fontStore";
-import { CURSIVE, SCRIPT_LANG, SCRIPT_TAG, addKashida, resolveScripts, toCaps, type Script } from "./scripts";
+import {
+  faceOf,
+  fontsVersion,
+  harfbuzz,
+  hbFontAt,
+  isFailed,
+  loadHarfBuzz,
+  loadWebFont,
+  pickFile,
+  webFontReady,
+  type LoadedFace,
+} from "./fontStore";
+import {
+  CURSIVE,
+  SCRIPT_LANG,
+  SCRIPT_TAG,
+  addKashida,
+  resolveScripts,
+  toCaps,
+  type Script,
+} from "./scripts";
 
 const bidi = bidiFactory();
 
@@ -96,9 +123,18 @@ export const DESC = 0.24;
 const URDU = /[ٹڈڑںھہے]/;
 const PERSIAN = /[پچژگکی]/;
 /** The language for shaping: the text's own, or one guessed from its letters. */
-export function shapingLang(look: Pick<TextLook, "lang">, text: string, script: Script): string {
+export function shapingLang(
+  look: Pick<TextLook, "lang">,
+  text: string,
+  script: Script,
+): string {
   if (look.lang) return look.lang;
-  if (script === "arabic") return URDU.test(text) ? "ur" : PERSIAN.test(text) && !/[كي]/.test(text) ? "fa" : "ar";
+  if (script === "arabic")
+    return URDU.test(text)
+      ? "ur"
+      : PERSIAN.test(text) && !/[كي]/.test(text)
+        ? "fa"
+        : "ar";
   return SCRIPT_LANG[script];
 }
 
@@ -108,7 +144,10 @@ interface Candidate {
   slot: ProfileSlot;
 }
 /** The fonts to try, in order, for a script. */
-export function candidates(look: Pick<TextLook, "profile" | "font">, script: Script): Candidate[] {
+export function candidates(
+  look: Pick<TextLook, "profile" | "font">,
+  script: Script,
+): Candidate[] {
   const out: Candidate[] = [];
   const seen = new Set<string>();
   const add = (id: string | null | undefined, slot?: ProfileSlot) => {
@@ -121,21 +160,32 @@ export function candidates(look: Pick<TextLook, "profile" | "font">, script: Scr
   const profile = fontProfile(look.profile);
   const chosen = fontDef(look.font);
   // A font picked by hand is used for every script it has.
-  if (chosen && (FONT_INFO[chosen.id]?.scripts.includes(script) || (chosen.source === "web" && script === "cjk"))) add(chosen.id);
+  if (
+    chosen &&
+    (FONT_INFO[chosen.id]?.scripts.includes(script) ||
+      (chosen.source === "web" && script === "cjk"))
+  )
+    add(chosen.id);
   const slot = profileSlot(profile, script);
   if (slot) add(slot.font, slot);
   // Greek and Cyrillic: the profile's Latin face first when it has them.
   if (script === "greek" || script === "cyrillic") {
     const latin = profileSlot(profile, "latin");
-    if (latin && FONT_INFO[latin.font]?.scripts.includes(script)) add(latin.font, latin);
+    if (latin && FONT_INFO[latin.font]?.scripts.includes(script))
+      add(latin.font, latin);
   }
-  for (const c of [...out]) for (const f of c.def.fallback) if (FONT_INFO[f]?.scripts.includes(script)) add(f);
+  for (const c of [...out])
+    for (const f of c.def.fallback)
+      if (FONT_INFO[f]?.scripts.includes(script)) add(f);
   for (const f of SCRIPT_FALLBACK[script]) add(f);
   return out;
 }
 
 /** Everything a text needs loaded before it can be shaped (for exports and previews). */
-export function neededFiles(text: string, look: TextLook): { files: string[]; web: string[] } {
+export function neededFiles(
+  text: string,
+  look: TextLook,
+): { files: string[]; web: string[] } {
   const files = new Set<string>(),
     web = new Set<string>();
   const scripts = new Set(resolveScripts(text));
@@ -174,14 +224,21 @@ function isPending(path: string) {
 
 function featuresOf(look: TextLook): HB.Feature[] {
   const hb = harfbuzz()!;
-  return Object.entries(look.features ?? {}).map(([tag, on]) => new hb.Feature(tag, on ? 1 : 0));
+  return Object.entries(look.features ?? {}).map(
+    ([tag, on]) => new hb.Feature(tag, on ? 1 : 0),
+  );
 }
 
 let measureCtx: CanvasRenderingContext2D | null | undefined;
 /** Width (em) of letters drawn by the browser. */
 function webWidth(css: string, text: string): number {
-  if (measureCtx === undefined) measureCtx = typeof document !== "undefined" ? document.createElement("canvas").getContext("2d") : null;
-  if (!measureCtx) return [...text].length * (/[　-鿿가-힯]/.test(text) ? 1 : 0.6);
+  if (measureCtx === undefined)
+    measureCtx =
+      typeof document !== "undefined"
+        ? document.createElement("canvas").getContext("2d")
+        : null;
+  if (!measureCtx)
+    return [...text].length * (/[　-鿿가-힯]/.test(text) ? 1 : 0.6);
   measureCtx.font = css;
   return measureCtx.measureText(text).width / 100;
 }
@@ -194,7 +251,13 @@ function webCss(def: FontDefinition | null, look: TextLook) {
  * Picks a font for every UTF-16 index of a paragraph and cuts it into runs
  * of one level, script and font. `pending` collects files still loading.
  */
-function itemize(text: string, levels: Uint8Array, look: TextLook, baseScript: Script, report: Report): Run[] {
+function itemize(
+  text: string,
+  levels: Uint8Array,
+  look: TextLook,
+  baseScript: Script,
+  report: Report,
+): Run[] {
   const scripts = resolveScripts(text, baseScript);
   const n = text.length;
   const choice: (Candidate | null)[] = new Array(n).fill(null);
@@ -205,7 +268,13 @@ function itemize(text: string, levels: Uint8Array, look: TextLook, baseScript: S
     const ch = String.fromCodePoint(cp);
     const wide = cp > 0xffff;
     // Marks, joiners and spaces stay with the letter before them.
-    if (i > 0 && (MARK.test(ch) || cp === 0x200c || cp === 0x200d || (SPACE.test(ch) && choice[i - 1]))) {
+    if (
+      i > 0 &&
+      (MARK.test(ch) ||
+        cp === 0x200c ||
+        cp === 0x200d ||
+        (SPACE.test(ch) && choice[i - 1]))
+    ) {
       choice[i] = choice[i - 1];
       faceAt[i] = faceAt[i - 1];
       if (wide) {
@@ -242,13 +311,20 @@ function itemize(text: string, levels: Uint8Array, look: TextLook, baseScript: S
       if (loaded.unicodes.has(cp) || SPACE.test(ch)) {
         picked = c;
         face = loaded;
-        if (!f.exactWeight || (look.italic && !f.exactStyle)) report.style(c.def.id, !f.exactWeight, look.italic && !f.exactStyle);
+        if (!f.exactWeight || (look.italic && !f.exactStyle))
+          report.style(c.def.id, !f.exactWeight, look.italic && !f.exactStyle);
         break;
       }
     }
     // Tell people when their letters come from another font than the one they
     // chose (a Latin-only face asked to write Arabic) or the profile's own.
-    if (picked && !SPACE.test(ch) && ((look.font && picked.def.id !== look.font) || (list[0] && picked.def.id !== list[0].def.id))) report.substitute(s, picked.def.id);
+    if (
+      picked &&
+      !SPACE.test(ch) &&
+      ((look.font && picked.def.id !== look.font) ||
+        (list[0] && picked.def.id !== list[0].def.id))
+    )
+      report.substitute(s, picked.def.id);
     if (!picked && !SPACE.test(ch) && s !== "other") report.unsupported(s);
     if (!picked && s === "other") report.unsupported("other");
     choice[i] = picked;
@@ -268,10 +344,24 @@ function itemize(text: string, levels: Uint8Array, look: TextLook, baseScript: S
     faceAt[i] = firstFace;
   }
   const runs: Run[] = [];
-  for (let i = 0; i < n; ) {
+  for (let i = 0; i < n;) {
     let j = i + 1;
-    while (j < n && levels[j] === levels[i] && scripts[j] === scripts[i] && choice[j] === choice[i] && faceAt[j] === faceAt[i]) j++;
-    runs.push({ start: i, end: j, level: levels[i], script: scripts[i], cand: choice[i], face: faceAt[i] });
+    while (
+      j < n &&
+      levels[j] === levels[i] &&
+      scripts[j] === scripts[i] &&
+      choice[j] === choice[i] &&
+      faceAt[j] === faceAt[i]
+    )
+      j++;
+    runs.push({
+      start: i,
+      end: j,
+      level: levels[i],
+      script: scripts[i],
+      cand: choice[i],
+      face: faceAt[i],
+    });
     i = j;
   }
   return runs;
@@ -293,7 +383,11 @@ interface Report {
  * (kashida is what stretches the words themselves).
  */
 const CURSIVE_WORD_SHARE = 2;
-function gapsFor(text: string, scripts: Script[], look: TextLook): Float64Array {
+function gapsFor(
+  text: string,
+  scripts: Script[],
+  look: TextLook,
+): Float64Array {
   const gaps = new Float64Array(text.length);
   const ls = look.letterSpacing || 0,
     ws = look.wordSpacing || 0;
@@ -302,7 +396,9 @@ function gapsFor(text: string, scripts: Script[], look: TextLook): Float64Array 
     const ch = text[i];
     if (MARK.test(text[i + 1])) continue; // after the base: wait for its marks
     if (SPACE.test(ch)) {
-      const nearCursive = CURSIVE.has(scripts[i - 1] ?? scripts[i]) || CURSIVE.has(scripts[i + 1] ?? scripts[i]);
+      const nearCursive =
+        CURSIVE.has(scripts[i - 1] ?? scripts[i]) ||
+        CURSIVE.has(scripts[i + 1] ?? scripts[i]);
       gaps[i] = ws + ls * (nearCursive ? CURSIVE_WORD_SHARE : 1);
       continue;
     }
@@ -312,7 +408,14 @@ function gapsFor(text: string, scripts: Script[], look: TextLook): Float64Array 
   return gaps;
 }
 
-function shapeRun(text: string, run: Run, look: TextLook, gaps: Float64Array, lineIdx: number, words: Int32Array): ShapedRun {
+function shapeRun(
+  text: string,
+  run: Run,
+  look: TextLook,
+  gaps: Float64Array,
+  lineIdx: number,
+  words: Int32Array,
+): ShapedRun {
   const rtl = run.level % 2 === 1;
   const glyphs: PlacedGlyph[] = [];
   let pen = 0;
@@ -333,15 +436,20 @@ function shapeRun(text: string, run: Run, look: TextLook, gaps: Float64Array, li
     const k = scale / face.upem;
     const info = buf.getGlyphInfosAndPositions();
     // Cluster ends (logical), to place the gap after each cluster.
-    const clusters = [...new Set(info.map((g) => g.cluster))].sort((a, b) => a - b);
+    const clusters = [...new Set(info.map((g) => g.cluster))].sort(
+      (a, b) => a - b,
+    );
     const clusterEnd = new Map<number, number>();
-    clusters.forEach((c, i) => clusterEnd.set(c, (clusters[i + 1] ?? run.end) - 1));
+    clusters.forEach((c, i) =>
+      clusterEnd.set(c, (clusters[i + 1] ?? run.end) - 1),
+    );
     for (let gi = 0; gi < info.length; gi++) {
       const g = info[gi];
       const end = clusterEnd.get(g.cluster)!;
       const gap = end < text.length - 1 ? gaps[end] : 0;
       const firstOfCluster = gi === 0 || info[gi - 1].cluster !== g.cluster;
-      const lastOfCluster = gi === info.length - 1 || info[gi + 1].cluster !== g.cluster;
+      const lastOfCluster =
+        gi === info.length - 1 || info[gi + 1].cluster !== g.cluster;
       // RTL: the gap after a cluster lies to its left (before it, going left to right).
       if (rtl && firstOfCluster) pen += gap;
       glyphs.push({
@@ -361,17 +469,36 @@ function shapeRun(text: string, run: Run, look: TextLook, gaps: Float64Array, li
   } else {
     // Browser-drawn letters, one grapheme at a time (visual order for RTL).
     const def = run.cand?.def ?? null;
-    if (def?.source === "web" && !webFontReady(def.id)) void loadWebFont(def.id, text.slice(run.start, run.end));
+    if (def?.source === "web" && !webFontReady(def.id))
+      void loadWebFont(def.id, text.slice(run.start, run.end));
     const css = webCss(def, look);
-    const seg = typeof Intl !== "undefined" && "Segmenter" in Intl ? new Intl.Segmenter(undefined, { granularity: "grapheme" }) : null;
+    const seg =
+      typeof Intl !== "undefined" && "Segmenter" in Intl
+        ? new Intl.Segmenter(undefined, { granularity: "grapheme" })
+        : null;
     const piece = text.slice(run.start, run.end);
-    const parts: { s: string; i: number }[] = seg ? [...seg.segment(piece)].map((p) => ({ s: p.segment, i: run.start + p.index })) : [...piece].map((s, idx) => ({ s, i: run.start + idx }));
+    const parts: { s: string; i: number }[] = seg
+      ? [...seg.segment(piece)].map((p) => ({
+          s: p.segment,
+          i: run.start + p.index,
+        }))
+      : [...piece].map((s, idx) => ({ s, i: run.start + idx }));
     if (rtl) parts.reverse();
     for (const p of parts) {
       const w = webWidth(css, p.s) * scale;
       const gap = gaps[p.i + p.s.length - 1] ?? 0;
       if (rtl) pen += gap;
-      glyphs.push({ ref: { kind: "web", css, text: p.s }, x: pen, y: -shift, adv: w, cluster: p.i, script: run.script, rtl, word: words[p.i] ?? 0, line: lineIdx });
+      glyphs.push({
+        ref: { kind: "web", css, text: p.s },
+        x: pen,
+        y: -shift,
+        adv: w,
+        cluster: p.i,
+        script: run.script,
+        rtl,
+        word: words[p.i] ?? 0,
+        line: lineIdx,
+      });
       pen += w;
       if (!rtl) pen += gap;
     }
@@ -384,9 +511,12 @@ function visualOrder<T extends { level: number }>(runs: T[]): T[] {
   if (!runs.length) return runs;
   const out = [...runs];
   const max = Math.max(...out.map((r) => r.level)),
-    minOdd = Math.min(...out.map((r) => r.level).filter((l) => l % 2 === 1), Infinity);
+    minOdd = Math.min(
+      ...out.map((r) => r.level).filter((l) => l % 2 === 1),
+      Infinity,
+    );
   for (let lvl = max; lvl >= minOdd && lvl > 0; lvl--) {
-    for (let i = 0; i < out.length; ) {
+    for (let i = 0; i < out.length;) {
       if (out[i].level < lvl) {
         i++;
         continue;
@@ -420,21 +550,44 @@ interface LineDraft {
 }
 
 /** Shapes one line of text (already one paragraph's piece). */
-function shapeLine(text: string, look: TextLook, dir: "ltr" | "rtl" | "auto", lineIdx: number, report: Report): LineDraft {
+function shapeLine(
+  text: string,
+  look: TextLook,
+  dir: "ltr" | "rtl" | "auto",
+  lineIdx: number,
+  report: Report,
+): LineDraft {
   const emb = bidi.getEmbeddingLevels(text, dir);
   const paraLevel = emb.paragraphs[0]?.level ?? (dir === "rtl" ? 1 : 0);
   const rtl = paraLevel % 2 === 1;
   const scripts = resolveScripts(text, rtl ? "arabic" : "latin");
-  const runs = itemize(text, emb.levels, look, rtl ? "arabic" : "latin", report);
+  const runs = itemize(
+    text,
+    emb.levels,
+    look,
+    rtl ? "arabic" : "latin",
+    report,
+  );
   if (report.pending) return { runs: [], width: 0, rtl, text };
   const gaps = gapsFor(text, scripts, look);
   const words = wordIndex(text);
   const shaped = runs.map((r) => shapeRun(text, r, look, gaps, lineIdx, words));
-  return { runs: shaped, width: shaped.reduce((s, r) => s + r.width, 0), rtl, text };
+  return {
+    runs: shaped,
+    width: shaped.reduce((s, r) => s + r.width, 0),
+    rtl,
+    text,
+  };
 }
 
 /** Logical break points of a paragraph wrapped to `max` em. */
-function wrap(text: string, look: TextLook, dir: "ltr" | "rtl" | "auto", max: number, report: Report): string[] {
+function wrap(
+  text: string,
+  look: TextLook,
+  dir: "ltr" | "rtl" | "auto",
+  max: number,
+  report: Report,
+): string[] {
   const whole = shapeLine(text, look, dir, 0, report);
   if (report.pending || whole.width <= max) return [text];
   // Width of each logical character's glyphs (+ gaps), from the whole paragraph's shaping.
@@ -459,7 +612,10 @@ function wrap(text: string, look: TextLook, dir: "ltr" | "rtl" | "auto", max: nu
   return out;
 }
 
-function physical(align: TextLook["align"], rtl: boolean): "left" | "center" | "right" {
+function physical(
+  align: TextLook["align"],
+  rtl: boolean,
+): "left" | "center" | "right" {
   if (align === "left" || align === "right" || align === "center") return align;
   return (align === "start") !== rtl ? "left" : "right";
 }
@@ -474,29 +630,68 @@ export function prepared(text: string, look: TextLook): string {
 
 const cache = new Map<string, ShapedText>();
 /** What changes shaping (colour, effects and curves don't). */
-export function shapeKey(text: string, look: TextLook, boxWidthEm: number | null) {
-  return [text, look.profile, look.font, look.weight, look.italic, look.caps, look.letterSpacing, look.wordSpacing, look.lineHeight, look.align, look.direction, look.lang, JSON.stringify(look.features ?? {}), look.kashida, boxWidthEm ?? "", fontsVersion()].join("\u0001");
+export function shapeKey(
+  text: string,
+  look: TextLook,
+  boxWidthEm: number | null,
+) {
+  return [
+    text,
+    look.profile,
+    look.font,
+    look.weight,
+    look.italic,
+    look.caps,
+    look.letterSpacing,
+    look.wordSpacing,
+    look.lineHeight,
+    look.align,
+    look.direction,
+    look.lang,
+    JSON.stringify(look.features ?? {}),
+    look.kashida,
+    boxWidthEm ?? "",
+    fontsVersion(),
+  ].join("\u0001");
 }
 
 /**
  * Lays out a text in em. Returns `ready: false` (and starts loading what's
  * missing) until HarfBuzz and the text's fonts are in.
  */
-export function shapeText(text: string, look: TextLook, boxWidthEm: number | null = null): ShapedText {
+export function shapeText(
+  text: string,
+  look: TextLook,
+  boxWidthEm: number | null = null,
+): ShapedText {
   const key = shapeKey(text, look, boxWidthEm);
   const hit = cache.get(key);
   if (hit) return hit;
-  const empty: ShapedText = { lines: [], width: 0, left: 0, top: -CAP / 2, bottom: CAP / 2, ready: false, substitutes: [], unsupported: [], styleMissing: [] };
+  const empty: ShapedText = {
+    lines: [],
+    width: 0,
+    left: 0,
+    top: -CAP / 2,
+    bottom: CAP / 2,
+    ready: false,
+    substitutes: [],
+    unsupported: [],
+    styleMissing: [],
+  };
   if (!harfbuzz()) {
     void loadHarfBuzz();
     return empty;
   }
   const subs = new Map<string, { script: Script; font: string }>(),
     unsupported = new Set<Script>(),
-    styles = new Map<string, { font: string; weight: boolean; italic: boolean }>();
+    styles = new Map<
+      string,
+      { font: string; weight: boolean; italic: boolean }
+    >();
   const report: Report = {
     pending: false,
-    substitute: (script, font) => subs.set(`${script}:${font}`, { script, font }),
+    substitute: (script, font) =>
+      subs.set(`${script}:${font}`, { script, font }),
     unsupported: (s) => unsupported.add(s),
     style: (font, weight, italic) => styles.set(font, { font, weight, italic }),
   };
@@ -504,11 +699,19 @@ export function shapeText(text: string, look: TextLook, boxWidthEm: number | nul
   const dir = look.direction === "auto" ? "auto" : look.direction;
   const drafts: LineDraft[] = [];
   for (const para of src.split("\n")) {
-    const pieces = boxWidthEm ? wrap(para, look, dir, boxWidthEm, report) : [para];
+    const pieces = boxWidthEm
+      ? wrap(para, look, dir, boxWidthEm, report)
+      : [para];
     if (report.pending) break;
     // A wrapped paragraph keeps its own direction on every line.
-    const paraDir = dir === "auto" ? ((bidi.getEmbeddingLevels(para, "auto").paragraphs[0]?.level ?? 0) % 2 ? "rtl" : "ltr") : dir;
-    for (const piece of pieces) drafts.push(shapeLine(piece, look, paraDir, drafts.length, report));
+    const paraDir =
+      dir === "auto"
+        ? (bidi.getEmbeddingLevels(para, "auto").paragraphs[0]?.level ?? 0) % 2
+          ? "rtl"
+          : "ltr"
+        : dir;
+    for (const piece of pieces)
+      drafts.push(shapeLine(piece, look, paraDir, drafts.length, report));
     if (report.pending) break;
   }
   if (report.pending) {
@@ -519,16 +722,26 @@ export function shapeText(text: string, look: TextLook, boxWidthEm: number | nul
   // Vertical: each line's ascent/descent from the fonts in it.
   const lines: LaidLine[] = [];
   const primary = candidates(look, "latin")[0];
-  const primaryFile = primary ? pickFile(primary.def, look.weight, look.italic) : null;
+  const primaryFile = primary
+    ? pickFile(primary.def, look.weight, look.italic)
+    : null;
   const primaryFace = primaryFile ? faceOf(primaryFile.file.path) : null;
   const metric = (face: LoadedFace | null, scale: number) =>
-    face ? { asc: (face.ascender / face.upem) * scale, desc: (-face.descender / face.upem) * scale, gap: (face.lineGap / face.upem) * scale } : { asc: 0.9, desc: 0.3, gap: 0 };
+    face
+      ? {
+          asc: (face.ascender / face.upem) * scale,
+          desc: (-face.descender / face.upem) * scale,
+          gap: (face.lineGap / face.upem) * scale,
+        }
+      : { asc: 0.9, desc: 0.3, gap: 0 };
   let y = 0;
   drafts.forEach((d, i) => {
     let asc = 0,
       desc = 0,
       natural = 0;
-    const faces = d.runs.length ? d.runs.map((r) => metric(r.face, r.cand?.slot.scale ?? 1)) : [metric(primaryFace, 1)];
+    const faces = d.runs.length
+      ? d.runs.map((r) => metric(r.face, r.cand?.slot.scale ?? 1))
+      : [metric(primaryFace, 1)];
     for (const m of faces) {
       asc = Math.max(asc, m.asc);
       desc = Math.max(desc, m.desc);
@@ -545,16 +758,30 @@ export function shapeText(text: string, look: TextLook, boxWidthEm: number | nul
       for (const g of r.glyphs) glyphs.push({ ...g, x: g.x + pen, y: g.y + y });
       pen += r.width;
     }
-    lines.push({ glyphs, width: d.width, x0: 0, baseline: y, ascent: asc, descent: desc, rtl: d.rtl });
+    lines.push({
+      glyphs,
+      width: d.width,
+      x0: 0,
+      baseline: y,
+      ascent: asc,
+      descent: desc,
+      rtl: d.rtl,
+    });
   });
 
   const box = boxWidthEm ?? Math.max(0, ...lines.map((l) => l.width));
   const firstRtl = lines[0]?.rtl ?? false;
   const anchorAlign = physical(look.align, firstRtl);
-  const anchorX = anchorAlign === "left" ? 0 : anchorAlign === "center" ? box / 2 : box;
+  const anchorX =
+    anchorAlign === "left" ? 0 : anchorAlign === "center" ? box / 2 : box;
   for (const l of lines) {
     const a = physical(look.align, l.rtl);
-    l.x0 = (a === "left" ? 0 : a === "center" ? (box - l.width) / 2 : box - l.width) - anchorX;
+    l.x0 =
+      (a === "left"
+        ? 0
+        : a === "center"
+          ? (box - l.width) / 2
+          : box - l.width) - anchorX;
     for (const g of l.glyphs) g.x += l.x0;
   }
   // Centre the block vertically on the anchor (cap height above the first

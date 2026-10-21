@@ -105,7 +105,8 @@ export function isFailed(path: string) {
 }
 
 function fileOf(path: string): { def: FontDefinition; file: FontFile } | null {
-  for (const def of FONTS) for (const file of def.files) if (file.path === path) return { def, file };
+  for (const def of FONTS)
+    for (const file of def.files) if (file.path === path) return { def, file };
   return null;
 }
 
@@ -118,7 +119,10 @@ export function loadFile(path: string): Promise<LoadedFace | null> {
       const owner = fileOf(path);
       if (!owner) return null;
       try {
-        const [hb, bytes] = await Promise.all([loadHarfBuzz(), fetchBytes(path)]);
+        const [hb, bytes] = await Promise.all([
+          loadHarfBuzz(),
+          fetchBytes(path),
+        ]);
         const face = new hb.Face(new hb.Blob(bytes), 0);
         const base = new hb.Font(face);
         const ext = base.hExtents();
@@ -157,7 +161,9 @@ export function loadFile(path: string): Promise<LoadedFace | null> {
 
 /** The face's HarfBuzz font at a weight (variable files are set to it). */
 export function hbFontAt(face: LoadedFace, weight: number): HB.Font {
-  const w = face.wghtAxis ? Math.round(Math.min(face.wghtAxis[2], Math.max(face.wghtAxis[0], weight))) : 0;
+  const w = face.wghtAxis
+    ? Math.round(Math.min(face.wghtAxis[2], Math.max(face.wghtAxis[0], weight)))
+    : 0;
   let font = face.fonts.get(w);
   if (!font) {
     const hb = harfbuzz()!;
@@ -170,10 +176,16 @@ export function hbFontAt(face: LoadedFace, weight: number): HB.Font {
 
 /** Makes the browser know the font too (same bytes), for the inline editor and previews. */
 function registerCss(face: LoadedFace, bytes: ArrayBuffer) {
-  if (typeof document === "undefined" || typeof FontFace === "undefined") return;
+  if (typeof document === "undefined" || typeof FontFace === "undefined")
+    return;
   try {
-    const weight = Array.isArray(face.file.weight) ? `${face.file.weight[0]} ${face.file.weight[1]}` : String(face.file.weight);
-    const ff = new FontFace(face.cssFamily, bytes.slice(0), { weight, style: face.file.italic ? "italic" : "normal" });
+    const weight = Array.isArray(face.file.weight)
+      ? `${face.file.weight[0]} ${face.file.weight[1]}`
+      : String(face.file.weight);
+    const ff = new FontFace(face.cssFamily, bytes.slice(0), {
+      weight,
+      style: face.file.italic ? "italic" : "normal",
+    });
     void ff.load().then((loaded) => {
       document.fonts.add(loaded);
       changed();
@@ -189,35 +201,75 @@ function registerCss(face: LoadedFace, bytes: ArrayBuffer) {
  * there is one, then the variable file covering the weight or the static
  * file nearest to it. Never a synthetic bold or slant.
  */
-export function pickFile(def: FontDefinition, weight: number, italic: boolean): { file: FontFile; exactWeight: boolean; exactStyle: boolean } | null {
+export function pickFile(
+  def: FontDefinition,
+  weight: number,
+  italic: boolean,
+): { file: FontFile; exactWeight: boolean; exactStyle: boolean } | null {
   if (!def.files.length) return null;
   const styled = def.files.filter((f) => f.italic === italic);
-  const pool = styled.length ? styled : def.files.filter((f) => !f.italic).length ? def.files.filter((f) => !f.italic) : def.files;
+  const pool = styled.length
+    ? styled
+    : def.files.filter((f) => !f.italic).length
+      ? def.files.filter((f) => !f.italic)
+      : def.files;
   let best = pool[0],
     bestD = Infinity;
   for (const f of pool) {
-    const d = Array.isArray(f.weight) ? (weight < f.weight[0] ? f.weight[0] - weight : weight > f.weight[1] ? weight - f.weight[1] : 0) : Math.abs(f.weight - weight);
+    const d = Array.isArray(f.weight)
+      ? weight < f.weight[0]
+        ? f.weight[0] - weight
+        : weight > f.weight[1]
+          ? weight - f.weight[1]
+          : 0
+      : Math.abs(f.weight - weight);
     if (d < bestD) {
       bestD = d;
       best = f;
     }
   }
-  return { file: best, exactWeight: bestD === 0, exactStyle: styled.length > 0 };
+  return {
+    file: best,
+    exactWeight: bestD === 0,
+    exactStyle: styled.length > 0,
+  };
 }
 
 /** The weights a font really has: a range for variable files, the list for static ones. */
-export function fontWeights(def: FontDefinition, italic = false): { range: [number, number] | null; list: number[] } {
-  const files = def.files.filter((f) => f.italic === italic).length ? def.files.filter((f) => f.italic === italic) : def.files.filter((f) => !f.italic);
-  const ranges = files.filter((f) => Array.isArray(f.weight)).map((f) => f.weight as [number, number]);
-  if (ranges.length) return { range: [Math.min(...ranges.map((r) => r[0])), Math.max(...ranges.map((r) => r[1]))], list: [] };
-  return { range: null, list: [...new Set(files.map((f) => f.weight as number))].sort((a, b) => a - b) };
+export function fontWeights(
+  def: FontDefinition,
+  italic = false,
+): { range: [number, number] | null; list: number[] } {
+  const files = def.files.filter((f) => f.italic === italic).length
+    ? def.files.filter((f) => f.italic === italic)
+    : def.files.filter((f) => !f.italic);
+  const ranges = files
+    .filter((f) => Array.isArray(f.weight))
+    .map((f) => f.weight as [number, number]);
+  if (ranges.length)
+    return {
+      range: [
+        Math.min(...ranges.map((r) => r[0])),
+        Math.max(...ranges.map((r) => r[1])),
+      ],
+      list: [],
+    };
+  return {
+    range: null,
+    list: [...new Set(files.map((f) => f.weight as number))].sort(
+      (a, b) => a - b,
+    ),
+  };
 }
 export function hasItalic(def: FontDefinition) {
   return def.files.some((f) => f.italic);
 }
 /** Download size of a font's files (bytes), from the catalog. */
 export function fontBytes(def: FontDefinition) {
-  return def.files.reduce((s, f) => s + (FONT_FILE_INFO[f.path]?.bytes ?? 0), 0);
+  return def.files.reduce(
+    (s, f) => s + (FONT_FILE_INFO[f.path]?.bytes ?? 0),
+    0,
+  );
 }
 
 // ---- web fonts (East Asian) ----------------------------------------------------------------------
@@ -245,8 +297,14 @@ export function loadWebFont(id: string, sample: string): Promise<void> {
         });
       }
       try {
-        await document.fonts.load(`400 32px "${def.css!.family}"`, sample || "中");
-        await document.fonts.load(`700 32px "${def.css!.family}"`, sample || "中");
+        await document.fonts.load(
+          `400 32px "${def.css!.family}"`,
+          sample || "中",
+        );
+        await document.fonts.load(
+          `700 32px "${def.css!.family}"`,
+          sample || "中",
+        );
       } catch {}
       webReady.add(id);
       changed();

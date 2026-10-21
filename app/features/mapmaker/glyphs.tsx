@@ -305,7 +305,9 @@ const PATHS: Record<string, React.ReactNode> = {
       <path d="M7 20h13M9.3 9.3l5.4 5.4" />
     </>
   ),
-  star: <path d="m12 3.5 2.6 5.3 5.8.8-4.2 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.2-4.1 5.8-.8Z" />,
+  star: (
+    <path d="m12 3.5 2.6 5.3 5.8.8-4.2 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.2-4.1 5.8-.8Z" />
+  ),
   chevronDown: <path d="m6 9 6 6 6-6" />,
   close: <path d="M6 6l12 12M18 6 6 18" />,
   land: <path d="M3 18 9 8l3.5 5.5L15 10l6 8Z" />,

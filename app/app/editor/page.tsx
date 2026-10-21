@@ -13,23 +13,31 @@ import { useTranslation } from "react-i18next";
 // Imported here too (not only from the home page) so a direct load or
 // refresh of /editor is styled, not just client-side navigation from "/".
 import "../../features/mapmaker/mapmaker.css";
-import {CompassScreen} from "@/features/account/ui";
-import {MMProject} from "@/features/mapmaker/types";
-import {lastProjectId, loadProject, takeInitialProject} from "@/features/mapmaker/storage";
-import {maps} from "@/features/account/api";
-import {NetworkError} from "@/lib/api/client";
-import {useAuth} from "@/features/account/AuthProvider";
-import {createProject} from "@/features/mapmaker/domain";
+import { CompassScreen } from "@/features/account/ui";
+import { MMProject } from "@/features/mapmaker/types";
+import {
+  lastProjectId,
+  loadProject,
+  takeInitialProject,
+} from "@/features/mapmaker/storage";
+import { maps } from "@/features/account/api";
+import { NetworkError } from "@/lib/api/client";
+import { useAuth } from "@/features/account/AuthProvider";
+import { createProject } from "@/features/mapmaker/domain";
 
 const MapCreatorEditor = dynamic(
-  () => import("../../features/mapmaker/MapCreatorEditor").then((m) => m.MapCreatorEditor),
+  () =>
+    import("../../features/mapmaker/MapCreatorEditor").then(
+      (m) => m.MapCreatorEditor,
+    ),
   { ssr: false, loading: () => <CompassScreen /> },
 );
 
 /** A cloud map, or this device's newer unsaved copy of it. */
 async function openCloudMap(id: string): Promise<MMProject> {
   const local = await loadProject(id).catch(() => null);
-  const localDirty = !!local?.cloud && local.updatedAt > (local.cloud.savedAt ?? 0);
+  const localDirty =
+    !!local?.cloud && local.updatedAt > (local.cloud.savedAt ?? 0);
   try {
     const { project } = await maps.get(id);
     // Unsaved edits made here win; saving them may then raise a conflict.
@@ -47,14 +55,18 @@ function EditorLoader() {
     params = useSearchParams(),
     mapId = params.get("map"),
     { user } = useAuth();
-  const [open, setOpen] = useState<{ project: MMProject; key: number } | null>(null),
+  const [open, setOpen] = useState<{ project: MMProject; key: number } | null>(
+      null,
+    ),
     [missing, setMissing] = useState(false),
     started = useRef(false);
 
   useEffect(() => {
     if (started.current || user === undefined) return;
     if (mapId && !user) {
-      router.replace(`/login?next=${encodeURIComponent(`/editor?map=${mapId}`)}`);
+      router.replace(
+        `/login?next=${encodeURIComponent(`/editor?map=${mapId}`)}`,
+      );
       return;
     }
     started.current = true;
@@ -71,10 +83,23 @@ function EditorLoader() {
       const saved = id ? await loadProject(id).catch(() => null) : null;
       if (saved?.cloud && user) {
         // The last map is a cloud map: open it at its own address.
-        window.history.replaceState(window.history.state, "", `/editor?map=${saved.cloud.id}`);
+        window.history.replaceState(
+          window.history.state,
+          "",
+          `/editor?map=${saved.cloud.id}`,
+        );
         return openCloudMap(saved.cloud.id).then(show, () => show(saved));
       }
-      show(saved ?? createProject({ name: "", resolutionTier: "medium", aspect: "landscape", cols: 40, rows: 30 }));
+      show(
+        saved ??
+          createProject({
+            name: "",
+            resolutionTier: "medium",
+            aspect: "landscape",
+            cols: 40,
+            rows: 30,
+          }),
+      );
     })();
   }, [mapId, user, router]);
 
@@ -87,12 +112,15 @@ function EditorLoader() {
         </Link>
       </div>
     );
-  if (!open) return <CompassScreen label={mapId ? t("acOpeningMap") : undefined} />;
+  if (!open)
+    return <CompassScreen label={mapId ? t("acOpeningMap") : undefined} />;
   return (
     <MapCreatorEditor
       key={open.key}
       initial={open.project}
-      onReplaceProject={(project) => setOpen((o) => ({ project, key: (o?.key ?? 0) + 1 }))}
+      onReplaceProject={(project) =>
+        setOpen((o) => ({ project, key: (o?.key ?? 0) + 1 }))
+      }
     />
   );
 }

@@ -9,7 +9,9 @@
  */
 
 /** Where the API lives. Set NEXT_PUBLIC_API_URL in .env.local for other setups. */
-export const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000").replace(/\/$/, "");
+export const API_URL = (
+  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"
+).replace(/\/$/, "");
 
 /** An API error with the server's stable `code` (when it sent one). */
 export class ApiError extends Error {
@@ -42,7 +44,9 @@ function xsrfToken() {
 let csrfReady: Promise<void> | null = null;
 function ensureCsrf(force = false) {
   if (force || !csrfReady || !xsrfToken()) {
-    csrfReady = fetch(`${API_URL}/sanctum/csrf-cookie`, { credentials: "include" })
+    csrfReady = fetch(`${API_URL}/sanctum/csrf-cookie`, {
+      credentials: "include",
+    })
       .then(() => undefined)
       .catch((e) => {
         csrfReady = null;
@@ -54,13 +58,19 @@ function ensureCsrf(force = false) {
 
 type Body = Record<string, unknown> | FormData | undefined;
 
-async function send(method: string, path: string, body: Body, retried = false): Promise<Response> {
+async function send(
+  method: string,
+  path: string,
+  body: Body,
+  retried = false,
+): Promise<Response> {
   const mutating = method !== "GET";
   if (mutating) await ensureCsrf();
   const headers: Record<string, string> = { Accept: "application/json" };
   const token = xsrfToken();
   if (mutating && token) headers["X-XSRF-TOKEN"] = token;
-  if (body && !(body instanceof FormData)) headers["Content-Type"] = "application/json";
+  if (body && !(body instanceof FormData))
+    headers["Content-Type"] = "application/json";
 
   let res: Response;
   try {
@@ -68,7 +78,12 @@ async function send(method: string, path: string, body: Body, retried = false): 
       method,
       credentials: "include",
       headers,
-      body: body instanceof FormData ? body : body ? JSON.stringify(body) : undefined,
+      body:
+        body instanceof FormData
+          ? body
+          : body
+            ? JSON.stringify(body)
+            : undefined,
     });
   } catch (e) {
     throw new NetworkError(String(e));
@@ -98,8 +113,10 @@ async function parse<T>(res: Response): Promise<T> {
 
 export const api = {
   get: <T>(path: string) => send("GET", path, undefined).then(parse<T>),
-  post: <T>(path: string, body?: Body) => send("POST", path, body).then(parse<T>),
+  post: <T>(path: string, body?: Body) =>
+    send("POST", path, body).then(parse<T>),
   put: <T>(path: string, body?: Body) => send("PUT", path, body).then(parse<T>),
-  patch: <T>(path: string, body?: Body) => send("PATCH", path, body).then(parse<T>),
+  patch: <T>(path: string, body?: Body) =>
+    send("PATCH", path, body).then(parse<T>),
   delete: <T>(path: string) => send("DELETE", path, undefined).then(parse<T>),
 };
