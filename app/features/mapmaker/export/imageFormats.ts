@@ -12,8 +12,8 @@
  *
  * Everything here except `encodeMapImage` is pure, so it is unit tested.
  */
+import {canvasFits, DEFAULT_CANVAS_PIXELS} from "@/lib/canvasLimits";
 
-import { DEFAULT_CANVAS_PIXELS, canvasFits } from "../../../lib/canvasLimits";
 
 export type ImageFormat = "png" | "jpeg" | "webp" | "tiff" | "pdf" | "svg";
 

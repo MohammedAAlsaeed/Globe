@@ -8,9 +8,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Glyph } from "../glyphs";
 import { Slider } from "./EditorControls";
-import { maxCanvasPixels } from "../../../lib/canvasLimits";
 import { IMAGE_FORMATS, exportSizes, printSizeCm, type ExportSize, type ImageFormat } from "../export/imageFormats";
 import type { TextExportMode } from "../text/exportVector";
+import {maxCanvasPixels} from "@/lib/canvasLimits";
 
 type T = (k: string, o?: Record<string, unknown>) => string;
 
