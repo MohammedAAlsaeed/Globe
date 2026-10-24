@@ -16,6 +16,7 @@ import {
   rememberLanguage,
 } from "@/lib/language";
 import { AuthProvider } from "@/features/account/AuthProvider";
+import { ControlsSync } from "@/features/mapmaker/controlsSync";
 
 export function Providers({
   lang,
@@ -49,7 +50,10 @@ export function Providers({
 
   return (
     <I18nextProvider i18n={instance}>
-      <AuthProvider>{children}</AuthProvider>
+      <AuthProvider>
+        <ControlsSync />
+        {children}
+      </AuthProvider>
     </I18nextProvider>
   );
 }

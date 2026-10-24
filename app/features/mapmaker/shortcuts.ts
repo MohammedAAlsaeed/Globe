@@ -22,6 +22,7 @@
  * Arabic (or any other) keyboard layout active, without switching to English.
  */
 import { useSyncExternalStore } from "react";
+import { markControlsChanged } from "./controls";
 
 export type ShortcutContext =
   /** Anywhere in the editor. */
@@ -38,7 +39,23 @@ export type ShortcutContext =
   | "text";
 
 export type ShortcutGroup =
-  "tools" | "edit" | "view" | "line" | "paint" | "stamp" | "text";
+  | "tools"
+  | "edit"
+  | "view"
+  | "line"
+  | "paint"
+  | "stamp"
+  | "text";
+/** The groups in the order a cheat sheet shows them. */
+export const SHORTCUT_GROUPS: ShortcutGroup[] = [
+  "tools",
+  "view",
+  "edit",
+  "paint",
+  "stamp",
+  "line",
+  "text",
+];
 
 export interface ShortcutDef {
   id: string;
@@ -226,6 +243,62 @@ export const SHORTCUTS = [
     contexts: ["global"],
     keys: ["Space"],
     customizable: false,
+  },
+  {
+    id: "view.hand",
+    group: "view",
+    labelKey: "ctHandTool",
+    contexts: ["global"],
+    keys: ["KeyH"],
+    customizable: true,
+  },
+  {
+    id: "view.zoomIn",
+    group: "view",
+    labelKey: "ctZoomIn",
+    contexts: ["global"],
+    keys: ["Mod+Equal", "Mod+NumpadAdd"],
+    customizable: true,
+  },
+  {
+    id: "view.zoomOut",
+    group: "view",
+    labelKey: "ctZoomOut",
+    contexts: ["global"],
+    keys: ["Mod+Minus", "Mod+NumpadSubtract"],
+    customizable: true,
+  },
+  {
+    id: "view.fit",
+    group: "view",
+    labelKey: "mmFitScreen",
+    contexts: ["global"],
+    keys: ["Shift+Digit1", "Mod+Digit0"],
+    customizable: true,
+  },
+  {
+    id: "view.actual",
+    group: "view",
+    labelKey: "ctActualSize",
+    contexts: ["global"],
+    keys: ["Shift+Digit0"],
+    customizable: true,
+  },
+  {
+    id: "view.grid",
+    group: "view",
+    labelKey: "mmSnapToGrid",
+    contexts: ["global"],
+    keys: ["KeyG"],
+    customizable: true,
+  },
+  {
+    id: "help.controls",
+    group: "view",
+    labelKey: "ctOpenControls",
+    contexts: ["global"],
+    keys: ["Shift+Slash"],
+    customizable: true,
   },
 
   // ---- Line tool ----
@@ -614,8 +687,16 @@ export function currentBindings(): Bindings {
   bindings ??= resolveBindings(shortcutOverrides());
   return bindings;
 }
-/** Replaces the person's changes (an empty object restores every default). */
-export function setShortcutOverrides(next: ShortcutOverrides) {
+/**
+ * Replaces the person's changes (an empty object restores every default).
+ * `remote`: they came from the account (their time is kept, so they aren't
+ * sent straight back; see ./controlsSync).
+ */
+export function setShortcutOverrides(
+  next: ShortcutOverrides,
+  opts: { remote?: number } = {},
+) {
+  markControlsChanged(opts.remote ?? Date.now());
   overrides = next;
   bindings = resolveBindings(next);
   try {
@@ -624,6 +705,10 @@ export function setShortcutOverrides(next: ShortcutOverrides) {
     // Private mode or storage full: the change still applies until reload.
   }
   listeners.forEach((l) => l());
+}
+/** Calls `listener` whenever the shortcuts change; returns the unsubscribe. */
+export function subscribeShortcuts(listener: () => void) {
+  return subscribe(listener);
 }
 function subscribe(listener: () => void) {
   listeners.add(listener);

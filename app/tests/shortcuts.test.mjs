@@ -18,6 +18,7 @@ import { linesEn, linesAr } from "../lib/locales/lines.ts";
 import { shortcutsEn, shortcutsAr } from "../lib/locales/shortcuts.ts";
 import { textEn } from "../lib/locales/text.ts";
 import { en } from "../lib/locales/en.ts";
+import { controlsEn } from "../lib/locales/controls.ts";
 
 const key = (code, mods = {}) => ({
   code,
@@ -155,7 +156,14 @@ test("labels follow the platform and leave out number-pad twins", () => {
 });
 
 test("every action has a name, and texts name keys only through placeholders", () => {
-  const all = { ...en, ...mapmakerEn, ...linesEn, ...shortcutsEn, ...textEn };
+  const all = {
+    ...en,
+    ...mapmakerEn,
+    ...linesEn,
+    ...shortcutsEn,
+    ...textEn,
+    ...controlsEn,
+  };
   for (const s of SHORTCUTS)
     assert.ok(
       all[s.labelKey] || s.labelKey === "undo" || s.labelKey === "redo",
