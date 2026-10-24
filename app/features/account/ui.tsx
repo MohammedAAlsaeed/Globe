@@ -149,6 +149,13 @@ export function SiteHeader() {
                 >
                   {t("stCatCustom")}
                 </Link>
+                <Link
+                  href="/settings/controls"
+                  role="menuitem"
+                  onClick={() => setMenu(false)}
+                >
+                  {t("ctTitle")}
+                </Link>
                 <button
                   role="menuitem"
                   onClick={async () => {

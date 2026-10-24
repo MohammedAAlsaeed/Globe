@@ -55,6 +55,23 @@ export const auth = {
   googleUrl: () => `${API_URL}/auth/google/redirect`,
 };
 
+// ---- editor preferences (controls and shortcuts; see mapmaker/controlsSync) ----
+export interface PreferencesRecord {
+  /** null until first saved. */
+  controls: Record<string, unknown> | null;
+  shortcuts: Record<string, string[]> | null;
+  /** When they last changed (ms), on whichever device. */
+  updated_at: number;
+}
+export const preferences = {
+  get: () =>
+    api.get<One<PreferencesRecord>>("auth/me/preferences").then((r) => r.data),
+  put: (p: { controls: unknown; shortcuts: unknown; updated_at: number }) =>
+    api
+      .put<One<PreferencesRecord>>("auth/me/preferences", p)
+      .then((r) => r.data),
+};
+
 // ---- plans ----------------------------------------------------------------------
 export const plans = {
   /** Every plan and its limits (public), cheapest first. */
@@ -143,10 +160,9 @@ export const maps = {
    */
   recordExport: (id: string | null, width: number, height: number) =>
     api
-      .post<One<{ id: number; plan: string; commercial_use: boolean }>>(
-        id ? `maps/${id}/exports` : "exports",
-        { width, height },
-      )
+      .post<
+        One<{ id: number; plan: string; commercial_use: boolean }>
+      >(id ? `maps/${id}/exports` : "exports", { width, height })
       .then((r) => r.data),
 };
 
@@ -168,9 +184,9 @@ export const library = {
   /** Assets by id, for drawing maps that use them (even from a locked pack). */
   resolve: (ids: string[]) =>
     api
-      .get<Many<Asset>>(
-        `assets?${ids.map((id) => `ids[]=${encodeURIComponent(id)}`).join("&")}`,
-      )
+      .get<
+        Many<Asset>
+      >(`assets?${ids.map((id) => `ids[]=${encodeURIComponent(id)}`).join("&")}`)
       .then((r) => r.data),
 
   /** Line art packs (pieces repeated along lines; `category` = the piece's role). */

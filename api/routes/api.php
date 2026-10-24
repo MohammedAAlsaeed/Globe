@@ -10,6 +10,7 @@ use App\Http\Controllers\Api\V1\MapController;
 use App\Http\Controllers\Api\V1\MapExportController;
 use App\Http\Controllers\Api\V1\MapThumbnailController;
 use App\Http\Controllers\Api\V1\PlanController;
+use App\Http\Controllers\Api\V1\PreferencesController;
 use App\Http\Controllers\Api\V1\TextStyleController;
 use Illuminate\Support\Facades\Route;
 
@@ -34,6 +35,8 @@ Route::prefix('auth')->group(function () {
     Route::middleware('auth:sanctum')->group(function () {
         Route::get('me', [SessionController::class, 'me']);
         Route::patch('me', [SessionController::class, 'update']);
+        Route::get('me/preferences', [PreferencesController::class, 'show']);
+        Route::put('me/preferences', [PreferencesController::class, 'update'])->middleware('throttle:api');
         Route::post('logout', [SessionController::class, 'logout']);
         Route::post('email/verification-notification', [EmailVerificationController::class, 'send'])
             ->middleware('throttle:6,1');

@@ -559,8 +559,14 @@
   overflow: auto;
   display: flex;
   align-items: flex-start;
-  justify-content: center;
+  justify-content: flex-start;
+  /* The room around the map is set inline (half the view each side). */
   padding: 24px;
+  /* The map isn't text: right-to-left pages scroll it the same way. */
+  direction: ltr;
+  /* Fingers move and zoom the view through the editor's own gestures. */
+  touch-action: none;
+  overscroll-behavior: contain;
   background: linear-gradient(45deg, #1a1d21 25%, transparent 25%),
     linear-gradient(-45deg, #1a1d21 25%, transparent 25%),
     linear-gradient(45deg, transparent 75%, #1a1d21 75%),
@@ -2565,4 +2571,349 @@ dialog.mm-export-dialog .mm-export-actions .export-button {
   display: flex;
   align-items: center;
   gap: 6px;
+}
+
+/* ===========================================================================
+   Controls & shortcuts (components/ControlsSettings) — in a dialog over the
+   editor, and as its own page (/settings/controls)
+   =========================================================================== */
+.mm-ct-page,
+.mm-ct-dialog {
+  --mm-bg: #15181c;
+  --mm-panel: #1c2025;
+  --mm-panel-2: #22262c;
+  --mm-border: #2c3138;
+  --mm-text: #e7e9ec;
+  --mm-muted: #8c94a0;
+  --mm-accent: #e0a458;
+}
+dialog.mm-ct-dialog {
+  width: min(760px, calc(100% - 24px));
+  max-height: min(860px, calc(100vh - 32px));
+  overflow: auto;
+}
+.mm-ct {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  color: var(--mm-text);
+  font-size: 12px;
+}
+.mm-ct button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+.mm-ct-tabs {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+  padding: 3px;
+  border: 1px solid var(--mm-border);
+  border-radius: 10px;
+  background: var(--mm-bg);
+}
+.mm-ct .mm-ct-tabs button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 8px 6px;
+  border-radius: 7px;
+  color: var(--mm-muted);
+  font-weight: 600;
+}
+.mm-ct .mm-ct-tabs button.active {
+  background: var(--mm-panel-2);
+  color: var(--mm-accent);
+}
+.mm-ct .mm-ct-tabs button:focus-visible,
+.mm-ct button:focus-visible {
+  outline: 2px solid var(--mm-accent);
+  outline-offset: 1px;
+}
+.mm-ct-body {
+  display: grid;
+  gap: 14px;
+}
+.mm-ct-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--mm-border);
+  border-radius: 10px;
+  background: var(--mm-panel);
+}
+.mm-ct-section h3 {
+  margin: 0;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--mm-muted);
+}
+.mm-ct-section .mm-bp-toggle {
+  font-size: 12px;
+}
+.mm-ct-section .mm-slider {
+  display: grid;
+  grid-template-columns: minmax(120px, 220px) 1fr 70px;
+  gap: 10px;
+  font-size: 12px;
+  white-space: normal;
+}
+.mm-ct-section .mm-slider input[type="range"] {
+  width: 100%;
+}
+.mm-ct-section .mm-slider b {
+  text-align: end;
+  font-variant-numeric: tabular-nums;
+}
+.mm-ct-row {
+  display: grid;
+  gap: 6px;
+}
+.mm-ct-label {
+  font-size: 12px;
+}
+.mm-ct-hint {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.55;
+  color: var(--mm-muted);
+}
+.mm-ct .mm-ct-link {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 2px;
+  color: var(--mm-accent);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+.mm-ct .mm-ct-link:disabled {
+  color: var(--mm-muted);
+  opacity: 0.6;
+  cursor: default;
+}
+.mm-ct-glance {
+  display: grid;
+  grid-template-columns: minmax(130px, max-content) 1fr;
+  gap: 8px 16px;
+  margin: 0;
+}
+.mm-ct-glance dt {
+  font-weight: 600;
+  color: var(--mm-text);
+}
+.mm-ct-glance dd {
+  margin: 0;
+  color: var(--mm-muted);
+  line-height: 1.5;
+}
+.mm-ct-curve-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 14px;
+}
+.mm-ct-curve-row .mm-ct-row {
+  flex: 1;
+}
+.mm-ct-curve path {
+  fill: none;
+  stroke: var(--mm-border);
+}
+.mm-ct-curve polyline {
+  fill: none;
+  stroke: var(--mm-accent);
+  stroke-width: 2;
+}
+/* ---- keyboard ---- */
+.mm-ct-keys-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.mm-ct-keys-head .mm-st-search {
+  flex: 1;
+}
+.mm-ct-group h4 {
+  margin: 8px 0 4px;
+  font-size: 11px;
+  color: var(--mm-accent);
+}
+.mm-ct-key-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 4px 12px;
+  padding: 7px 8px;
+  border-radius: 7px;
+}
+.mm-ct-key-row:hover,
+.mm-ct-key-row.recording {
+  background: var(--mm-panel-2);
+}
+.mm-ct-key-name {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.mm-ct-key-name small {
+  color: var(--mm-muted);
+  font-size: 10.5px;
+}
+.mm-ct-key-keys {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 5px;
+}
+.mm-ct-kbd {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--mm-border);
+  border-radius: 6px;
+  background: var(--mm-bg);
+}
+.mm-ct-kbd kbd {
+  padding: 3px 7px;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+.mm-ct .mm-ct-kbd button {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  align-self: stretch;
+  border-inline-start: 1px solid var(--mm-border);
+  color: var(--mm-muted);
+}
+.mm-ct .mm-ct-kbd button:hover {
+  color: #f08a7a;
+}
+.mm-ct .mm-ct-add,
+.mm-ct .mm-ct-reset {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 24px;
+  padding: 2px 7px;
+  border: 1px dashed var(--mm-border);
+  border-radius: 6px;
+  color: var(--mm-muted);
+  font-size: 11px;
+}
+.mm-ct .mm-ct-add[aria-pressed="true"] {
+  border-style: solid;
+  border-color: var(--mm-accent);
+  color: var(--mm-accent);
+}
+.mm-ct .mm-ct-add:hover,
+.mm-ct .mm-ct-reset:hover {
+  color: var(--mm-accent);
+}
+.mm-ct-fixed,
+.mm-ct-nokey {
+  font-size: 10.5px;
+  color: var(--mm-muted);
+}
+.mm-ct-problem {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  color: #f0b07a;
+  font-size: 11.5px;
+}
+.mm-ct-warn {
+  margin: 0;
+  color: #f0b07a;
+  font-size: 11.5px;
+}
+.mm-ct-ok {
+  color: #9fd39a;
+}
+.mm-ct-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 14px;
+  font-size: 11px;
+  color: var(--mm-muted);
+}
+.mm-ct-foot-actions {
+  display: inline-flex;
+  gap: 10px;
+}
+/* ---- the page ---- */
+.mm-ct-page {
+  width: min(860px, calc(100% - 32px));
+  margin: 28px auto 60px;
+}
+.mm-ct-page-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.mm-ct-page-head h1 {
+  margin: 0;
+}
+.mm-ct-page-head p {
+  margin: 4px 0 0;
+}
+.mm-ct-card {
+  padding: 18px;
+  border-radius: 14px;
+  background: #1c2025;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
+}
+/* ---- status bar: hand and controls buttons ---- */
+.mm-status-group button.active {
+  color: var(--mm-accent);
+}
+.mm-zoom-label {
+  min-width: 44px;
+  font-variant-numeric: tabular-nums;
+}
+@media (max-width: 560px) {
+  .mm-ct-tabs button span {
+    display: none;
+  }
+  .mm-ct-section .mm-slider {
+    grid-template-columns: 1fr 70px;
+  }
+  .mm-ct-section .mm-slider label {
+    grid-column: 1 / -1;
+  }
+  .mm-ct-glance {
+    grid-template-columns: 1fr;
+  }
+  .mm-ct-glance dd {
+    margin-bottom: 6px;
+  }
+}
+.mm-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
 }

@@ -117,8 +117,9 @@ export const mapmakerEn = {
   mmMenuEdit: "Edit",
   mmMenuView: "View",
   mmPan: "Pan",
-  mmPanHint: "Space + drag, middle-click drag, or two-finger scroll",
-  mmZoomHint: "⌘/Ctrl + scroll, or pinch on a trackpad",
+  mmPanHint:
+    "Space + drag, middle-button drag, H, two fingers, or the arrow keys",
+  mmZoomHint: "The wheel, a pinch, or Ctrl/⌘ + / −",
   mmEscapeHint: "Cancel the current drawing",
   mmVisible: "Visible",
   mmLocked: "Locked",

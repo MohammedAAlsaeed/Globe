@@ -170,6 +170,19 @@ import { ApiError } from "@/lib/api/client";
 import { setOfAsset, stampSet } from "./stamps/catalog";
 import { clearLibrary, loadLibrary, resolvePlaced } from "./stamps/remote";
 import { uploadStamps } from "./stamps/upload";
+import {
+  applyPressure,
+  classifyWheel,
+  controls as currentControls,
+  pinchState,
+  prefersReducedMotion,
+  updateControls,
+  useControls,
+  wheelAction,
+  type WheelMemory,
+} from "./controls";
+import { useViewNavigation } from "./hooks/useViewNavigation";
+import { ControlsDialog } from "./components/ControlsSettings";
 import { errorMessage } from "../account/ui";
 import {
   measureGeorgia,
@@ -328,18 +341,6 @@ function storedClipboard(): { layerId: string; objs: MMObject[] } | null {
     return null;
   }
 }
-/** What Ctrl/⌘ + wheel does over the canvas (a per-browser preference). */
-type CtrlWheel = "zoom" | "rotate";
-const CTRL_WHEEL_KEY = "mapmaker-ctrl-wheel";
-function loadCtrlWheel(): CtrlWheel {
-  try {
-    return localStorage.getItem(CTRL_WHEEL_KEY) === "rotate"
-      ? "rotate"
-      : "zoom";
-  } catch {
-    return "zoom";
-  }
-}
 function findNode(stage: Konva.Stage, id: string): Konva.Node | null {
   return stage.findOne((n: Konva.Node) => n.id() === id) ?? null;
 }
@@ -493,7 +494,13 @@ export function MapCreatorEditor({
     [noticeOk, setNoticeOk] = useState(false);
   const [printing, setPrinting] = useState(false);
   const [zoom, setZoom] = useState(1);
-  const [fitWidth, setFitWidth] = useState(900);
+  /** The canvas area's size (the map fits in it at zoom 1). */
+  const [view, setView] = useState({ w: 900, h: 600 });
+  /** The person's mouse, trackpad, touch and pen settings (see ./controls). */
+  const ctl = useControls();
+  /** H: a left drag moves the view (for a mouse without a middle button, or a touchscreen). */
+  const [handMode, setHandMode] = useState(false);
+  const [controlsOpen, setControlsOpen] = useState(false);
 
   const [recentColors, setRecentColors] = useState<string[]>([]),
     [stampTool, setStampTool] = useState<StampToolState>(loadStampState),
@@ -503,9 +510,6 @@ export function MapCreatorEditor({
       busy: boolean;
       error: string | null;
     }>({ busy: false, error: null }),
-    /** What Ctrl/⌘ + wheel does over the canvas: zoom the map, or (as in
-     * Inkarnate) turn the stamp being placed or the selected stamps. */
-    [ctrlWheel, setCtrlWheel] = useState<CtrlWheel>(loadCtrlWheel),
     /** Bumped after each placement, so the next stamp (and its preview) is a new draw. */
     [stampDraw, setStampDraw] = useState(1),
     [biome, setBiome] = useState<Biome>("forest"),
@@ -590,19 +594,8 @@ export function MapCreatorEditor({
     /** Current canvas size, readable from long-lived pointer listeners. */
     viewRef = useRef({ w: 0, h: 0 }),
     clipboardRef = useRef<{ layerId: string; objs: MMObject[] } | null>(null),
-    panRef = useRef<{
-      x: number;
-      y: number;
-      scrollLeft: number;
-      scrollTop: number;
-    } | null>(null),
-    zoomAnchorRef = useRef<{
-      contentX: number;
-      contentY: number;
-      scaleRatio: number;
-      clientX: number;
-      clientY: number;
-    } | null>(null),
+    stageBoxRef = useRef<HTMLDivElement>(null),
+    wheelMemoryRef = useRef<WheelMemory | null>(null),
     editMenuRef = useRef<HTMLDivElement>(null),
     contextMenuRef = useRef<HTMLDivElement>(null),
     /** Brush Tool: the gesture in progress, its preview node, the size cursor. */
@@ -730,7 +723,11 @@ export function MapCreatorEditor({
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
-    const update = () => setFitWidth(Math.max(200, el.clientWidth));
+    const update = () =>
+      setView({
+        w: Math.max(200, el.clientWidth),
+        h: Math.max(160, el.clientHeight),
+      });
     update();
     const ro = new ResizeObserver(update);
     ro.observe(el);
@@ -861,7 +858,11 @@ export function MapCreatorEditor({
     copySuffix: t("mmCopySuffix"),
   });
 
-  const fitScale = fitWidth / project.width,
+  // Zoom 1 fits the whole map in the view, with a margin.
+  const fitScale = Math.max(
+      0.01,
+      Math.min((view.w - 48) / project.width, (view.h - 48) / project.height),
+    ),
     displayScale = fitScale * zoom,
     W = Math.round(project.width * displayScale),
     H = Math.round(project.height * displayScale),
@@ -990,18 +991,20 @@ export function MapCreatorEditor({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [polyDraft, W, H, brushState, landTool]);
 
-  /** Keeps whatever content point was under the cursor fixed in place across
-   * a Ctrl/Cmd+scroll (or trackpad-pinch) zoom, instead of zooming from a
-   * fixed corner/center — this is what makes zoom feel right under the
-   * pointer for both mouse and trackpad users. */
-  useLayoutEffect(() => {
-    const anchor = zoomAnchorRef.current,
-      el = containerRef.current;
-    if (!anchor || !el) return;
-    zoomAnchorRef.current = null;
-    el.scrollLeft = anchor.contentX * anchor.scaleRatio - anchor.clientX;
-    el.scrollTop = anchor.contentY * anchor.scaleRatio - anchor.clientY;
-  }, [zoom]);
+  // The camera (see ./hooks/useViewNavigation): every way of moving or
+  // zooming the view ends here. The map isn't redrawn mid-stroke.
+  const nav = useViewNavigation({
+    containerRef,
+    boxRef: stageBoxRef,
+    zoom,
+    setZoom,
+    busy: () => !!pointerSessionRef.current,
+  });
+  // Start (and come back after the window changes size) with the map centred.
+  useEffect(() => {
+    nav.center();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view.w, view.h]);
 
   useEffect(() => {
     if (!showEditMenu) return;
@@ -1033,14 +1036,56 @@ export function MapCreatorEditor({
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      const tag = (e.target as HTMLElement)?.tagName;
-      if (tag === "INPUT" || tag === "TEXTAREA") return;
+      const target = e.target as HTMLElement | null,
+        tag = target?.tagName;
+      if (
+        tag === "INPUT" ||
+        tag === "TEXTAREA" ||
+        tag === "SELECT" ||
+        target?.isContentEditable
+      )
+        return;
+      // The controls dialog takes the keyboard (it records new shortcuts).
+      if (controlsOpen) return;
       // Every key below comes from the shortcut table (./shortcuts), so the
       // texts that name keys, and custom shortcuts later on, always agree.
       const is = (id: ShortcutId) => pressed(e, id, keys);
-      if (is("view.pan") && !spaceHeld) {
+      if (is("view.pan") && ctl.spacePan) {
         e.preventDefault();
-        setSpaceHeld(true);
+        if (!spaceHeld) setSpaceHeld(true);
+        return;
+      }
+      // ---- The view ----
+      if (is("help.controls")) {
+        e.preventDefault();
+        setControlsOpen(true);
+        return;
+      }
+      if (is("view.zoomIn") || is("view.zoomOut")) {
+        e.preventDefault();
+        nav.zoomAt(is("view.zoomIn") ? 1.25 : 1 / 1.25, null, {
+          smooth: ctl.smoothZoom && !prefersReducedMotion(),
+        });
+        return;
+      }
+      if (is("view.fit")) {
+        e.preventDefault();
+        nav.fit();
+        return;
+      }
+      if (is("view.actual")) {
+        e.preventDefault();
+        nav.zoomTo(1 / fitScale);
+        return;
+      }
+      if (is("view.hand")) {
+        e.preventDefault();
+        setHandMode((h) => !h);
+        return;
+      }
+      if (is("view.grid")) {
+        e.preventDefault();
+        setProject((p) => ({ ...p, snapToGrid: !p.snapToGrid }));
         return;
       }
       if (is("edit.undo")) {
@@ -1150,6 +1195,13 @@ export function MapCreatorEditor({
             : is("edit.nudgeDown")
               ? [0, 1]
               : null;
+      // Arrows with nothing selected move the view.
+      if (nudge && !selectedIds.length && !penDraft && !nodeEdit) {
+        e.preventDefault();
+        const step = ctl.panStep * (e.shiftKey ? 4 : 1);
+        nav.panBy(nudge[0] * step, nudge[1] * step);
+        return;
+      }
       if (
         nudge &&
         selectedIds.length &&
@@ -1187,7 +1239,9 @@ export function MapCreatorEditor({
         }
         if (is("stamp.turnLeft") || is("stamp.turnRight")) {
           e.preventDefault();
-          turnStamps((is("stamp.turnRight") ? 1 : -1) * (fine ? 1 : 15));
+          turnStamps(
+            (is("stamp.turnRight") ? 1 : -1) * (fine ? 1 : ctl.rotateStep),
+          );
           return;
         }
       }
@@ -1271,11 +1325,15 @@ export function MapCreatorEditor({
     const onKeyUp = (e: KeyboardEvent) => {
       if (e.code === "Space") setSpaceHeld(false);
     };
+    // Switching windows while Space is down never leaves it "held".
+    const onBlur = () => setSpaceHeld(false);
     window.addEventListener("keydown", onKey);
     window.addEventListener("keyup", onKeyUp);
+    window.addEventListener("blur", onBlur);
     return () => {
       window.removeEventListener("keydown", onKey);
       window.removeEventListener("keyup", onKeyUp);
+      window.removeEventListener("blur", onBlur);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
@@ -1294,6 +1352,9 @@ export function MapCreatorEditor({
     nodeEdit,
     keys,
     active,
+    controlsOpen,
+    ctl,
+    fitScale,
   ]);
 
   // ---- Shared small helpers (used by keyboard shortcuts, the Edit menu and
@@ -1819,7 +1880,9 @@ export function MapCreatorEditor({
           return;
         }
         if (tool !== "select") return;
-        if (e.evt.shiftKey) toggleSelect(o.id);
+        // Shift, or Ctrl/⌘, adds the object to the selection or takes it out.
+        if (e.evt.shiftKey || e.evt.ctrlKey || e.evt.metaKey)
+          toggleSelect(o.id);
         else selectOnly(o.id);
       },
       onTap: () => {
@@ -1908,37 +1971,180 @@ export function MapCreatorEditor({
     };
   }
 
-  /** Space+drag or middle-click drag panning: scrolls the canvas wrapper
-   * directly (no React state needed for the scroll itself), so it stays
-   * smooth on both mouse and trackpad. Two-finger trackpad scroll and plain
-   * mouse-wheel already pan natively via the wrapper's `overflow: auto`. */
-  function startPan(e: React.PointerEvent<HTMLDivElement>) {
-    if (e.button !== 1 && !(spaceHeld && e.button === 0)) return;
+  // ---- Moving the view with the pointer, and touch & pen gestures ----
+  // Capture-phase listeners on the canvas area see every pointer before the
+  // map does, and keep from it what is navigation (see ./controls):
+  //   mouse   middle-button drag, Space + drag, or any drag in Hand mode
+  //   touch   two fingers move and pinch-zoom the view (a stroke the first
+  //           finger began is dropped); one finger draws, or moves the view
+  //           when "fingers draw" is off; touch and hold opens the menu
+  //   pen     the side button moves the view or opens the menu; while the
+  //           pen is in use, a resting hand doesn't draw (palm rejection)
+  const navGestureRef = useRef<(e: PointerEvent) => void>(() => {});
+  useLayoutEffect(() => {
+    navGestureRef.current = (e: PointerEvent) => gesture(e);
+  });
+  const gestureState = useRef({
+    touches: new Map<number, { x: number; y: number }>(),
+    pan: null as { id: number; x: number; y: number } | null,
+    pinch: null as { x: number; y: number; d: number } | null,
+    hold: null as { id: number; x: number; y: number; timer: number } | null,
+    lastPen: -Infinity,
+  });
+  function gesture(e: PointerEvent) {
+    const g = gestureState.current,
+      el = containerRef.current;
+    if (!el) return;
+    const swallow = () => {
+      e.stopPropagation();
+      if (e.cancelable) e.preventDefault();
+    };
+    const endHold = () => {
+      if (g.hold) window.clearTimeout(g.hold.timer);
+      g.hold = null;
+    };
+    const startPan = () => {
+      g.pan = { id: e.pointerId, x: e.clientX, y: e.clientY };
+      setPanningActive(true);
+      try {
+        el.setPointerCapture(e.pointerId);
+      } catch {}
+      swallow();
+    };
+    if (e.type === "pointerdown") {
+      if (e.pointerType === "pen") g.lastPen = e.timeStamp;
+      if (e.pointerType === "touch") {
+        g.touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+        // A hand resting while the pen is in use: navigation only, never drawing.
+        const palm = ctl.pen.palmRejection && e.timeStamp - g.lastPen < 1500;
+        if (g.touches.size >= 2) {
+          endHold();
+          // The first finger's stroke or drag is dropped: two fingers move the view.
+          pointerSessionRef.current?.();
+          stageRef.current
+            ?.find((n: Konva.Node) => n.isDragging())
+            .forEach((n) => n.stopDrag());
+          if (g.pan) {
+            g.pan = null;
+            setPanningActive(false);
+          }
+          const [a, b] = [...g.touches.values()];
+          g.pinch = pinchState(a, b);
+          swallow();
+          return;
+        }
+        if (palm || handMode || !ctl.touch.fingerDraws) {
+          if (!palm) startPan();
+          else swallow();
+          return;
+        }
+        if (ctl.touch.longPress && tool === "select") {
+          const at = { id: e.pointerId, x: e.clientX, y: e.clientY };
+          g.hold = {
+            ...at,
+            timer: window.setTimeout(() => {
+              g.hold = null;
+              pointerSessionRef.current?.();
+              openContextMenuAt(at.x, at.y);
+            }, ctl.touch.longPressMs),
+          };
+        }
+        return;
+      }
+      // Pen side button.
+      if (
+        e.pointerType === "pen" &&
+        (e.button === 2 || (e.buttons & 2) !== 0)
+      ) {
+        if (ctl.pen.sideButton === "pan") startPan();
+        else if (ctl.pen.sideButton === "menu") {
+          swallow();
+          openContextMenuAt(e.clientX, e.clientY);
+        }
+        return;
+      }
+      if (
+        (e.button === 1 && ctl.middleButton === "pan") ||
+        (e.button === 0 && ((spaceHeld && ctl.spacePan) || handMode))
+      )
+        startPan();
+      return;
+    }
+    if (e.type === "pointermove") {
+      if (e.pointerType === "touch" && g.touches.has(e.pointerId)) {
+        g.touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+        if (
+          g.hold &&
+          g.hold.id === e.pointerId &&
+          Math.hypot(e.clientX - g.hold.x, e.clientY - g.hold.y) > 10
+        )
+          endHold();
+        if (g.pinch && g.touches.size >= 2) {
+          const [a, b] = [...g.touches.values()];
+          const now = pinchState(a, b);
+          nav.panBy(g.pinch.x - now.x, g.pinch.y - now.y);
+          if (ctl.touch.pinchZoom && g.pinch.d > 0 && now.d > 0)
+            nav.zoomAt(now.d / g.pinch.d, { x: now.x, y: now.y });
+          g.pinch = now;
+          swallow();
+          return;
+        }
+      }
+      if (g.pan && g.pan.id === e.pointerId) {
+        nav.panBy(g.pan.x - e.clientX, g.pan.y - e.clientY);
+        g.pan.x = e.clientX;
+        g.pan.y = e.clientY;
+        swallow();
+      }
+      return;
+    }
+    // pointerup / pointercancel / lostpointercapture
+    if (g.hold?.id === e.pointerId) endHold();
+    if (g.touches.delete(e.pointerId) && g.pinch) {
+      if (g.touches.size < 2) g.pinch = null;
+      swallow();
+    }
+    if (g.pan && g.pan.id === e.pointerId) {
+      g.pan = null;
+      setPanningActive(false);
+      try {
+        el.releasePointerCapture(e.pointerId);
+      } catch {}
+      swallow();
+    }
+  }
+  useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
-    e.preventDefault();
-    panRef.current = {
-      x: e.clientX,
-      y: e.clientY,
-      scrollLeft: el.scrollLeft,
-      scrollTop: el.scrollTop,
+    const on = (e: PointerEvent) => navGestureRef.current(e);
+    const types = [
+      "pointerdown",
+      "pointermove",
+      "pointerup",
+      "pointercancel",
+      "lostpointercapture",
+    ] as const;
+    for (const t of types) el.addEventListener(t, on, { capture: true });
+    // Touch and pen menus come from the gestures above (a long press, the
+    // side button), not from the browser's own context menu event.
+    const noMenu = (e: MouseEvent) => {
+      const type = (e as PointerEvent).pointerType;
+      if (
+        type === "touch" ||
+        type === "pen" ||
+        gestureState.current.touches.size ||
+        gestureState.current.pan
+      ) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
     };
-    setPanningActive(true);
-    el.setPointerCapture(e.pointerId);
-  }
-  function movePan(e: React.PointerEvent<HTMLDivElement>) {
-    const pan = panRef.current,
-      el = containerRef.current;
-    if (!pan || !el) return;
-    el.scrollLeft = pan.scrollLeft - (e.clientX - pan.x);
-    el.scrollTop = pan.scrollTop - (e.clientY - pan.y);
-  }
-  function endPan(e: React.PointerEvent<HTMLDivElement>) {
-    if (!panRef.current) return;
-    panRef.current = null;
-    setPanningActive(false);
-    containerRef.current?.releasePointerCapture(e.pointerId);
-  }
+    el.addEventListener("contextmenu", noMenu, { capture: true });
+    return () => {
+      for (const t of types) el.removeEventListener(t, on, { capture: true });
+      el.removeEventListener("contextmenu", noMenu, { capture: true });
+    };
+  }, []);
 
   /** Right-click context menu: walk up from whatever Konva node was clicked
    * (an icon's inner Path, say) to find the ancestor carrying the object's
@@ -1960,12 +2166,19 @@ export function MapCreatorEditor({
       return;
     }
     if (tool !== "select") return;
-    const stage = e.target.getStage();
-    if (!stage) return;
-    const targetId = findObjectId(e.target, stage);
+    openContextMenuAt(e.evt.clientX, e.evt.clientY);
+  }
+  /** The object menu for whatever is at a screen point (right-click, a long press, a pen button). */
+  function openContextMenuAt(clientX: number, clientY: number) {
+    const stage = stageRef.current;
+    if (!stage || tool !== "select") return;
+    stage.setPointersPositions({ clientX, clientY } as unknown as Event);
+    const pos = stage.getPointerPosition();
+    const hit = pos ? stage.getIntersection(pos) : null;
+    const targetId = hit ? findObjectId(hit, stage) : null;
     if (targetId && !selectedIds.includes(targetId)) selectOnly(targetId);
     else if (!targetId) clearSelection();
-    setContextMenu({ x: e.evt.clientX, y: e.evt.clientY, targetId });
+    setContextMenu({ x: clientX, y: clientY, targetId });
   }
 
   // ---- Drawing ----
@@ -2026,7 +2239,13 @@ export function MapCreatorEditor({
   }
 
   function handlePointerDown(e: Konva.KonvaEventObject<PointerEvent>) {
-    if (spaceHeld || e.evt.button !== 0 || pointerSessionRef.current) return;
+    if (
+      (spaceHeld && ctl.spacePan) ||
+      handMode ||
+      e.evt.button !== 0 ||
+      pointerSessionRef.current
+    )
+      return;
     const stage = e.target.getStage(),
       pos = stage?.getPointerPosition();
     if (!stage || !pos) return;
@@ -2514,11 +2733,13 @@ export function MapCreatorEditor({
     setNotice(error ?? t("stSceneSaved"));
   }
 
-  // The canvas wheel, as a native listener so it can stop the page scrolling:
+  // The canvas wheel, as a native listener so it can stop the page scrolling.
+  // Tools come first, then the view (see ./controls → wheelAction):
   //   Shift + wheel        resize stamps (placing, or the selected ones)
   //   Alt + wheel          turn them
   //   Ctrl/⌘ + wheel       zoom the map — or turn stamps, by preference
-  //   wheel / two fingers  scroll the map
+  //   wheel                zoom (a mouse) or move the view (a trackpad's two
+  //                        fingers; pinching zooms) — guessed, or as set
   const wheelRef = useRef<(e: WheelEvent) => void>(() => {});
   useLayoutEffect(() => {
     wheelRef.current = (e: WheelEvent) => {
@@ -2528,7 +2749,7 @@ export function MapCreatorEditor({
       if (
         stampStepsActive() &&
         d &&
-        (e.shiftKey || e.altKey || (mod && ctrlWheel === "rotate"))
+        (e.shiftKey || e.altKey || (mod && ctl.ctrlWheel === "rotate"))
       ) {
         e.preventDefault();
         if (e.shiftKey && !e.altKey && !mod)
@@ -2536,23 +2757,24 @@ export function MapCreatorEditor({
         else turnStamps(d < 0 ? -5 : 5);
         return;
       }
-      if (!mod) return;
       e.preventDefault();
-      const el = containerRef.current;
-      const nextZoom = Math.max(0.25, Math.min(4, zoom - e.deltaY * 0.0015));
-      if (el) {
-        const rect = el.getBoundingClientRect(),
-          clientX = e.clientX - rect.left,
-          clientY = e.clientY - rect.top;
-        zoomAnchorRef.current = {
-          contentX: el.scrollLeft + clientX,
-          contentY: el.scrollTop + clientY,
-          scaleRatio: nextZoom / zoom,
-          clientX,
-          clientY,
-        };
-      }
-      setZoom(nextZoom);
+      const kind =
+        ctl.wheel === "auto"
+          ? classifyWheel(e, wheelMemoryRef.current)
+          : ctl.wheel;
+      wheelMemoryRef.current = { kind, time: e.timeStamp };
+      const action = wheelAction(e, kind, ctl);
+      if (action.kind === "pan") nav.panBy(action.dx, action.dy);
+      else
+        nav.zoomAt(
+          action.factor,
+          ctl.zoomToCursor ? { x: e.clientX, y: e.clientY } : null,
+          // A pinch or a trackpad sends many small steps: no glide needed.
+          {
+            smooth:
+              ctl.smoothZoom && kind === "mouse" && !prefersReducedMotion(),
+          },
+        );
     };
   });
   useEffect(() => {
@@ -2595,12 +2817,6 @@ export function MapCreatorEditor({
         ...st,
         look: { ...st.look, rotation: normalizeAngle(st.look.rotation + deg) },
       }));
-  }
-  function changeCtrlWheel(next: CtrlWheel) {
-    setCtrlWheel(next);
-    try {
-      localStorage.setItem(CTRL_WHEEL_KEY, next);
-    } catch {}
   }
 
   // ---- Stamp tool ---------------------------------------------------------------
@@ -2911,8 +3127,16 @@ export function MapCreatorEditor({
         y: q5(clamp(pos.y / h, -0.05, 1.05)),
       };
     // Pressure only matters to the Brush (the land brush has a fixed size).
-    if (tool === "brush" && ev.pointerType === "pen" && ev.pressure > 0)
-      pt.p = Math.round(ev.pressure * 100) / 100;
+    if (
+      tool === "brush" &&
+      ev.pointerType === "pen" &&
+      ev.pressure > 0 &&
+      currentControls().pen.pressure
+    )
+      pt.p =
+        Math.round(
+          applyPressure(ev.pressure, currentControls().pen.curve) * 100,
+        ) / 100;
     return pt;
   }
 
@@ -4462,11 +4686,37 @@ export function MapCreatorEditor({
               <div className="mm-menu-heading">{t("mmMenuView")}</div>
               <MenuRow
                 label={t("mmFitScreen")}
+                shortcut={shortcutLabel("view.fit", keys)}
                 onClick={() => {
-                  setZoom(1);
+                  nav.fit();
                   setShowEditMenu(false);
                 }}
                 icon="fit"
+              />
+              <MenuRow
+                label={t("ctActualSize")}
+                shortcut={shortcutLabel("view.actual", keys)}
+                onClick={() => {
+                  nav.zoomTo(1 / fitScale);
+                  setShowEditMenu(false);
+                }}
+              />
+              <MenuRow
+                label={t("ctHandTool")}
+                shortcut={shortcutLabel("view.hand", keys)}
+                icon={handMode ? "check" : undefined}
+                onClick={() => {
+                  setHandMode((h) => !h);
+                  setShowEditMenu(false);
+                }}
+              />
+              <MenuRow
+                label={t("ctOpenControls")}
+                shortcut={shortcutLabel("help.controls", keys)}
+                onClick={() => {
+                  setControlsOpen(true);
+                  setShowEditMenu(false);
+                }}
               />
               <MenuHint label={t("mmZoom")} hint={t("mmZoomHint")} />
               <MenuHint label={t("mmPan")} hint={t("mmPanHint")} />
@@ -4478,13 +4728,13 @@ export function MapCreatorEditor({
               <div className="mm-menu-heading">{t("stWheelHeading")}</div>
               <MenuRow
                 label={t("stWheelZoom")}
-                icon={ctrlWheel === "zoom" ? "check" : undefined}
-                onClick={() => changeCtrlWheel("zoom")}
+                icon={ctl.ctrlWheel === "zoom" ? "check" : undefined}
+                onClick={() => updateControls({ ctrlWheel: "zoom" })}
               />
               <MenuRow
                 label={t("stWheelRotate")}
-                icon={ctrlWheel === "rotate" ? "check" : undefined}
-                onClick={() => changeCtrlWheel("rotate")}
+                icon={ctl.ctrlWheel === "rotate" ? "check" : undefined}
+                onClick={() => updateControls({ ctrlWheel: "rotate" })}
               />
               <MenuHint
                 label={t("stStampKeys")}
@@ -5271,9 +5521,11 @@ export function MapCreatorEditor({
             className="mm-canvas-wrap"
             ref={containerRef}
             style={{
+              // Room around the map, so it can be moved anywhere and zoomed at any point.
+              padding: `${Math.round(view.h * 0.5)}px ${Math.round(view.w * 0.5)}px`,
               cursor: panningActive
                 ? "grabbing"
-                : spaceHeld
+                : (spaceHeld && ctl.spacePan) || handMode
                   ? "grab"
                   : attachPick
                     ? "copy"
@@ -5284,12 +5536,12 @@ export function MapCreatorEditor({
                         ? "text"
                         : "crosshair",
             }}
-            onPointerDown={startPan}
-            onPointerMove={movePan}
-            onPointerUp={endPan}
-            onPointerCancel={endPan}
           >
-            <div className="mm-stage-box" style={{ width: W, height: H }}>
+            <div
+              className="mm-stage-box"
+              ref={stageBoxRef}
+              style={{ width: W, height: H }}
+            >
               <Stage
                 ref={stageRef}
                 width={W}
@@ -5790,20 +6042,40 @@ export function MapCreatorEditor({
             <CloudStatusBar status={sync.status} onSave={sync.saveNow} />
             <div className="mm-status-group mm-status-center">
               <button
-                onClick={() => setZoom((z) => Math.max(0.25, z - 0.25))}
+                onClick={() => nav.zoomAt(1 / 1.25, null, { smooth: true })}
                 title={t("mmZoom")}
               >
                 <Glyph name="zoomOut" size={15} />
               </button>
-              <span>{Math.round(displayScale * 100)}%</span>
               <button
-                onClick={() => setZoom((z) => Math.min(4, z + 0.25))}
+                className="mm-zoom-label"
+                onClick={() => nav.zoomTo(1 / fitScale)}
+                title={t("ctActualSize")}
+              >
+                {Math.round(displayScale * 100)}%
+              </button>
+              <button
+                onClick={() => nav.zoomAt(1.25, null, { smooth: true })}
                 title={t("mmZoom")}
               >
                 <Glyph name="zoomIn" size={15} />
               </button>
-              <button onClick={() => setZoom(1)} title={t("mmFitScreen")}>
+              <button onClick={() => nav.fit()} title={t("mmFitScreen")}>
                 <Glyph name="fit" size={15} />
+              </button>
+              <button
+                className={handMode ? "active" : ""}
+                aria-pressed={handMode}
+                onClick={() => setHandMode((h) => !h)}
+                title={`${t("ctHandTool")} (${shortcutLabel("view.hand", keys)})`}
+              >
+                <Glyph name="hand" size={15} />
+              </button>
+              <button
+                onClick={() => setControlsOpen(true)}
+                title={`${t("ctOpenControls")} (${shortcutLabel("help.controls", keys)})`}
+              >
+                <Glyph name="keyboard" size={15} />
               </button>
             </div>
             <div className="mm-status-group">
@@ -6140,6 +6412,9 @@ export function MapCreatorEditor({
           )}
         </aside>
       </div>
+      {controlsOpen && (
+        <ControlsDialog t={t} onClose={() => setControlsOpen(false)} />
+      )}
       {exportOpen && (
         <ExportImageDialog
           t={t}
