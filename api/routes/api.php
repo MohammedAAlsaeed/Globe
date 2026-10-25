@@ -11,6 +11,7 @@ use App\Http\Controllers\Api\V1\MapExportController;
 use App\Http\Controllers\Api\V1\MapThumbnailController;
 use App\Http\Controllers\Api\V1\PlanController;
 use App\Http\Controllers\Api\V1\PreferencesController;
+use App\Http\Controllers\Api\V1\ShapeStyleController;
 use App\Http\Controllers\Api\V1\TextStyleController;
 use Illuminate\Support\Facades\Route;
 
@@ -77,4 +78,8 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
     Route::post('text-styles', [TextStyleController::class, 'store']);
     Route::patch('text-styles/{textStyle}', [TextStyleController::class, 'update']);
     Route::delete('text-styles/{textStyle}', [TextStyleController::class, 'destroy']);
+    Route::get('shape-styles', [ShapeStyleController::class, 'index']);
+    Route::post('shape-styles', [ShapeStyleController::class, 'store']);
+    Route::patch('shape-styles/{shapeStyle}', [ShapeStyleController::class, 'update']);
+    Route::delete('shape-styles/{shapeStyle}', [ShapeStyleController::class, 'destroy']);
 });

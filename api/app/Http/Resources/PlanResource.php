@@ -20,6 +20,7 @@ class PlanResource extends JsonResource
             'upload_quota_bytes' => $this->upload_quota_bytes,
             'max_line_styles' => $this->max_line_styles,
             'max_text_styles' => $this->max_text_styles,
+            'max_shape_styles' => $this->max_shape_styles,
             'commercial_use' => $this->commercial_use,
         ];
     }

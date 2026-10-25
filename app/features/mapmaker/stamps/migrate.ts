@@ -8,7 +8,10 @@
  *         with editable nodes;
  *   label (before the Text Tool, one Georgia line per label) → a Text with
  *         the same words, size, colour and turn, at the same place on the
- *         map (its anchor moved from the old top edge to the text's middle).
+ *         map (its anchor moved from the old top edge to the text's middle);
+ *   region (before the Shape Tool, a biome-textured polygon drawn with
+ *         tension 0.3) → a Shape with the same curved outline, the same
+ *         pattern (scale, turn) and opacity, and no stroke.
  */
 import type {
   MMIcon,
@@ -17,9 +20,13 @@ import type {
   MMObject,
   MMPath,
   MMProject,
+  MMRegion,
+  MMShape,
   MMStamp,
   MMText,
 } from "../types";
+import { closedTensionNodes } from "../shapes/geometry";
+import { factoryShapeFill, factoryShapeStroke } from "../shapes/state";
 import { FACTORY_TEXT_LOOK } from "../text/state";
 import { classicKey } from "./state";
 import { nodesFromTension } from "../lines/geometry";
@@ -148,7 +155,41 @@ export function labelToText(
   return text;
 }
 
-type Legacy = MMObject | MMIcon | MMPath | MMLabel;
+/** The old Region tool's look: its biome swatch filling a tension-0.3 outline. */
+export function regionToShape(o: MMRegion, w: number, h: number): MMShape {
+  const fill = factoryShapeFill();
+  return {
+    id: o.id,
+    kind: "shape",
+    ...(o.group ? { group: o.group } : {}),
+    ...(o.locked ? { locked: true } : {}),
+    ...(o.hidden ? { hidden: true } : {}),
+    parts: [
+      {
+        id: `${o.id}-p`,
+        op: "add",
+        nodes: closedTensionNodes(o.points, 0.3, w, h),
+      },
+    ],
+    portals: [],
+    frame: { x: 0, y: 0, rot: 0, scale: 1 },
+    stroke: { ...factoryShapeStroke(), mode: "none" },
+    fill: {
+      ...fill,
+      type: "pattern",
+      pattern: o.biome,
+      opacity: 1,
+      source: {
+        ...fill.source,
+        textureScale: o.textureScale,
+        textureRotation: o.textureRotation,
+      },
+    },
+    opacity: o.opacity,
+  };
+}
+
+type Legacy = MMObject | MMIcon | MMPath | MMLabel | MMRegion;
 
 /** One object of an older map, converted (null: nothing left to keep). */
 const serverShaped = (o: MMText) => o.lang == null || Array.isArray(o.features);
@@ -164,6 +205,8 @@ export function migrateObject(
     return o.points.length >= 2 ? pathToLine(o, w, h) : null;
   if (o.kind === "label")
     return o.text.trim() ? labelToText(o, w, h, measure) : null;
+  if (o.kind === "region")
+    return o.points.length >= 3 ? regionToShape(o, w, h) : null;
   // Saved on the server, "" comes back as null and {} as [].
   if (o.kind === "text" && serverShaped(o))
     return {
@@ -171,8 +214,8 @@ export function migrateObject(
       lang: o.lang ?? "",
       features: Array.isArray(o.features) ? {} : o.features,
     };
-  // An empty line name, the same way.
-  if (o.kind === "line" && o.name === null) {
+  // An empty line or shape name, the same way.
+  if ((o.kind === "line" || o.kind === "shape") && o.name === null) {
     const { name: _name, ...rest } = o;
     void _name;
     return rest;
@@ -180,7 +223,7 @@ export function migrateObject(
   return o;
 }
 
-/** The project with legacy icons, paths and labels converted (the same object if none). */
+/** The project with legacy icons, paths, labels and regions converted (the same object if none). */
 export function migrateProject(
   p: MMProject,
   measure: MeasureEm = roughEm,
@@ -189,8 +232,9 @@ export function migrateProject(
     o.kind === "icon" ||
     o.kind === "path" ||
     o.kind === "label" ||
+    o.kind === "region" ||
     (o.kind === "text" && serverShaped(o)) ||
-    (o.kind === "line" && o.name === null);
+    ((o.kind === "line" || o.kind === "shape") && o.name === null);
   if (!p.layers.some((l) => (l.objects as Legacy[]).some(legacy))) return p;
   return {
     ...p,

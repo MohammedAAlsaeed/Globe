@@ -3,7 +3,8 @@
  * by an offset. Pure functions (no React, no Konva), shared by the editor's
  * toolbar, Edit menu, context menu and shortcuts.
  */
-import type { MMObject, MMPatch, MMStamp, MMText } from "./types";
+import type { MMObject, MMPatch, MMShape, MMStamp, MMText } from "./types";
+import { shiftShape } from "./shapes/geometry";
 import { shiftText } from "./text/objects";
 
 export type Rect = { x: number; y: number; width: number; height: number };
@@ -80,11 +81,12 @@ export function shiftPatch(
   o: MMObject,
   dx: number,
   dy: number,
-): MMPatch | Partial<MMStamp> | Partial<MMText> {
+): MMPatch | Partial<MMStamp> | Partial<MMText> | Partial<MMShape> {
   if (o.kind === "stamp") return { x: o.x + dx, y: o.y + dy };
   if (o.kind === "text") return shiftText(o, dx, dy);
   if (o.kind === "paint" || o.kind === "land") return {};
   if (o.kind === "line")
     return { nodes: o.nodes.map((n) => ({ ...n, x: n.x + dx, y: n.y + dy })) };
+  if (o.kind === "shape") return shiftShape(o, dx, dy);
   return { points: o.points.map((p) => ({ x: p.x + dx, y: p.y + dy })) };
 }

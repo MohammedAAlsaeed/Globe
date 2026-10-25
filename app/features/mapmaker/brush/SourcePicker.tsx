@@ -24,12 +24,15 @@ export function SourcePicker({
   t,
   recentColors,
   onCommitColor,
+  showType = true,
 }: {
   source: PaintSource;
   onChange: (patch: Partial<PaintSource>) => void;
   t: T;
   recentColors: string[];
   onCommitColor: (c: string) => void;
+  /** The texture / colour switch (off when the caller has its own). */
+  showType?: boolean;
 }) {
   const [texCategory, setTexCategory] = useState<TextureCategory | "all">(
     "all",
@@ -40,20 +43,22 @@ export function SourcePicker({
       : TEXTURES.filter((x) => x.category === texCategory);
   return (
     <>
-      <div className="mm-bp-segment small">
-        <button
-          className={source.type === "texture" ? "active" : ""}
-          onClick={() => onChange({ type: "texture" })}
-        >
-          {t("mmSourceTexture")}
-        </button>
-        <button
-          className={source.type === "color" ? "active" : ""}
-          onClick={() => onChange({ type: "color" })}
-        >
-          {t("mmSourceColor")}
-        </button>
-      </div>
+      {showType && (
+        <div className="mm-bp-segment small">
+          <button
+            className={source.type === "texture" ? "active" : ""}
+            onClick={() => onChange({ type: "texture" })}
+          >
+            {t("mmSourceTexture")}
+          </button>
+          <button
+            className={source.type === "color" ? "active" : ""}
+            onClick={() => onChange({ type: "color" })}
+          >
+            {t("mmSourceColor")}
+          </button>
+        </div>
+      )}
       {source.type === "texture" ? (
         <>
           <div className="mm-bp-chips">

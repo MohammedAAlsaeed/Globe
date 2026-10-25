@@ -13,6 +13,8 @@ export interface Plan {
   max_line_styles: number | null;
   /** Text styles the person can save (null = unlimited). */
   max_text_styles: number | null;
+  /** Shape styles the person can save (null = unlimited). */
+  max_shape_styles: number | null;
 }
 
 export interface Usage {
@@ -20,6 +22,7 @@ export interface Usage {
   upload_bytes: number;
   line_styles: number;
   text_styles: number;
+  shape_styles: number;
 }
 
 export interface User {
@@ -104,6 +107,19 @@ export interface TextStyleRecord {
   name: string;
   /** The look (see TextLook); null when the style is locked for the plan. */
   look: import("../mapmaker/types").TextLook | null;
+  official: boolean;
+  tier: number;
+  published: boolean;
+  locked: boolean;
+  sort: number;
+}
+
+/** A saved Shape Tool style: the person's own, or official (by admins). */
+export interface ShapeStyleRecord {
+  id: string;
+  name: string;
+  /** The look (see ShapeLook); null when the style is locked for the plan. */
+  look: import("../mapmaker/types").ShapeLook | null;
   official: boolean;
   tier: number;
   published: boolean;

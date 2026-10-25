@@ -132,7 +132,7 @@ final class LineRules
         return null;
     }
 
-    private static function strokeError(mixed $s): ?string
+    public static function strokeError(mixed $s): ?string
     {
         if (! self::isMap($s)) {
             return 'The color stroke must be an object.';
@@ -151,7 +151,7 @@ final class LineRules
         return $ok ? null : 'The color stroke has invalid values.';
     }
 
-    private static function stampError(mixed $s): ?string
+    public static function stampError(mixed $s): ?string
     {
         if (! self::isMap($s) || ! self::isMap($s['parts'] ?? null)) {
             return 'The stamp stroke must be an object with parts.';

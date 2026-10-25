@@ -52,7 +52,6 @@ export const mapmakerAr: typeof mapmakerEn = {
   mmToolStamp: "رمز",
   mmToolPath: "مسار",
   mmToolLine: "خط",
-  mmToolRegion: "منطقة",
   mmToolLabel: "نص",
 
   mmBrushSize: "حجم الفرشاة",
@@ -80,7 +79,6 @@ export const mapmakerAr: typeof mapmakerEn = {
   mmBiomeSwamp: "مستنقع",
   mmTextureScale: "مقياس الملمس",
   mmTextureRotation: "الدوران",
-  mmFillOpacity: "شفافية التعبئة",
   mmFinishShape: "إنهاء الشكل",
 
   mmLabelText: "نص التسمية",
@@ -141,7 +139,6 @@ export const mapmakerAr: typeof mapmakerEn = {
   mmShortcutHintStamp:
     "انقر لوضع ختم · اسحب للنثر (تلقائي، متعدد) · انتقل إلى تحديد للتعديل",
   mmShortcutHintPath: "اسحب للرسم · حرّر للإنهاء",
-  mmShortcutHintRegion: "انقر لإضافة زوايا · انقر مرتين أو أغلق الشكل للتعبئة",
   mmShortcutHintLabel: "انقر على اللوحة، ثم اكتب",
 
   mmBackHome: "العودة للرئيسية",
@@ -241,6 +238,8 @@ export const mapmakerAr: typeof mapmakerEn = {
   mmTexLava: "حمم",
   mmTexParchment: "رَقّ",
   mmTexCobble: "حجارة مرصوفة",
+  mmTexPlanks: "ألواح خشبية",
+  mmTexFlagstone: "بلاط حجري",
   mmTexInkWash: "حبر مائي",
   mmColorFilters: "مرشحات الألوان",
   mmHue: "درجة اللون",

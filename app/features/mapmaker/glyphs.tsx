@@ -120,6 +120,73 @@ const PATHS: Record<string, React.ReactNode> = {
     </>
   ),
   region: <path d="M12 3.5 20 8l-2.5 12h-11L4 8Z" />,
+  shape: (
+    <>
+      <rect x="3.5" y="9" width="11" height="11" rx="1" />
+      <circle cx="15" cy="9" r="5.5" />
+    </>
+  ),
+  opNew: (
+    <>
+      <rect x="4" y="4" width="11" height="11" rx="1" />
+      <path d="M19 14v6M16 17h6" />
+    </>
+  ),
+  opAdd: (
+    <path d="M4 4h10v5h6v11H9v-6H4Z" fill="currentColor" fillOpacity="0.35" />
+  ),
+  opSubtract: (
+    <>
+      <path d="M4 4h10v5H9v5H4Z" fill="currentColor" fillOpacity="0.35" />
+      <rect x="9" y="9" width="11" height="11" strokeDasharray="2 2" />
+    </>
+  ),
+  opIntersect: (
+    <>
+      <rect x="4" y="4" width="10" height="10" strokeDasharray="2 2" />
+      <rect x="9" y="9" width="11" height="11" strokeDasharray="2 2" />
+      <rect
+        x="9"
+        y="9"
+        width="5"
+        height="5"
+        fill="currentColor"
+        fillOpacity="0.5"
+      />
+    </>
+  ),
+  opExclude: (
+    <>
+      <path d="M4 4h10v5H9v5H4Z" fill="currentColor" fillOpacity="0.35" />
+      <path d="M14 9h6v11H9v-6h5Z" fill="currentColor" fillOpacity="0.35" />
+      <rect x="9" y="9" width="5" height="5" />
+    </>
+  ),
+  door: (
+    <>
+      <path d="M3 20V5h6M15 5h6v15" />
+      <path d="M9 5c0 4 2.5 6 6 6" strokeDasharray="2 2" />
+    </>
+  ),
+  flatten: (
+    <>
+      <path d="M4 4h10v5h6v11H9v-6H4Z" />
+      <path d="M9 14v-5h5" strokeDasharray="2 2" />
+    </>
+  ),
+  release: (
+    <>
+      <rect x="3" y="3" width="9" height="9" rx="1" />
+      <rect x="12" y="12" width="9" height="9" rx="1" />
+      <path d="M14 7h4v4M10 17H6v-4" />
+    </>
+  ),
+  mask: (
+    <>
+      <rect x="3" y="4" width="18" height="16" rx="1.5" />
+      <circle cx="12" cy="12" r="4.5" fill="currentColor" fillOpacity="0.35" />
+    </>
+  ),
   label: <path d="M4 5h16M12 5v14" />,
   text: (
     <>

@@ -1,5 +1,5 @@
 /**
- * The brush texture catalog — 26 original, procedurally generated, seamless
+ * The brush texture catalog — 29 original, procedurally generated, seamless
  * terrain textures (no image assets, nothing licensed).
  *
  * Every texture is a pure function of tile coordinates (u, v ∈ [0, 1)), built
@@ -460,6 +460,59 @@ const TEXTURE_DEFS: TextureDef[] = [
           mortar = smoothstep(0.12, 0.02, w.f2 - w.f1),
           dome = 1 - smoothstep(0.0, 0.7, w.f1);
         return mix(shade(r(w.id), 0.85 + dome * 0.25), [52, 48, 44], mortar);
+      };
+    })(),
+  },
+  {
+    id: "planks",
+    category: "special",
+    labelKey: "mmTexPlanks",
+    gen: (() => {
+      const r = ramp(["#6e4a2c", "#8a5d36", "#a87545", "#bf8c57"]);
+      return (u, v) => {
+        // 8 boards per tile, each cut into lengths with staggered joints.
+        const rows = 8,
+          y = v * rows,
+          row = Math.floor(y),
+          fy = y - row,
+          lengths = 2,
+          shift = hash2(row % rows, 0, 161),
+          x = u * lengths + shift,
+          board = Math.floor(x),
+          fx = x - board,
+          id = hash2(((board % lengths) + lengths) % lengths, row % rows, 162),
+          // Long grain along the board, with a few knots.
+          grain = fbm(u * 2, v * rows * 6 + id * 7, 163, 4, 2) * 0.5 + 0.5,
+          knot = worley(u * 6, v * 12, 164, 6),
+          ring = 0.5 + 0.5 * Math.sin(knot.f1 * 40),
+          knots = smoothstep(0.18, 0.05, knot.f1) * (knot.id < 0.3 ? 1 : 0),
+          seam = Math.max(
+            smoothstep(0.06, 0.0, Math.min(fy, 1 - fy)),
+            smoothstep(0.012, 0.0, Math.min(fx, 1 - fx)),
+          );
+        let c = r(id * 0.55 + grain * 0.45);
+        c = mix(c, shade(c, 0.72), knots * ring);
+        c = mix(c, [46, 30, 18], seam * 0.85);
+        return shade(c, 0.94 + n01(fbm(u * 48, v * 48, 165, 2, 48)) * 0.12);
+      };
+    })(),
+  },
+  {
+    id: "flagstone",
+    category: "special",
+    labelKey: "mmTexFlagstone",
+    gen: (() => {
+      const r = ramp(["#6c6862", "#86817a", "#9c968c", "#b1aa9f"]);
+      return (u, v) => {
+        // Large, irregular slabs with mortar between them.
+        const warp = fbm(u * 4, v * 4, 171, 2, 4) * 0.18,
+          w = worley(u * 5 + warp, v * 5 - warp, 172, 5),
+          mortar = smoothstep(0.08, 0.025, w.f2 - w.f1),
+          wear = n01(fbm(u * 16, v * 16, 173, 4, 16)),
+          edge = smoothstep(0.0, 0.25, w.f2 - w.f1);
+        let c = shade(r(w.id * 0.6 + wear * 0.4), 0.9 + edge * 0.12);
+        c = mix(c, [58, 54, 50], mortar * 0.9);
+        return c;
       };
     })(),
   },

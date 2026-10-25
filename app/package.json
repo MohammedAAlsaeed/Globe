@@ -16,6 +16,7 @@
   "dependencies": {
     "@pdf-lib/fontkit": "1.1.1",
     "bidi-js": "1.1.0",
+    "clipper2-ts": "2.0.1",
     "fflate": "^0.8.3",
     "harfbuzzjs": "1.6.2",
     "i18next": "^26.4.2",

@@ -417,6 +417,9 @@
   background: var(--mm-accent);
   color: #1a1408;
 }
+.mm-canvas-space {
+  flex: none;
+}
 .mm-canvas-column {
   position: relative;
   flex: 1;
@@ -560,14 +563,15 @@
   display: flex;
   align-items: flex-start;
   justify-content: flex-start;
-  /* The room around the map is set inline (half the view each side). */
-  padding: 24px;
+  /* The room around the map is .mm-canvas-space's (half the view each side). */
+  padding: 0;
   /* The map isn't text: right-to-left pages scroll it the same way. */
   direction: ltr;
   /* Fingers move and zoom the view through the editor's own gestures. */
   touch-action: none;
   overscroll-behavior: contain;
-  background: linear-gradient(45deg, #1a1d21 25%, transparent 25%),
+  background:
+    linear-gradient(45deg, #1a1d21 25%, transparent 25%),
     linear-gradient(-45deg, #1a1d21 25%, transparent 25%),
     linear-gradient(45deg, transparent 75%, #1a1d21 75%),
     linear-gradient(-45deg, transparent 75%, #1a1d21 75%);
@@ -2916,4 +2920,141 @@ dialog.mm-ct-dialog {
   clip: rect(0 0 0 0);
   white-space: nowrap;
   border: 0;
+}
+
+/* ===========================================================================
+   Shape Tool — modes, combine, parts list, doors
+   =========================================================================== */
+/* Seven sub-tools: five that draw, then Edit nodes and Doors. */
+.mm-sh-modes {
+  grid-template-columns: repeat(4, 1fr);
+}
+.mm-sh-ops {
+  grid-auto-columns: minmax(0, 1fr);
+}
+.mm-sh-ops button {
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 2px 5px;
+  font-size: 9.5px;
+  line-height: 1.1;
+}
+.mm-sh-ops button span {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mm-sh-styles {
+  grid-template-columns: repeat(3, 1fr);
+}
+.mm-sh-style img {
+  height: 40px;
+  object-fit: cover;
+  background: #e9dfc6;
+}
+.mm-sh-measure {
+  font-variant-numeric: tabular-nums;
+}
+.mm-sh-prim {
+  display: grid;
+  gap: 6px;
+}
+.mm-sh-parts {
+  display: grid;
+  gap: 3px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.mm-sh-parts li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto auto auto;
+  align-items: center;
+  gap: 3px;
+  padding-block: 3px;
+  padding-inline-end: 3px;
+  border: 1px solid var(--mm-border);
+  border-radius: 7px;
+  background: var(--mm-panel-2);
+}
+.mm-sh-parts li.selected {
+  border-color: var(--mm-accent);
+  background: rgba(224, 164, 88, 0.1);
+}
+.mm-sh-part-pick {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 3px 4px;
+  border: 0;
+  border-radius: 5px;
+  background: none;
+  color: var(--mm-text);
+  font: inherit;
+  font-size: 11px;
+  text-align: start;
+  cursor: pointer;
+}
+.mm-sh-part-pick span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mm-sh-part-pick small {
+  color: var(--mm-muted);
+}
+.mm-sh-parts select {
+  max-width: 92px;
+  padding: 3px 4px;
+  border: 1px solid var(--mm-border);
+  border-radius: 5px;
+  background: var(--mm-bg);
+  color: var(--mm-text);
+  font: inherit;
+  font-size: 10.5px;
+}
+.mm-sh-part-base {
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: var(--mm-bg);
+  color: var(--mm-muted);
+  font-size: 10px;
+  font-weight: 600;
+}
+.mm-sh-part-btn {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border: 0;
+  border-radius: 5px;
+  background: none;
+  color: var(--mm-muted);
+  cursor: pointer;
+}
+.mm-sh-part-btn:hover:not(:disabled) {
+  background: var(--mm-bg);
+  color: var(--mm-text);
+}
+.mm-sh-part-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.mm-sh-door {
+  display: grid;
+  gap: 6px;
+  justify-items: start;
+}
+.mm-sh-combine {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px;
+}
+.mm-sh-combine .mm-pill {
+  justify-content: center;
+}
+.mm-sh-patterns {
+  flex-wrap: wrap;
 }

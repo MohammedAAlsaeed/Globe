@@ -13,6 +13,7 @@ import { TIP_LIST } from "./brush/tips";
 import type { MMLayer, MMObject, MMProject } from "./types";
 import { validLine } from "./lines/validate";
 import { validText } from "./text/validate";
+import { validShape } from "./shapes/validate";
 
 const finite = (v: unknown, min: number, max: number) =>
   typeof v === "number" && Number.isFinite(v) && v >= min && v <= max;
@@ -275,6 +276,7 @@ function validObject(o: unknown): o is MMObject {
       (obj.stretch === undefined || finite(obj.stretch, 0.2, 5))
     );
   if (obj.kind === "line") return validLine(obj);
+  if (obj.kind === "shape") return validShape(obj);
   // Legacy freehand paths (converted to lines when the map is opened).
   if (obj.kind === "path")
     return (
@@ -285,6 +287,7 @@ function validObject(o: unknown): o is MMObject {
       finite(obj.opacity, 0, 1) &&
       finite(obj.softness, 0, 1)
     );
+  // Legacy regions (converted to shapes when the map is opened).
   if (obj.kind === "region")
     return (
       BIOMES.includes(obj.biome as string) &&
