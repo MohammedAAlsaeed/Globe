@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Auth;
 
+use App\Http\Controllers\Api\V1\Auth\SessionController;
 use App\Http\Controllers\Controller;
 use App\Models\SocialAccount;
 use App\Models\User;
@@ -43,9 +44,13 @@ class GoogleController extends Controller
         }
 
         $user = DB::transaction(fn () => $this->findOrCreateUser($google, $regions));
+        if ($user->isSuspended()) {
+            return redirect()->away($frontend.'/login?error=suspended');
+        }
 
         Auth::login($user, remember: true);
         $request->session()->regenerate();
+        SessionController::startSession($request, $user);
 
         return redirect()->away($frontend.'/auth/callback');
     }

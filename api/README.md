@@ -120,7 +120,8 @@ DB_CONNECTION=pgsql DB_DATABASE=idrisi_test php artisan test
 ### Useful commands
 
 ```sh
-php artisan idrisi:make-admin you@example.com                    # platform admin
+php artisan idrisi:make-admin you@example.com --role=owner       # staff role: owner, admin, editor or support
+php artisan idrisi:make-admin you@example.com --reset-two-factor  # lost phone: set up admin two-factor again
 php artisan idrisi:grant-plan you@example.com atlas --days=30     # give a plan without payment
 php artisan maps:purge-trashed                                    # runs daily from the scheduler
 ```
@@ -133,6 +134,7 @@ php artisan maps:purge-trashed                                    # runs daily f
 | Accounts | `app/Http/Controllers/Api/V1/Auth/*`, `app/Http/Controllers/Auth/GoogleController.php` |
 | Maps | `MapController`, `app/Services/MapDocuments.php` |
 | Plans and limits | `plans` table (seeded by `PlanSeeder`), `app/Services/Entitlements.php` |
+| Admin panel | `routes/api.php` (`/api/v1/admin/...`), `app/Http/Controllers/Api/V1/Admin/*`, roles and permissions in `app/Enums/Role.php`, two-factor in `app/Services/Totp.php` and `AdminGate.php`, the audit log in `app/Services/Audit.php` |
 | Asset library | `AssetPackController`, `AssetController`, `AssetPackPolicy` |
 | Line Tool styles | `LineStyleController`, `LineStylePolicy`, `app/Support/LineRules.php` |
 | Data regions | `config/regions.php`, `app/Services/Regions.php` |

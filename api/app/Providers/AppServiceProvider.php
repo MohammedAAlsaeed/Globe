@@ -2,7 +2,13 @@
 
 namespace App\Providers;
 
+use App\Models\Asset;
+use App\Models\AssetPack;
+use App\Models\LineStyle;
+use App\Models\ShapeStyle;
+use App\Models\TextStyle;
 use App\Models\User;
+use App\Observers\OfficialContentObserver;
 use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Database\Eloquent\Model;
@@ -27,6 +33,11 @@ class AppServiceProvider extends ServiceProvider
 
         Gate::define('admin', fn (User $user) => $user->isAdmin());
 
+        // Official library changes: two-factor staff sessions only, audited.
+        foreach ([AssetPack::class, Asset::class, LineStyle::class, TextStyle::class, ShapeStyle::class] as $model) {
+            $model::observe(OfficialContentObserver::class);
+        }
+
         Password::defaults(fn () => Password::min(8)->letters()->numbers());
 
         // Password-reset emails link to the web app, which posts the new
@@ -44,6 +55,13 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('login', fn (Request $request) => [
             Limit::perMinute(5)->by(strtolower((string) $request->input('email')).'|'.$request->ip()),
             Limit::perMinute(30)->by($request->ip()),
+        ]);
+        RateLimiter::for('admin', fn (Request $request) => Limit::perMinute(240)->by($request->user()?->id ?: $request->ip()));
+        // Six-digit codes: few tries, per person and per address (wrong
+        // codes are capped separately, see TwoFactorController).
+        RateLimiter::for('two-factor', fn (Request $request) => [
+            Limit::perMinute(12)->by('2fa|'.($request->user()?->id ?: $request->ip())),
+            Limit::perMinute(20)->by('2fa-ip|'.$request->ip()),
         ]);
         RateLimiter::for('register', fn (Request $request) => Limit::perHour(10)->by($request->ip()));
     }

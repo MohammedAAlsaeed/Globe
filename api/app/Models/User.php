@@ -15,7 +15,7 @@ use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 
 #[Fillable(['name', 'email', 'password', 'locale', 'region', 'avatar_url'])]
-#[Hidden(['password', 'remember_token'])]
+#[Hidden(['password', 'remember_token', 'two_factor_secret', 'two_factor_recovery_codes'])]
 class User extends Authenticatable implements MustVerifyEmail
 {
     /** @use HasFactory<UserFactory> */
@@ -26,6 +26,7 @@ class User extends Authenticatable implements MustVerifyEmail
         'role' => 'user',
         'locale' => 'ar',
         'region' => 'global',
+        'session_version' => 0,
     ];
 
     protected function casts(): array
@@ -35,12 +36,43 @@ class User extends Authenticatable implements MustVerifyEmail
             'password' => 'hashed',
             'role' => Role::class,
             'preferences' => 'array',
+            'two_factor_secret' => 'encrypted',
+            'two_factor_recovery_codes' => 'encrypted:array',
+            'two_factor_confirmed_at' => 'datetime',
+            'suspended_at' => 'datetime',
+            'session_version' => 'integer',
+            'last_seen_at' => 'datetime',
         ];
     }
 
+    /**
+     * Manages the official library (packs and styles) — what "admin" meant
+     * before staff roles: owners, admins and editors.
+     */
     public function isAdmin(): bool
     {
-        return $this->role === Role::Admin;
+        return $this->hasPermission('content.manage');
+    }
+
+    /** Anyone with a staff role (who may open the admin panel). */
+    public function isStaff(): bool
+    {
+        return $this->role->isStaff();
+    }
+
+    public function hasPermission(string $permission): bool
+    {
+        return $this->role->can($permission);
+    }
+
+    public function isSuspended(): bool
+    {
+        return $this->suspended_at !== null;
+    }
+
+    public function hasTwoFactor(): bool
+    {
+        return $this->two_factor_confirmed_at !== null && $this->two_factor_secret !== null;
     }
 
     public function maps(): HasMany

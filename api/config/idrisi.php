@@ -20,6 +20,15 @@ return [
         'max_thumbnail_kb' => 2048,
     ],
 
+    'admin' => [
+        // How long one two-factor code keeps the admin panel open.
+        'two_factor_hours' => (int) env('ADMIN_TWO_FACTOR_HOURS', 12),
+        // Sensitive changes (roles, plans, deleting people) need a code this recent.
+        'step_up_minutes' => (int) env('ADMIN_STEP_UP_MINUTES', 10),
+        // The name authenticator apps show next to the account.
+        'issuer' => env('ADMIN_TWO_FACTOR_ISSUER', 'Al-Idrisi Atelier'),
+    ],
+
     'assets' => [
         'max_upload_kb' => 10240,
         // Minutes a signed asset URL stays valid.

@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\V1\Admin;
 use App\Http\Controllers\Api\V1\AssetController;
 use App\Http\Controllers\Api\V1\AssetPackController;
 use App\Http\Controllers\Api\V1\Auth\EmailVerificationController;
@@ -82,4 +83,66 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
     Route::post('shape-styles', [ShapeStyleController::class, 'store']);
     Route::patch('shape-styles/{shapeStyle}', [ShapeStyleController::class, 'update']);
     Route::delete('shape-styles/{shapeStyle}', [ShapeStyleController::class, 'destroy']);
+});
+
+// ---- admin panel ----------------------------------------------------------------
+// Staff only. Every route checks a permission (never a role); the panel
+// needs a two-factor code once per session, and sensitive changes a fresh
+// one (`admin.2fa:recent`). Everything that changes data is audited.
+Route::prefix('admin')->middleware(['auth:sanctum', 'staff', 'throttle:admin'])->group(function () {
+    Route::get('session', [Admin\TwoFactorController::class, 'session']);
+    Route::prefix('two-factor')->group(function () {
+        // Wrong codes are also counted per person (see TwoFactorController).
+        Route::middleware('throttle:two-factor')->group(function () {
+            Route::post('setup', [Admin\TwoFactorController::class, 'setup']);
+            Route::post('confirm', [Admin\TwoFactorController::class, 'confirm']);
+            Route::post('verify', [Admin\TwoFactorController::class, 'verify']);
+        });
+        Route::post('lock', [Admin\TwoFactorController::class, 'lock']);
+        Route::post('recovery-codes', [Admin\TwoFactorController::class, 'recoveryCodes'])->middleware('admin.2fa:recent');
+    });
+
+    Route::middleware('admin.2fa')->group(function () {
+        Route::get('stats', Admin\StatsController::class)->middleware('permission:stats.view');
+
+        Route::middleware('permission:users.view')->group(function () {
+            Route::get('users', [Admin\UserController::class, 'index']);
+            Route::get('users/{user}', [Admin\UserController::class, 'show']);
+        });
+        Route::middleware('permission:users.manage')->group(function () {
+            Route::patch('users/{user}', [Admin\UserController::class, 'update']);
+            Route::post('users/{user}/password-reset', [Admin\UserController::class, 'sendPasswordReset']);
+            Route::post('users/{user}/end-sessions', [Admin\UserController::class, 'endSessions']);
+        });
+        Route::middleware('permission:users.suspend')->group(function () {
+            Route::post('users/{user}/suspend', [Admin\UserController::class, 'suspend']);
+            Route::post('users/{user}/unsuspend', [Admin\UserController::class, 'unsuspend']);
+        });
+        Route::middleware(['permission:staff.manage', 'admin.2fa:recent'])->group(function () {
+            Route::put('users/{user}/role', [Admin\UserController::class, 'setRole']);
+            Route::post('users/{user}/two-factor-reset', [Admin\UserController::class, 'resetTwoFactor']);
+        });
+        Route::delete('users/{user}', [Admin\UserController::class, 'destroy'])
+            ->middleware(['permission:users.delete', 'admin.2fa:recent']);
+
+        Route::get('subscriptions', [Admin\SubscriptionController::class, 'index'])->middleware('permission:subscriptions.view');
+        Route::post('users/{user}/subscriptions', [Admin\SubscriptionController::class, 'store'])->middleware('permission:subscriptions.grant');
+        Route::middleware('permission:subscriptions.manage')->group(function () {
+            Route::patch('subscriptions/{subscription}', [Admin\SubscriptionController::class, 'update']);
+            Route::post('subscriptions/{subscription}/revoke', [Admin\SubscriptionController::class, 'revoke']);
+        });
+
+        Route::get('plans', [Admin\PlanController::class, 'index'])->middleware('permission:plans.view');
+        Route::patch('plans/{plan:code}', [Admin\PlanController::class, 'update'])->middleware(['permission:plans.manage', 'admin.2fa:recent']);
+
+        Route::get('maps', [Admin\MapController::class, 'index'])->middleware('permission:maps.view');
+        Route::middleware('permission:maps.manage')->group(function () {
+            Route::delete('maps/{map}', [Admin\MapController::class, 'destroy']);
+            Route::post('maps/{id}/restore', [Admin\MapController::class, 'restore']);
+        });
+        Route::post('maps/{id}/document', [Admin\MapController::class, 'document'])
+            ->middleware(['permission:maps.read', 'admin.2fa:recent']);
+
+        Route::get('audit-log', [Admin\AuditLogController::class, 'index'])->middleware('permission:audit.view');
+    });
 });

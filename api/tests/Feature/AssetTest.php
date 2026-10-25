@@ -150,7 +150,7 @@ class AssetTest extends TestCase
     public function test_admins_manage_the_official_library(): void
     {
         $admin = User::factory()->admin()->create();
-        $pack = $this->actingAs($admin)->postJson('/api/v1/asset-packs', [
+        $pack = $this->asStaff($admin)->postJson('/api/v1/asset-packs', [
             'name' => 'Medieval', 'kind' => 'stamps', 'official' => true, 'tier' => 1,
         ])->assertCreated()->assertJsonPath('data.official', true)->assertJsonPath('data.published', false)->json('data');
 
@@ -164,7 +164,7 @@ class AssetTest extends TestCase
         $this->actingAs(User::factory()->create())->getJson('/api/v1/asset-packs?kind=stamps')
             ->assertJsonFragment(['id' => $pack['id'], 'locked' => true]);
 
-        $this->actingAs($admin)->deleteJson("/api/v1/asset-packs/{$pack['id']}")->assertNoContent();
+        $this->asStaff($admin)->deleteJson("/api/v1/asset-packs/{$pack['id']}")->assertNoContent();
         $this->assertDatabaseCount('assets', 0);
         $this->assertSame([], Storage::disk('s3')->allFiles('assets'));
     }

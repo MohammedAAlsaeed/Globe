@@ -116,7 +116,7 @@ class TextStyleTest extends TestCase
     {
         $admin = User::factory()->create();
         $admin->forceFill(['role' => Role::Admin])->save();
-        $free = $this->actingAs($admin)->postJson('/api/v1/text-styles', ['name' => 'Atelier title', 'look' => self::look(), 'official' => true, 'published' => true])
+        $free = $this->asStaff($admin)->postJson('/api/v1/text-styles', ['name' => 'Atelier title', 'look' => self::look(), 'official' => true, 'published' => true])
             ->assertCreated()->json('data');
         $paid = $this->postJson('/api/v1/text-styles', ['name' => 'Gilded empire', 'look' => self::look(), 'official' => true, 'tier' => 1, 'published' => true])
             ->assertCreated()->json('data');

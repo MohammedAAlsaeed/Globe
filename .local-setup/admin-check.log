@@ -1,0 +1,189 @@
+==== Sun 10/25/2026 23:50:13.25 
+--- api tests 
+PHPUnit 12.5.38 by Sebastian Bergmann and contributors.
+
+Runtime:       PHP 8.4.26
+Configuration: C:\Users\mmoo1\PhpstormProjects\Globe\api\phpunit.xml
+
+................................................................. 65 / 79 ( 82%)
+..............                                                    79 / 79 (100%)
+
+Time: 00:04.345, Memory: 72.00 MB
+
+OK (79 tests, 871 assertions)
+phpunit exit 0 
+--- migrate + plans 
+
+   INFO  Running migrations.  
+
+  2026_10_26_000001_add_admin_fields .................................................................... 18.94ms DONE
+
+
+   INFO  Seeding database.  
+
+  Database\Seeders\PlanSeeder ................................................................................ RUNNING  
+  Database\Seeders\PlanSeeder ............................................................................. 37 ms DONE  
+
+--- npm install 
+
+added 1 package in 956ms
+npm warn allow-scripts 2 packages have install scripts not yet covered by allowScripts:
+npm warn allow-scripts   esbuild@0.28.2 (postinstall: node install.js)
+npm warn allow-scripts   unrs-resolver@1.12.2 (postinstall: node postinstall.js)
+npm warn allow-scripts
+npm warn allow-scripts Run `npm approve-scripts --allow-scripts-pending` to review, or `npm approve-scripts <pkg>` to allow.
+npm exit 0 
+--- typecheck 
+tsc exit 0 
+--- lint 
+eslint exit 0 
+--- unit tests 
+
+> app@0.1.0 test
+> node --import tsx --test tests/*.test.mjs
+
+✔ align to the selection's own edges and centers (1.9572ms)
+✔ distribute spaces centers evenly between the outer two (0.4373ms)
+✔ a group is picked as a whole (0.3041ms)
+✔ moving by an offset (0.2526ms)
+✔ seeded PRNG is deterministic (0.9335ms)
+✔ periodic noise wraps exactly at its period (seamless tiles) (0.3739ms)
+✔ every catalog texture tiles seamlessly across its edges (7.0972ms)
+✔ color filters: neutral is identity, hue rotation preserves lightness (1.0102ms)
+✔ coastline is deterministic, follows the drawn outline and keeps its size (17.682ms)
+✔ coastline already drawn stays put while the lasso keeps growing (7.5317ms)
+✔ fixed-step resampling keeps spacing (0.3275ms)
+✔ hex grid: a cell's centre maps back to the same cell (0.5661ms)
+✔ dab walker: even spacing, deterministic jitter, pressure scales size (0.8818ms)
+✔ project validation accepts paint and land objects and rejects malformed ones (1.0187ms)
+✔ distance transform is exact (vs brute force), with nearest-feature index (3.9824ms)
+✔ coast effect: no land → nothing; deterministic otherwise (26.7564ms)
+✔ overlapping strokes merge into one landmass (no inner coastline) (11.5427ms)
+✔ erasing land opens water with glow and waves around the hole (9.2411ms)
+✔ land takes the texture under it — including texture painted outside the old coast (6.6466ms)
+✔ decoration changes reuse the coastline shape exactly (5.6208ms)
+✔ coast decoration off keeps the coastline shape (0.1947ms)
+✔ a mouse wheel and a trackpad are told apart (and a gesture keeps its kind) (0.741ms)
+✔ the wheel zooms or moves the view, as set (0.8745ms)
+✔ settings from storage, a file or the account are made safe (0.3037ms)
+✔ pen pressure curves keep the ends and bend the middle (0.1534ms)
+✔ two touches: their middle and how far apart (0.2218ms)
+✔ the view's keys: zoom, fit, actual size, hand, grid and this guide (7.0204ms)
+✔ every controls string has its Arabic (0.275ms)
+✔ default layout packs twelve unscaled gores onto three A4 sheets (4.8521ms)
+✔ oversize gores are covered by overlapping tiles without scaling (1.7431ms)
+✔ calibration is applied before placement and paper margins remain respected (0.9774ms)
+✔ rotated packing uses custom paper without resizing the gore (0.4908ms)
+✔ invalid printable areas and excessive page counts fail safely (1.6745ms)
+✔ project validation rejects unsafe settings and executable color content (1.069ms)
+✔ a straight line's length is exact; a curve's is its arc length (2.4653ms)
+✔ closed lines add the closing piece; node indices are tracked (0.7594ms)
+✔ inserting a node keeps the curve exactly (0.2641ms)
+✔ picking finds the nearest point on the curve (0.1687ms)
+✔ Free Draw turns a shaky trail into a few smooth nodes that follow it (4.5466ms)
+✔ a sharp turn in Free Draw stays a corner (0.838ms)
+✔ handles: smooth nodes stay in line, Alt breaks them (0.3354ms)
+✔ reverse and transform keep the shape (0.7808ms)
+✔ Shift snaps the angle (0.2027ms)
+✔ Stamp Stroke: fitted pieces fill the path end to end (1.0132ms)
+✔ Stamp Stroke: corners split runs and get corner pieces; caps on open ends (0.7564ms)
+✔ Stamp Stroke: offset, upright pieces and base anchoring (0.5569ms)
+✔ built-in line art draws, and every built-in style is valid (10.9693ms)
+✔ reset returns a property to the line's style, or the set's own default (0.2841ms)
+✔ legacy paths open as lines with the same curve and look (2.9634ms)
+✔ validation rejects broken lines (0.4673ms)
+✔ print PDFs retain paper sizes, page counts and rotated placements (1343.9233ms)
+✔ calibration sheet is A4 and can be opened independently (4.2753ms)
+✔ PDF generation can be cancelled before any page is built (0.9345ms)
+✔ direct print document shares physical page sizes and forces page breaks (9.3214ms)
+✔ print-page clipping IDs stay unique across tiled sheets (18.5915ms)
+✔ export sizes: quarter to double, those above the plan locked (1.7512ms)
+✔ TIFF: a valid little-endian RGB file with its DPI (0.3653ms)
+✔ JPEG and PNG carry the DPI (0.2715ms)
+✔ maps that aren't 2:1 are fitted: kept in proportion, or stretched (0.3038ms)
+✔ poster artwork: border and title band scale with the width (0.1996ms)
+✔ one sheet: the poster is as large as the paper allows, centred (0.4163ms)
+✔ a large poster is tiled with overlap, fewest sheets first (0.4281ms)
+✔ crop marks sit at the trim corners, outside the artwork (0.3997ms)
+✔ too many sheets is refused; print resolution is reported (0.3046ms)
+✔ poster and fit settings are validated in saved projects (0.8727ms)
+✔ canvases stay within what the device draws (iPhone and iPad: about 16 MP) (2.459ms)
+✔ poster print canvas is capped for the device, and the PPI shown is the one printed (5.626ms)
+✔ PDF images are compressed natively, with a soft mask only when needed (221.1129ms)
+✔ sphere dimensions match analytic circumference and meridian length (1.9947ms)
+✔ ellipsoid integration preserves symmetry and equatorial width (0.5205ms)
+✔ glue tabs taper to zero at poles and reach requested width at equator (1.4814ms)
+✔ Mercator coverage is explicit and missing poles remain missing (0.3106ms)
+✔ recommendation returns even counts bounded by supported settings (0.155ms)
+✔ all sampling filters preserve constant colors across the longitude seam (1.2461ms)
+✔ alpha-aware interpolation does not bleed transparent black into color (0.1522ms)
+✔ PNG embeds a valid 300 DPI physical-resolution chunk (0.8079ms)
+✔ Mercator source PPI accounts for its nonuniform vertical density (1.3371ms)
+✔ rounded bleed covers both the tip and the equatorial cut edge (1.4192ms)
+✔ primitives: rectangles, round corners, ellipses, polygons and stars (2.8695ms)
+✔ primitives from a drag: corners, centre, constrain, polygons turn (0.2667ms)
+✔ outline: add, subtract, intersect, exclude, groups (6.3057ms)
+✔ stroke runs: one loop per contour, portals cut it, runs keep the inside on their right (2.129ms)
+✔ portals stay on their wall when nodes change; nearest path for placing (0.6827ms)
+✔ moving and transforming: primitives, frame, strokes and doors follow (0.5294ms)
+✔ flatten, combine and release keep the outline and the doors (1.51ms)
+✔ styles, tool defaults and resets (1.3135ms)
+✔ validation: good shapes pass, bad geometry and values fail (0.8419ms)
+✔ legacy regions open as shapes with the same outline and pattern (0.795ms)
+✔ every Shape Tool string exists in English and Arabic (13.3589ms)
+✔ the Text Tool's keys: T text, V select, Ctrl+A, arrows (Shift: 10 px) (1.1664ms)
+✔ the default keys: N line, L land, A edit nodes (0.1244ms)
+✔ modifiers must match, except the ones an action refines with (0.122ms)
+✔ the defaults have no clashes (6.4795ms)
+✔ custom shortcuts replace defaults; invalid and fixed ones are ignored (0.3977ms)
+✔ clashes are found where the actions meet (9.1212ms)
+✔ labels follow the platform and leave out number-pad twins (0.6234ms)
+✔ every action has a name, and texts name keys only through placeholders (2.4545ms)
+✔ every built-in variant draws a tight, non-empty picture (13.8017ms)
+✔ variants of a set are different drawings, and stable (0.5511ms)
+✔ search finds sets by name first, then by tag (0.2355ms)
+✔ a placed stamp takes the tool's look and stays in range (1.2807ms)
+✔ a chosen variant is used when variants aren't random (0.168ms)
+✔ scattering drops one stamp per spacing along the stroke (0.3267ms)
+✔ older maps' icons open as Classic stamps (0.2546ms)
+✔ each set remembers its own look; placement settings are shared (0.4108ms)
+✔ changing the anchor point doesn't move the stamp (3.4252ms)
+✔ digits, spaces and marks take their neighbours' script (1.5919ms)
+✔ Arabic joining: where letters join, and where kashida may go (0.4146ms)
+✔ every font file exists, is licensed and measured; every profile's fonts exist (8.1401ms)
+✔ Arabic is joined by HarfBuzz, right to left, with the profile's Arabic face (26.3701ms)
+✔ mixed directions keep their order (Unicode BiDi) (1.4405ms)
+✔ a font without Arabic falls back to the profile's Arabic face, and says so (1.5742ms)
+✔ letter spacing never opens a joined Arabic word; it spaces Latin letters (2.5083ms)
+✔ wrapping to a width, and taller lines for fonts that need them (5.8883ms)
+✔ an arc keeps the text's anchor in place and bends the way it says (5.0323ms)
+✔ on a straight path, the warp is only a move; a reversed path flips the reading direction (2.4759ms)
+✔ a text along a line follows its nodes, a little above it (0.6651ms)
+✔ texts and looks are validated like the server does (0.2076ms)
+✔ resets return one property to the style's value (0.0949ms)
+✔ old labels open as texts in the same place (0.2882ms)
+✔ texts follow the stamp they're attached to (0.2232ms)
+✔ typing and slider drags are one undo step each (0.1249ms)
+✔ vector export: texts as outlines in place, or as real editable text (5.7827ms)
+✔ texts saved on the server come back as the editor saved them (0.1557ms)
+✔ a line is cut into runs by the font that draws them, with their letters (0.4943ms)
+✔ fonts embedded in exports are cut down and still join Arabic (24.9712ms)
+✔ letters the browser draws get their outlines from the web font's slices (70.1302ms)
+✔ PDF: words stay selectable, and a faded fill's outline is cut out (166.0487ms)
+✔ numbers are read the way people type them (0.9593ms)
+✔ a number in the units shown becomes the slider's value (2.836ms)
+✔ typed values stay in range; whole-number steps stay on their step (0.1858ms)
+✔ the box shows the bare number, with a short unit beside it (1.3014ms)
+✔ every slider can be typed into and reset (19.759ms)
+✔ brush resets return to the brush it started from (14.3775ms)
+✔ coast resets return to the style it was edited from (4.3777ms)
+ℹ tests 135
+ℹ suites 0
+ℹ pass 135
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1773.6324
+test exit 0 
+DONE 

@@ -51,6 +51,14 @@ export const accountEn = {
     "Can't reach the server. Check your connection and try again.",
   acErrorGeneric: "Something went wrong. Try again.",
   acErrorTooMany: "Too many attempts. Wait a minute and try again.",
+  acSuspended:
+    "This account is suspended. Contact support if you think this is a mistake.",
+  acSuspendedReason: "This account is suspended: {{reason}}",
+  acSessionEnded:
+    "You were signed out on this device. Sign in again to continue.",
+  acAdminPanel: "Admin panel",
+  acNeedTwoFactor:
+    "Changing the official library needs your admin two-factor code. Open the admin panel, confirm it, then try again.",
   acErrorCredentials: "That email and password don't match.",
   acErrorEmailTaken: "An account already uses this email.",
 
@@ -185,6 +193,12 @@ export const accountAr: typeof accountEn = {
   acErrorNetwork: "تعذّر الوصول إلى السيرفر. تحقق من الاتصال وحاول مرة أخرى.",
   acErrorGeneric: "حدث خطأ. حاول مرة أخرى.",
   acErrorTooMany: "محاولات كثيرة. انتظر دقيقة ثم حاول مرة أخرى.",
+  acSuspended: "هذا الحساب موقوف. تواصل مع الدعم إن كنت ترى أن هذا خطأ.",
+  acSuspendedReason: "هذا الحساب موقوف: {{reason}}",
+  acSessionEnded: "سُجّل خروجك على هذا الجهاز. سجّل الدخول مجددًا للمتابعة.",
+  acAdminPanel: "لوحة الإدارة",
+  acNeedTwoFactor:
+    "تعديل المكتبة الرسمية يتطلب رمز التحقق الثنائي للإدارة. افتح لوحة الإدارة وأكّد الرمز ثم أعد المحاولة.",
   acErrorCredentials: "البريد أو كلمة المرور غير صحيحة.",
   acErrorEmailTaken: "هذا البريد مستخدم في حساب آخر.",
 

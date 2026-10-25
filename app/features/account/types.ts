@@ -31,7 +31,9 @@ export interface User {
   email: string;
   email_verified: boolean;
   has_password: boolean;
-  role: "user" | "admin";
+  role: "user" | "support" | "editor" | "admin" | "owner";
+  /** Admin panel permissions (empty for everyone but staff). */
+  permissions: string[];
   locale: string;
   region: string;
   avatar_url: string | null;
