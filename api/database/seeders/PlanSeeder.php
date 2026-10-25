@@ -7,7 +7,8 @@ use Illuminate\Database\Seeder;
 
 /**
  * The three plans. Safe to re-run: plans are matched by code, so changing a
- * limit here and seeding again updates it in place.
+ * limit here and seeding again updates it in place — unless staff have
+ * edited that plan in the admin panel, which then owns it.
  */
 class PlanSeeder extends Seeder
 {
@@ -27,7 +28,12 @@ class PlanSeeder extends Seeder
                 'upload_quota_bytes' => 5 * 1024 * 1024 * 1024, 'max_line_styles' => null, 'max_text_styles' => null, 'max_shape_styles' => null, 'commercial_use' => true, 'is_default' => false, 'sort' => 3],
         ];
         foreach ($plans as $plan) {
-            Plan::query()->updateOrCreate(['code' => $plan['code']], $plan);
+            $existing = Plan::query()->where('code', $plan['code'])->first();
+            if (! $existing) {
+                Plan::query()->create($plan);
+            } elseif ($existing->customized_at === null) {
+                $existing->update($plan);
+            }
         }
     }
 }

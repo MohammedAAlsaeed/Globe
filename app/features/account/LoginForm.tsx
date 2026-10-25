@@ -30,12 +30,21 @@ export function GoogleButton({ next }: { next: string }) {
   );
 }
 
+function suspendedText(
+  t: (k: string, o?: Record<string, unknown>) => string,
+  reason: unknown,
+) {
+  return typeof reason === "string" && reason
+    ? t("acSuspendedReason", { reason })
+    : t("acSuspended");
+}
+
 export function LoginForm() {
   const { t } = useTranslation(),
     router = useRouter(),
     params = useSearchParams(),
     next = safeNext(params.get("next")),
-    { user, setUser } = useAuth();
+    { user, setUser, endedBy, clearEnded } = useAuth();
   const [email, setEmail] = useState(""),
     [password, setPassword] = useState(""),
     [remember, setRemember] = useState(true),
@@ -53,11 +62,14 @@ export function LoginForm() {
     setError(null);
     try {
       setUser(await auth.login(email.trim(), password, remember));
+      clearEnded();
     } catch (err) {
       setError(
         err instanceof ApiError && err.status === 422
           ? t("acErrorCredentials")
-          : errorMessage(t, err),
+          : err instanceof ApiError && err.code === "account_suspended"
+            ? suspendedText(t, err.body.reason)
+            : errorMessage(t, err),
       );
       setBusy(false);
     }
@@ -70,8 +82,19 @@ export function LoginForm() {
       {googleError && (
         <p className="site-notice error" role="alert">
           {t(
-            googleError === "google_email" ? "acGoogleEmail" : "acGoogleFailed",
+            googleError === "google_email"
+              ? "acGoogleEmail"
+              : googleError === "suspended"
+                ? "acSuspended"
+                : "acGoogleFailed",
           )}
+        </p>
+      )}
+      {endedBy && !error && (
+        <p className="site-notice error" role="alert">
+          {endedBy.code === "account_suspended"
+            ? suspendedText(t, endedBy.reason)
+            : t("acSessionEnded")}
         </p>
       )}
       {params.get("reset") === "1" && (

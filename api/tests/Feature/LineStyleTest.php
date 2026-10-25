@@ -114,7 +114,7 @@ class LineStyleTest extends TestCase
         $admin = User::factory()->create();
         $admin->forceFill(['role' => Role::Admin])->save();
         for ($i = 0; $i < 11; $i++) {
-            $this->actingAs($admin)->postJson('/api/v1/line-styles', ['name' => "O{$i}", 'look' => self::look(), 'official' => true, 'published' => true])
+            $this->asStaff($admin)->postJson('/api/v1/line-styles', ['name' => "O{$i}", 'look' => self::look(), 'official' => true, 'published' => true])
                 ->assertCreated();
         }
         $user = User::factory()->create();
@@ -158,7 +158,7 @@ class LineStyleTest extends TestCase
     {
         $admin = User::factory()->create();
         $admin->forceFill(['role' => Role::Admin])->save();
-        $free = $this->actingAs($admin)->postJson('/api/v1/line-styles', ['name' => 'Royal road', 'look' => self::look(), 'official' => true, 'published' => true])
+        $free = $this->asStaff($admin)->postJson('/api/v1/line-styles', ['name' => 'Royal road', 'look' => self::look(), 'official' => true, 'published' => true])
             ->assertCreated()->assertJsonPath('data.official', true)->json('data');
         $paid = $this->postJson('/api/v1/line-styles', ['name' => 'Gilded border', 'look' => self::look(), 'official' => true, 'tier' => 1, 'published' => true])
             ->assertCreated()->json('data');
@@ -180,7 +180,7 @@ class LineStyleTest extends TestCase
         $this->onPlan($user, 'cartographer');
         $this->getJson('/api/v1/line-styles')->assertJsonFragment(['id' => $paid['id'], 'locked' => false]);
 
-        $this->actingAs($admin)->patchJson("/api/v1/line-styles/{$paid['id']}", ['tier' => 2, 'published' => false])->assertOk()
+        $this->asStaff($admin)->patchJson("/api/v1/line-styles/{$paid['id']}", ['tier' => 2, 'published' => false])->assertOk()
             ->assertJsonPath('data.tier', 2)->assertJsonPath('data.published', false);
         $this->assertSame(3, LineStyle::query()->whereNull('owner_id')->count());
     }

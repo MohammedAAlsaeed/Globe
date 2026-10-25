@@ -13,6 +13,7 @@ import {
   type ReactNode,
 } from "react";
 import { auth } from "./api";
+import { SIGNED_OUT_EVENT, type SignedOutDetail } from "@/lib/api/client";
 import type { User } from "./types";
 
 interface AuthState {
@@ -23,13 +24,28 @@ interface AuthState {
   refresh: () => Promise<User | null>;
   setUser: (user: User | null) => void;
   signOut: () => Promise<void>;
+  /** Why the server signed this browser out (shown on the sign-in page). */
+  endedBy: SignedOutDetail | null;
+  clearEnded: () => void;
 }
 
 const AuthContext = createContext<AuthState | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null | undefined>(undefined),
-    [offline, setOffline] = useState(false);
+    [offline, setOffline] = useState(false),
+    [endedBy, setEndedBy] = useState<SignedOutDetail | null>(null);
+
+  // Staff ended this session or suspended the account: sign out here too.
+  useEffect(() => {
+    const ended = (e: Event) => {
+      setEndedBy((e as CustomEvent<SignedOutDetail>).detail);
+      setUser(null);
+    };
+    window.addEventListener(SIGNED_OUT_EVENT, ended);
+    return () => window.removeEventListener(SIGNED_OUT_EVENT, ended);
+  }, []);
+  const clearEnded = useCallback(() => setEndedBy(null), []);
 
   const refresh = useCallback(async () => {
     try {
@@ -59,8 +75,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo(
-    () => ({ user, offline, refresh, setUser, signOut }),
-    [user, offline, refresh, signOut],
+    () => ({
+      user,
+      offline,
+      refresh,
+      setUser,
+      signOut,
+      endedBy,
+      clearEnded,
+    }),
+    [user, offline, refresh, signOut, endedBy, clearEnded],
   );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

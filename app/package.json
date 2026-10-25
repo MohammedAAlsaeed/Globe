@@ -27,7 +27,8 @@
     "react-dom": "^19.3.0",
     "react-i18next": "^17.0.14",
     "react-konva": "^19.3.0",
-    "three": "^0.186.0"
+    "three": "^0.186.0",
+    "uqr": "0.1.2"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

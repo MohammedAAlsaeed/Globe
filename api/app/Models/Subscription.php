@@ -12,7 +12,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * A user's subscription to a plan. Provider-agnostic: `provider` and
  * `provider_ref` point at whatever payment service created it.
  */
-#[Fillable(['plan_id', 'status', 'provider', 'provider_ref', 'starts_at', 'ends_at', 'canceled_at'])]
+#[Fillable(['plan_id', 'status', 'provider', 'provider_ref', 'starts_at', 'ends_at', 'canceled_at', 'granted_by', 'note'])]
 class Subscription extends Model
 {
     protected function casts(): array
@@ -33,6 +33,12 @@ class Subscription extends Model
     public function plan(): BelongsTo
     {
         return $this->belongsTo(Plan::class);
+    }
+
+    /** The staff member who granted it by hand (null for paid ones). */
+    public function grantedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'granted_by');
     }
 
     /** Subscriptions granting their plan right now (a canceled one runs to its end). */

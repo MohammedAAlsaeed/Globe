@@ -16,6 +16,13 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         // Sanctum SPA: requests from the web app's origin get session cookies.
         $middleware->statefulApi();
+        // Suspended accounts and ended sessions are signed out at once.
+        $middleware->api(append: [\App\Http\Middleware\AccountGuard::class]);
+        $middleware->alias([
+            'staff' => \App\Http\Middleware\EnsureStaff::class,
+            'admin.2fa' => \App\Http\Middleware\EnsureAdminTwoFactor::class,
+            'permission' => \App\Http\Middleware\RequirePermission::class,
+        ]);
         // Signed-in users hitting guest-only routes, and guests hitting
         // protected ones, are sent to the web app (API clients get JSON).
         $middleware->redirectUsersTo(fn () => config('idrisi.frontend_url'));

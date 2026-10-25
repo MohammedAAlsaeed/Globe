@@ -96,10 +96,31 @@ async function send(
   return res;
 }
 
+/**
+ * Fired when the server ends this browser's session on its own: staff
+ * signed the person out everywhere (`session_ended`) or suspended the
+ * account (`account_suspended`). The account provider listens for it.
+ */
+export const SIGNED_OUT_EVENT = "idrisi:signed-out";
+export type SignedOutDetail = { code: string; reason: string | null };
+
 async function parse<T>(res: Response): Promise<T> {
   if (res.status === 204) return undefined as T;
   const json = (await res.json().catch(() => ({}))) as Record<string, unknown>;
   if (!res.ok) {
+    if (
+      (res.status === 401 && json.code === "session_ended") ||
+      (res.status === 403 && json.code === "account_suspended")
+    ) {
+      window.dispatchEvent(
+        new CustomEvent<SignedOutDetail>(SIGNED_OUT_EVENT, {
+          detail: {
+            code: json.code,
+            reason: typeof json.reason === "string" ? json.reason : null,
+          },
+        }),
+      );
+    }
     throw new ApiError(
       res.status,
       typeof json.message === "string" ? json.message : res.statusText,
@@ -119,4 +140,7 @@ export const api = {
   patch: <T>(path: string, body?: Body) =>
     send("PATCH", path, body).then(parse<T>),
   delete: <T>(path: string) => send("DELETE", path, undefined).then(parse<T>),
+  /** DELETE with a body (a confirmation or a reason). */
+  deleteWith: <T>(path: string, body: Body) =>
+    send("DELETE", path, body).then(parse<T>),
 };

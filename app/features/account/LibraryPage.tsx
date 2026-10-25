@@ -48,7 +48,9 @@ function groupSets(assets: Asset[]) {
 
 export function LibraryPage() {
   const { t } = useTranslation(),
-    { user, refresh } = useAuth();
+    { user, refresh } = useAuth(),
+    // Staff who curate the official library (see the admin panel's roles).
+    curator = !!user?.permissions.includes("content.manage");
   const [packs, setPacks] = useState<AssetPack[] | null>(null),
     [notice, setNotice] = useState<{
       kind: "ok" | "error";
@@ -57,16 +59,12 @@ export function LibraryPage() {
 
   const load = useCallback(async () => {
     try {
-      setPacks(
-        (await library.packs()).filter(
-          (p) => !p.official || user?.role === "admin",
-        ),
-      );
+      setPacks((await library.packs()).filter((p) => !p.official || curator));
     } catch (e) {
       setPacks([]);
       setNotice({ kind: "error", text: errorMessage(t, e) });
     }
-  }, [t, user?.role]);
+  }, [t, curator]);
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- loading data when signed in
     if (user) void load();
@@ -167,7 +165,7 @@ export function LibraryPage() {
                     ))
                   )}
                 </section>
-                {user.role === "admin" && (
+                {curator && (
                   <section className="maps-section">
                     <h2>{t("stOfficialLibrary")}</h2>
                     <p className="maps-section-note">{t("stOfficialLead")}</p>

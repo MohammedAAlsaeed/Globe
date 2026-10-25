@@ -33,6 +33,7 @@ class Plan extends Model
             'max_shape_styles' => 'integer',
             'commercial_use' => 'boolean',
             'is_default' => 'boolean',
+            'customized_at' => 'datetime',
         ];
     }
 

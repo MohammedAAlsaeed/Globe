@@ -26,6 +26,8 @@ class UserResource extends JsonResource
             'email_verified' => $this->email_verified_at !== null,
             'has_password' => $this->password !== null,
             'role' => $this->role->value,
+            // What the admin panel lets this person do (empty for most people).
+            'permissions' => $this->role->permissions(),
             'locale' => $this->locale,
             'region' => $this->region,
             'avatar_url' => $this->avatar_url,

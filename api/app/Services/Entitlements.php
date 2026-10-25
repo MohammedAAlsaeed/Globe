@@ -8,6 +8,7 @@ use App\Models\AssetPack;
 use App\Models\LineStyle;
 use App\Models\Plan;
 use App\Models\ShapeStyle;
+use App\Models\Subscription;
 use App\Models\TextStyle;
 use App\Models\User;
 
@@ -20,14 +21,28 @@ use App\Models\User;
  */
 class Entitlements
 {
-    /** The plan in force right now: the newest current subscription, else the default plan. */
+    /**
+     * The plan in force right now: the best of the current subscriptions
+     * (highest tier, then the newest), else the default plan. A gift never
+     * lowers what someone pays for.
+     */
     public function plan(User $user): Plan
     {
-        return $user->subscriptions()
-            ->current()
-            ->with('plan')
-            ->latest('starts_at')
-            ->first()?->plan ?? Plan::default();
+        return static::best($user->subscriptions()->current()->with('plan')->get()) ?? Plan::default();
+    }
+
+    /** @param  iterable<Subscription>  $current  current subscriptions with their plans */
+    public static function best(iterable $current): ?Plan
+    {
+        $best = null;
+        foreach ($current as $s) {
+            if ($best === null || $s->plan->tier > $best->plan->tier
+                || ($s->plan->tier === $best->plan->tier && $s->starts_at > $best->starts_at)) {
+                $best = $s;
+            }
+        }
+
+        return $best?->plan;
     }
 
     /** @return array{maps: int, upload_bytes: int, line_styles: int, text_styles: int, shape_styles: int} */

@@ -49,6 +49,13 @@ export function errorMessage(t: T, e: unknown): string {
   if (e instanceof NetworkError) return t("acErrorNetwork");
   if (e instanceof ApiError) {
     if (e.status === 429) return t("acErrorTooMany");
+    if (e.code === "account_suspended") return t("acSuspended");
+    if (e.code === "session_ended") return t("acSessionEnded");
+    if (
+      e.code === "two_factor_required" ||
+      e.code === "two_factor_setup_required"
+    )
+      return t("acNeedTwoFactor");
     if (e.status === 422 && e.message)
       return Object.values(e.errors)[0]?.[0] ?? e.message;
   }
@@ -156,6 +163,15 @@ export function SiteHeader() {
                 >
                   {t("ctTitle")}
                 </Link>
+                {user.permissions.length > 0 && (
+                  <Link
+                    href="/admin"
+                    role="menuitem"
+                    onClick={() => setMenu(false)}
+                  >
+                    {t("acAdminPanel")}
+                  </Link>
+                )}
                 <button
                   role="menuitem"
                   onClick={async () => {

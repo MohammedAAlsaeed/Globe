@@ -9,6 +9,7 @@ import { printingEn, printingAr } from "./locales/printing";
 import { textEn, textAr } from "./locales/text";
 import { controlsEn, controlsAr } from "./locales/controls";
 import { shapesEn, shapesAr } from "./locales/shapes";
+import { adminEn, adminAr } from "./locales/admin";
 import i18n from "i18next";
 import { initReactI18next } from "react-i18next";
 import { en } from "./locales/en";
@@ -28,6 +29,7 @@ i18n.use(initReactI18next).init({
         ...textEn,
         ...controlsEn,
         ...shapesEn,
+        ...adminEn,
       },
     },
     ar: {
@@ -43,6 +45,7 @@ i18n.use(initReactI18next).init({
         ...textAr,
         ...controlsAr,
         ...shapesAr,
+        ...adminAr,
       },
     },
   },
