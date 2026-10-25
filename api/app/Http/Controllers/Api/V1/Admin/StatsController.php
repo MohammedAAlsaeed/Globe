@@ -10,9 +10,10 @@ use App\Models\Map;
 use App\Models\Plan;
 use App\Models\Subscription;
 use App\Models\User;
+use Carbon\CarbonInterface;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Validation\Rule;
 
@@ -34,7 +35,7 @@ class StatsController extends AdminController
     {
         $since = now()->startOfDay()->subDays($days - 1);
         $prev = $since->copy()->subDays($days);
-        $count = fn ($query, Carbon $from, ?Carbon $to = null) => (clone $query)->where('created_at', '>=', $from)
+        $count = fn (Builder $query, CarbonInterface $from, ?CarbonInterface $to = null) => (clone $query)->where('created_at', '>=', $from)
             ->when($to, fn ($q) => $q->where('created_at', '<', $to))->count();
 
         $paidPlans = Plan::query()->where('is_default', false)->get()->keyBy('id');
@@ -77,7 +78,7 @@ class StatsController extends AdminController
     }
 
     /** @return list<array{date: string, n: int}> one entry per day, zeros included */
-    private function daily($query, Carbon $since, int $days, string $column = 'created_at'): array
+    private function daily(Builder $query, CarbonInterface $since, int $days, string $column = 'created_at'): array
     {
         $rows = (clone $query)->where($column, '>=', $since)
             ->selectRaw("DATE({$column}) as d, count(*) as n")->groupBy('d')->pluck('n', 'd');

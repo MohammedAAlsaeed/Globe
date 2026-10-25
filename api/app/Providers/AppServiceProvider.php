@@ -34,9 +34,11 @@ class AppServiceProvider extends ServiceProvider
         Gate::define('admin', fn (User $user) => $user->isAdmin());
 
         // Official library changes: two-factor staff sessions only, audited.
-        foreach ([AssetPack::class, Asset::class, LineStyle::class, TextStyle::class, ShapeStyle::class] as $model) {
-            $model::observe(OfficialContentObserver::class);
-        }
+        AssetPack::observe(OfficialContentObserver::class);
+        Asset::observe(OfficialContentObserver::class);
+        LineStyle::observe(OfficialContentObserver::class);
+        TextStyle::observe(OfficialContentObserver::class);
+        ShapeStyle::observe(OfficialContentObserver::class);
 
         Password::defaults(fn () => Password::min(8)->letters()->numbers());
 
