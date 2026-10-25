@@ -8,7 +8,6 @@ import { useId, type ReactNode } from "react";
 import { ResetButton, ValueEditor } from "@/components/ui/ValueEditor";
 import { Glyph } from "../glyphs";
 import { shortcutLabel } from "../shortcuts";
-import { TOOL_DEFAULTS } from "../domain";
 import { DEFAULT_BRUSH } from "../brush/presets";
 import type { MMObject, MMPatch } from "../types";
 
@@ -220,18 +219,6 @@ export function ObjectQuickBar({
             <Glyph name="closePath" size={13} />
           </button>
         </div>
-      )}
-      {obj.kind === "region" && (
-        <Slider
-          label={t("mmFillOpacity")}
-          defaultValue={TOOL_DEFAULTS.fillOpacity}
-          value={obj.opacity}
-          min={0.1}
-          max={1}
-          step={0.05}
-          onChange={(v) => onPatch({ opacity: v })}
-          format={(v) => `${Math.round(v * 100)}%`}
-        />
       )}
       {obj.kind === "brush" && (
         <>

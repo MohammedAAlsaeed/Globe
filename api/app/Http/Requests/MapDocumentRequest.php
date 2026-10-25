@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Support\LineRules;
+use App\Support\ShapeRules;
 use App\Support\TextRules;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Validator;
@@ -51,7 +52,7 @@ abstract class MapDocumentRequest extends FormRequest
                 return;
             }
             $document = $this->input('document');
-            if (($error = LineRules::documentError($document) ?? TextRules::documentError($document)) !== null) {
+            if (($error = LineRules::documentError($document) ?? TextRules::documentError($document) ?? ShapeRules::documentError($document)) !== null) {
                 $validator->errors()->add('document', $error);
 
                 return;

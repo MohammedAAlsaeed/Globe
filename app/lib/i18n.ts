@@ -8,6 +8,7 @@ import { shortcutsEn, shortcutsAr } from "./locales/shortcuts";
 import { printingEn, printingAr } from "./locales/printing";
 import { textEn, textAr } from "./locales/text";
 import { controlsEn, controlsAr } from "./locales/controls";
+import { shapesEn, shapesAr } from "./locales/shapes";
 import i18n from "i18next";
 import { initReactI18next } from "react-i18next";
 import { en } from "./locales/en";
@@ -26,6 +27,7 @@ i18n.use(initReactI18next).init({
         ...printingEn,
         ...textEn,
         ...controlsEn,
+        ...shapesEn,
       },
     },
     ar: {
@@ -40,6 +42,7 @@ i18n.use(initReactI18next).init({
         ...printingAr,
         ...textAr,
         ...controlsAr,
+        ...shapesAr,
       },
     },
   },

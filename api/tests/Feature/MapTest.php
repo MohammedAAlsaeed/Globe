@@ -262,4 +262,42 @@ class MapTest extends TestCase
         }
         $this->getJson("/api/v1/maps/{$map['id']}")->assertJsonPath('data.revision', 1);
     }
+
+    public function test_shape_tool_shapes_are_validated_on_save(): void
+    {
+        $user = User::factory()->create();
+        $shape = ShapeStyleTest::shape();
+        $doc = fn (array $o) => ['id' => 'x', 'name' => 'Shapes', 'layers' => [['id' => 'l1', 'name' => 'Rooms', 'visible' => true, 'locked' => false, 'opacity' => 1, 'objects' => [$o]]]];
+
+        $map = $this->createMap($user, ['document' => $doc($shape)]);
+        $this->getJson("/api/v1/maps/{$map['id']}")->assertOk()
+            ->assertJsonPath('document.layers.0.objects.0.parts.1.op', 'subtract')
+            ->assertJsonPath('document.layers.0.objects.0.parts.1.parts.0.nodes.1.t', 'smooth')
+            ->assertJsonPath('document.layers.0.objects.0.portals.0.part', 'a');
+
+        $deep = $shape['parts'][0];
+        for ($i = 0; $i < 6; $i++) {
+            $deep = ['id' => "g{$i}", 'op' => 'add', 'parts' => [$deep]];
+        }
+        $many = array_map(fn ($i) => ['id' => "p{$i}"] + $shape['parts'][0], range(1, 70));
+        $broken = [
+            'no parts' => ['parts' => []],
+            'bad op' => ['parts' => [['op' => 'merge'] + $shape['parts'][0]]],
+            'two nodes' => ['parts' => [['nodes' => array_slice($shape['parts'][0]['nodes'], 0, 2)] + $shape['parts'][0]]],
+            'node off the map' => ['parts' => [['nodes' => [['x' => 9, 'y' => 0], ['x' => 0, 'y' => 0], ['x' => 0, 'y' => 1]]] + $shape['parts'][0]]],
+            'same ids' => ['parts' => [$shape['parts'][0], $shape['parts'][0]]],
+            'too deep' => ['parts' => [$deep], 'portals' => []],
+            'too many paths' => ['parts' => $many, 'portals' => []],
+            'door on a group' => ['portals' => [['part' => 'g'] + $shape['portals'][0]]],
+            'door elsewhere' => ['portals' => [['part' => 'nope'] + $shape['portals'][0]]],
+            'bad prim' => ['parts' => [['prim' => ['kind' => 'blob'] + $shape['parts'][0]['prim']] + $shape['parts'][0], $shape['parts'][1]]],
+            'bad frame' => ['frame' => ['x' => 0, 'y' => 0, 'rot' => 0, 'scale' => 0]],
+            'bad fill' => ['fill' => ['type' => 'gradient'] + $shape['fill']],
+        ];
+        foreach ($broken as $why => $patch) {
+            $this->putJson("/api/v1/maps/{$map['id']}", ['revision' => 1, 'document' => $doc(array_replace($shape, $patch))])
+                ->assertUnprocessable()->assertJsonValidationErrors('document');
+        }
+        $this->getJson("/api/v1/maps/{$map['id']}")->assertJsonPath('data.revision', 1);
+    }
 }

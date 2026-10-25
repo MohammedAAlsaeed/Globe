@@ -58,6 +58,9 @@ export interface MMPath extends MMObjectBase {
   opacity: number;
   softness: number;
 }
+/** Legacy filled area (before the Shape Tool, a biome-textured polygon drawn
+ * with Konva's tension 0.3). Older saved maps may still contain these; they
+ * open as shapes with the same outline and pattern (stamps/migrate). */
 export interface MMRegion extends MMObjectBase {
   kind: "region";
   biome: Biome;
@@ -564,10 +567,143 @@ export interface MMText extends MMObjectBase, TextLook {
   attach?: { to: string; dx: number; dy: number } | null;
 }
 
+// -----------------------------------------------------------------------------
+// Shape Tool — closed, editable areas (rooms, buildings, lakes, fields, zones)
+// -----------------------------------------------------------------------------
+// A shape keeps its *geometry* apart from its *look*, like a line. The
+// geometry is a list of *parts*: closed Bézier paths (the same nodes as a
+// line, so they reshape with the same editor) combined in order — each part
+// is added to, subtracted from, intersected with or excluded from what the
+// parts before it made. Nothing is ever merged for good: every part stays
+// editable, and the outline is worked out again whenever one changes (see
+// ./shapes/geometry). A part can itself be a group of parts, so combining
+// two shapes keeps both intact.
+//
+// The look is a stroke (a painted outline or wall pieces, centred on the
+// outline, inside or outside it, with openings — doors — cut into it) and a
+// fill (colour, texture, a classic pattern, or a *mask* that clips everything
+// else in the shape's layer to the shape).
+
+/** How a part combines with the parts before it (the first part is the base). */
+export type ShapeOp = "add" | "subtract" | "intersect" | "exclude";
+export type ShapePrimKind = "rect" | "ellipse" | "polygon" | "star";
+/** What a part was drawn as: kept while the part is only moved, turned or
+ * resized, so its corner radius, sides… stay editable as numbers. Editing
+ * the part's nodes makes it a free path (the primitive is dropped). */
+export interface ShapePrim {
+  kind: ShapePrimKind;
+  /** Centre, map fractions. */
+  cx: number;
+  cy: number;
+  /** Size, fractions of the map *width* (both, so a square stays square). */
+  w: number;
+  h: number;
+  /** Degrees. */
+  rot: number;
+  /** Rect: corner radius, fraction of the shorter side (0..0.5). */
+  radius?: number;
+  /** Polygon and star: corners (3..64). */
+  sides?: number;
+  /** Star: inner radius, fraction of the outer one (0.05..0.95). */
+  inner?: number;
+}
+/** One closed path of a shape. */
+export interface ShapePath {
+  id: string;
+  op: ShapeOp;
+  /** Bézier nodes, map fractions (like a line's); always closed. */
+  nodes: LineNode[];
+  prim?: ShapePrim;
+}
+/** Parts combined among themselves first, then with the parts before them. */
+export interface ShapeGroup {
+  id: string;
+  op: ShapeOp;
+  parts: ShapePart[];
+}
+export type ShapePart = ShapePath | ShapeGroup;
+
+/** An opening in a shape's stroke (a door, a gate, a gap in a wall). It
+ * belongs to one path — piece `seg` of it, at `t` along that piece — so it
+ * moves and turns with the wall it is in. */
+export interface ShapePortal {
+  id: string;
+  /** The ShapePath it sits on. */
+  part: string;
+  seg: number;
+  t: number;
+  /** Opening width, fraction of the map width. */
+  width: number;
+}
+
+/** Where the stroke lies: centred on the outline, inside or outside it. */
+export type StrokeAlign = "center" | "inside" | "outside";
+export interface ShapeStroke {
+  mode: "none" | "color" | "stamp";
+  /** Painted outline (kept while the stamp mode is used, and the other way round). */
+  color: LineColorStroke;
+  /** Wall pieces along the outline. */
+  stamp: LineStampStroke;
+  align: StrokeAlign;
+  /** 0..1, the stroke only. */
+  opacity: number;
+}
+/**
+ *  none     no fill (an outline only)
+ *  color    a flat colour (with the colour filters)
+ *  texture  a seamless texture from the brush catalog
+ *  pattern  a classic pattern (the old Region tool's biome swatches)
+ *  mask     not drawn: the shape clips everything in its layer to itself
+ *           (or, inverted, hides what's inside it)
+ */
+export type ShapeFillType = "none" | "color" | "texture" | "pattern" | "mask";
+export interface ShapeFill {
+  type: ShapeFillType;
+  /** Colour and texture settings (scale and turn are shared with patterns). */
+  source: PaintSource;
+  pattern: Biome;
+  /** 0..1, the fill only. */
+  opacity: number;
+  /** map: the texture stays put on the map; shape: it moves, turns and
+   * grows with the shape (see `frame`). */
+  anchor: "map" | "shape";
+  /** Mask: hide what's inside instead of showing only what's inside. */
+  invert: boolean;
+  /** Mask: soft edge, fraction of the map width. */
+  feather: number;
+}
+/** Everything about how a shape looks (what styles hold). */
+export interface ShapeLook {
+  stroke: ShapeStroke;
+  fill: ShapeFill;
+  /** The whole shape. */
+  opacity: number;
+  blend?: BlendMode;
+}
+/** The shape's own frame for textures that follow it: an origin (map
+ * fractions), a turn (degrees) and a scale, carried along by every move,
+ * turn and resize. */
+export interface ShapeFrame {
+  x: number;
+  y: number;
+  rot: number;
+  scale: number;
+}
+export interface MMShape extends MMObjectBase, ShapeLook {
+  kind: "shape";
+  /** Optional name ("Great Hall"), shown in the Objects list. */
+  name?: string;
+  /** The library style it was made with (Reset returns to it). */
+  styleId?: string | null;
+  parts: ShapePart[];
+  portals: ShapePortal[];
+  frame: ShapeFrame;
+}
+
 /** Every object kind a layer can hold. Legacy kinds (MMIcon, MMPath,
- * MMLabel) are converted when a map opens (see ./stamps/migrate). */
+ * MMLabel, MMRegion) are converted when a map opens (see ./stamps/migrate). */
 export type MMObject =
-  MMBrush | MMStamp | MMLine | MMRegion | MMText | MMPaint | MMLand;
+  MMBrush | MMStamp | MMLine | MMShape | MMText | MMPaint | MMLand;
 
 /** Brush-layer role (Inkarnate-style). Optional — older layers read as "custom". */
 export type LayerRole = "land" | "water" | "custom";

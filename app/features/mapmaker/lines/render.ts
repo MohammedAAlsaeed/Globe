@@ -14,7 +14,7 @@
  * only re-lays out the one being edited.
  */
 import { stampRaster } from "../stamps/render";
-import type { LineColorStroke, MMLine } from "../types";
+import type { LineColorStroke, LineStampStroke, MMLine } from "../types";
 import {
   flatten,
   sharpNodes,
@@ -166,37 +166,43 @@ export function linePoly(line: Drawable, w: number, h: number): Polyline {
   return poly;
 }
 
-/** Where every piece of a Stamp Stroke goes at this size (cached). */
-export function stampLayout(line: Drawable, w: number, h: number): Placement[] {
-  const st = line.stamp,
-    aspect = (k: string | null | undefined) => (k ? pieceAspect(k) : null),
+/** The aspect-ratio key of a stamp stroke's pieces (changes when an
+ * uploaded piece finishes loading and its aspect becomes known). */
+export function stampKey(st: LineStampStroke) {
+  const aspect = (k: string | null | undefined) => (k ? pieceAspect(k) : null);
+  return `${aspect(st.parts.seg[0]) ?? 3}|${aspect(st.parts.start)}|${aspect(st.parts.end)}|${aspect(st.parts.corner)}`;
+}
+
+/** Lays out a Stamp Stroke's pieces along any polyline (lines and shapes).
+ * `cornerAt` are the polyline indices of sharp corners; `extraOffset` shifts
+ * the pieces sideways (in thicknesses) on top of the stroke's own offset. */
+export function stampPieces(
+  st: LineStampStroke,
+  poly: Polyline,
+  w: number,
+  cornerAt: number[],
+  extraOffset = 0,
+): Placement[] {
+  const aspect = (k: string | null | undefined) => (k ? pieceAspect(k) : null),
     segAspect = aspect(st.parts.seg[0]) ?? 3,
-    // The key changes when an uploaded piece finishes loading (its aspect becomes known).
-    key = `${segAspect}|${aspect(st.parts.start)}|${aspect(st.parts.end)}|${aspect(st.parts.corner)}`;
-  const hit = layouts.get(line);
-  if (hit && hit.w === w && hit.h === h && hit.key === key) return hit.pieces;
-  const thick = st.size * w,
+    thick = st.size * w,
     len = (k: string | null | undefined) => {
       const a = aspect(k);
       return a ? a * thick : 0;
     };
-  const poly = linePoly(line, w, h);
-  const pieces = layoutPieces(poly, {
+  return layoutPieces(poly, {
     pieceLen: segAspect * thick,
     thick,
     spacing: st.spacing,
     fit: st.fit,
     corners: st.corners,
-    cornerAt:
-      st.corners === "split"
-        ? sharpNodes(line.nodes, line.closed, w, h).map((i) => poly.nodeAt[i])
-        : [],
+    cornerAt: st.corners === "split" ? cornerAt : [],
     startLen: st.caps ? len(st.parts.start) : 0,
     endLen: st.caps ? len(st.parts.end) : 0,
     cornerLen: len(st.parts.corner),
     followPath: st.followPath,
     rotation: (st.rotation * Math.PI) / 180,
-    offset: st.offset,
+    offset: st.offset + extraOffset,
     flip: st.flip,
     scaleJitter: st.scaleJitter,
     rotationJitter: st.rotationJitter,
@@ -205,21 +211,36 @@ export function stampLayout(line: Drawable, w: number, h: number): Placement[] {
     seed: st.seed,
     max: MAX_PIECES,
   });
+}
+
+/** Where every piece of a Stamp Stroke goes at this size (cached). */
+export function stampLayout(line: Drawable, w: number, h: number): Placement[] {
+  const st = line.stamp,
+    key = stampKey(st);
+  const hit = layouts.get(line);
+  if (hit && hit.w === w && hit.h === h && hit.key === key) return hit.pieces;
+  const poly = linePoly(line, w, h);
+  const pieces = stampPieces(
+    st,
+    poly,
+    w,
+    st.corners === "split"
+      ? sharpNodes(line.nodes, line.closed, w, h).map((i) => poly.nodeAt[i])
+      : [],
+  );
   layouts.set(line, { w, h, key, pieces });
   return pieces;
 }
 
 const colors = { hue: 0, saturation: 0, brightness: 0, contrast: 0 };
-export function drawStampLine(
+/** Draws laid-out stamp pieces (lines and shapes). */
+export function drawPieces(
   ctx: CanvasRenderingContext2D,
-  line: Drawable,
-  w: number,
-  h: number,
+  st: LineStampStroke,
+  pieces: Placement[],
   onReady?: () => void,
 ) {
-  const st = line.stamp,
-    k = deviceScale(ctx),
-    pieces = stampLayout(line, w, h);
+  const k = deviceScale(ctx);
   for (const p of pieces) {
     const asset =
       p.role === "seg"
@@ -252,6 +273,15 @@ export function drawStampLine(
     ctx.drawImage(img, -drawLen / 2, -p.thick / 2, drawLen, p.thick);
     ctx.restore();
   }
+}
+export function drawStampLine(
+  ctx: CanvasRenderingContext2D,
+  line: Drawable,
+  w: number,
+  h: number,
+  onReady?: () => void,
+) {
+  drawPieces(ctx, line.stamp, stampLayout(line, w, h), onReady);
 }
 
 /** Draws a whole line (opacity and blend are applied by the caller / node). */

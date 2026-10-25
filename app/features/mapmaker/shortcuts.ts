@@ -35,17 +35,13 @@ export type ShortcutContext =
   | "line"
   /** The Stamp tool, or stamps selected. */
   | "stamp"
+  /** The Shape tool, or shapes selected. */
+  | "shape"
   /** The Text tool, or texts selected (never while typing: typed keys are text). */
   | "text";
 
 export type ShortcutGroup =
-  | "tools"
-  | "edit"
-  | "view"
-  | "line"
-  | "paint"
-  | "stamp"
-  | "text";
+  "tools" | "edit" | "view" | "line" | "shape" | "paint" | "stamp" | "text";
 /** The groups in the order a cheat sheet shows them. */
 export const SHORTCUT_GROUPS: ShortcutGroup[] = [
   "tools",
@@ -54,6 +50,7 @@ export const SHORTCUT_GROUPS: ShortcutGroup[] = [
   "paint",
   "stamp",
   "line",
+  "shape",
   "text",
 ];
 
@@ -89,7 +86,7 @@ export const SHORTCUTS = [
   tool("land", "mmToolLand", ["KeyL", "Digit3", "Numpad3"]),
   tool("stamp", "mmToolStamp", ["Digit4", "Numpad4"]),
   tool("line", "mmToolLine", ["KeyN", "Digit5", "Numpad5"]),
-  tool("region", "mmToolRegion", ["Digit6", "Numpad6"]),
+  tool("shape", "mmToolShape", ["KeyU", "Digit6", "Numpad6"]),
   tool("text", "mmToolText", ["KeyT", "Digit7", "Numpad7"]),
 
   // ---- editing ----
@@ -362,6 +359,82 @@ export const SHORTCUTS = [
     customizable: true,
   },
 
+  // ---- Shape tool (A edits a selected shape's nodes, like a line's) ----
+  {
+    id: "shape.rect",
+    group: "shape",
+    labelKey: "shDrawRect",
+    contexts: ["shape"],
+    keys: ["KeyR"],
+    customizable: true,
+  },
+  {
+    id: "shape.ellipse",
+    group: "shape",
+    labelKey: "shDrawEllipse",
+    contexts: ["shape"],
+    keys: ["KeyE"],
+    customizable: true,
+  },
+  {
+    id: "shape.polygon",
+    group: "shape",
+    labelKey: "shDrawPolygon",
+    contexts: ["shape"],
+    keys: ["KeyY"],
+    customizable: true,
+  },
+  {
+    id: "shape.pen",
+    group: "shape",
+    labelKey: "shDrawPen",
+    contexts: ["shape"],
+    keys: ["KeyP"],
+    customizable: true,
+  },
+  {
+    id: "shape.free",
+    group: "shape",
+    labelKey: "shDrawFree",
+    contexts: ["shape"],
+    keys: ["KeyF"],
+    customizable: true,
+  },
+  {
+    id: "shape.doors",
+    group: "shape",
+    labelKey: "shDrawDoors",
+    contexts: ["shape"],
+    keys: ["KeyD"],
+    customizable: true,
+  },
+  {
+    id: "shape.combine",
+    group: "shape",
+    labelKey: "kbShapeCombine",
+    contexts: ["shape"],
+    keys: ["KeyM"],
+    customizable: true,
+  },
+  {
+    id: "shape.wider",
+    group: "shape",
+    labelKey: "kbShapeWider",
+    contexts: ["shape"],
+    keys: ["BracketRight"],
+    allow: ["Alt", "Shift"],
+    customizable: true,
+  },
+  {
+    id: "shape.thinner",
+    group: "shape",
+    labelKey: "kbShapeThinner",
+    contexts: ["shape"],
+    keys: ["BracketLeft"],
+    allow: ["Alt", "Shift"],
+    customizable: true,
+  },
+
   // ---- Brush and Land ----
   {
     id: "paint.erase",
@@ -491,11 +564,21 @@ export function normalizeBinding(binding: string): string | null {
   return b ? [...MODS.filter((m) => b.mods.has(m)), b.code].join("+") : null;
 }
 
+/** Actions that were renamed: a change saved under the old id still counts. */
+const RENAMED: Partial<Record<ShortcutId, string>> = {
+  // The Shape tool replaced the Region tool on the same rail button.
+  "tool.shape": "tool.region",
+};
 /** Defaults plus the person's changes (invalid or fixed ones are ignored). */
 export function resolveBindings(overrides: ShortcutOverrides = {}): Bindings {
   const out = {} as Record<ShortcutId, readonly string[]>;
   for (const s of SHORTCUTS) {
-    const own = overrides[s.id];
+    const old = RENAMED[s.id as ShortcutId];
+    const own =
+      overrides[s.id] ??
+      (old
+        ? (overrides as Record<string, string[] | undefined>)[old]
+        : undefined);
     const valid =
       s.customizable && Array.isArray(own)
         ? own.map((k) => (typeof k === "string" ? normalizeBinding(k) : null))

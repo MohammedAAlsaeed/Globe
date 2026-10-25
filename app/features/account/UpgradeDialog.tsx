@@ -18,7 +18,12 @@ import { plans as plansApi } from "./api";
 import type { Plan } from "./types";
 
 export type LimitKind =
-  "line_styles" | "text_styles" | "maps" | "upload_bytes" | "export_px";
+  | "line_styles"
+  | "text_styles"
+  | "shape_styles"
+  | "maps"
+  | "upload_bytes"
+  | "export_px";
 
 const UPGRADE_URL = (process.env.NEXT_PUBLIC_UPGRADE_URL ?? "").trim();
 
@@ -120,6 +125,17 @@ export function UpgradeDialog({
                 p.max_text_styles === null
                   ? t("acFeatTextStylesUnlimited")
                   : t("acFeatTextStyles", { count: p.max_text_styles }),
+            },
+          ]
+        : []),
+      ...(p.max_shape_styles !== undefined
+        ? [
+            {
+              key: "shape_styles" as const,
+              text:
+                p.max_shape_styles === null
+                  ? t("acFeatShapeStylesUnlimited")
+                  : t("acFeatShapeStyles", { count: p.max_shape_styles }),
             },
           ]
         : []),

@@ -7,6 +7,7 @@ use App\Models\Asset;
 use App\Models\AssetPack;
 use App\Models\LineStyle;
 use App\Models\Plan;
+use App\Models\ShapeStyle;
 use App\Models\TextStyle;
 use App\Models\User;
 
@@ -29,7 +30,7 @@ class Entitlements
             ->first()?->plan ?? Plan::default();
     }
 
-    /** @return array{maps: int, upload_bytes: int, line_styles: int, text_styles: int} */
+    /** @return array{maps: int, upload_bytes: int, line_styles: int, text_styles: int, shape_styles: int} */
     public function usage(User $user): array
     {
         return [
@@ -39,6 +40,7 @@ class Entitlements
                 ->sum('bytes'),
             'line_styles' => $user->lineStyles()->count(),
             'text_styles' => $user->textStyles()->count(),
+            'shape_styles' => $user->shapeStyles()->count(),
         ];
     }
 
@@ -94,6 +96,25 @@ class Entitlements
         if ($max !== null && $user->textStyles()->count() >= $max) {
             throw ApiException::planLimit('text_styles', $max, $plan->code);
         }
+    }
+
+    /**
+     * Own shape styles are capped per plan, like line and text styles:
+     * official ones never count, and a downgrade deletes nothing.
+     */
+    public function ensureCanSaveShapeStyle(User $user): void
+    {
+        $plan = $this->plan($user);
+        $max = $plan->max_shape_styles;
+        if ($max !== null && $user->shapeStyles()->count() >= $max) {
+            throw ApiException::planLimit('shape_styles', $max, $plan->code);
+        }
+    }
+
+    /** Whether the user may use a shape style's look (own styles always; admins all). */
+    public function canUseShapeStyle(User $user, ShapeStyle $style): bool
+    {
+        return $style->owner_id === $user->id || $user->isAdmin() || $style->tier <= $this->plan($user)->tier;
     }
 
     /** Whether the user may use a text style's look (own styles always; admins all). */

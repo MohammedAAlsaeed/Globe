@@ -18,6 +18,7 @@ import { linesEn, linesAr } from "../lib/locales/lines.ts";
 import { shortcutsEn, shortcutsAr } from "../lib/locales/shortcuts.ts";
 import { textEn } from "../lib/locales/text.ts";
 import { en } from "../lib/locales/en.ts";
+import { shapesEn } from "../lib/locales/shapes.ts";
 import { controlsEn } from "../lib/locales/controls.ts";
 
 const key = (code, mods = {}) => ({
@@ -99,14 +100,18 @@ test("custom shortcuts replace defaults; invalid and fixed ones are ignored", ()
     "tool.line": ["KeyI"],
     "tool.brush": ["Nope"],
     "edit.cancel": ["KeyQ"],
-    "tool.region": [],
+    "tool.text": [],
   });
   assert.ok(pressed(key("KeyI"), "tool.line", b));
   assert.ok(!pressed(key("KeyN"), "tool.line", b));
   assert.ok(pressed(key("KeyB"), "tool.brush", b));
   assert.ok(pressed(key("Escape"), "edit.cancel", b));
   assert.ok(!pressed(key("KeyQ"), "edit.cancel", b));
-  assert.equal(shortcutLabel("tool.region", b), "");
+  assert.equal(shortcutLabel("tool.text", b), "");
+  // The Region tool's custom keys carry over to the Shape tool that replaced it.
+  const moved = resolveBindings({ "tool.region": ["KeyJ"] });
+  assert.ok(pressed(key("KeyJ"), "tool.shape", moved));
+  assert.ok(pressed(key("KeyU"), "tool.shape"));
   assert.deepEqual(
     resolveBindings({ "edit.undo": ["Shift+Mod+KeyZ"] })["edit.undo"],
     ["Mod+Shift+KeyZ"],
@@ -120,10 +125,13 @@ test("clashes are found where the actions meet", () => {
     shortcutConflicts(both).map((c) => [c.a, c.b, c.key]),
     [["tool.brush", "tool.line", "KeyN"]],
   );
-  // F for the Brush clashes with Free Draw only inside the Line tool… still a clash.
-  assert.equal(
-    shortcutConflicts(resolveBindings({ "tool.brush": ["KeyF"] })).length,
-    1,
+  // F for the Brush clashes with Free Draw only inside the Line and Shape
+  // tools… still clashes (one with each).
+  assert.deepEqual(
+    shortcutConflicts(resolveBindings({ "tool.brush": ["KeyF"] })).map(
+      (c) => c.b,
+    ),
+    ["line.free", "shape.free"],
   );
   // W in the Line tool and W for stamps never meet.
   assert.deepEqual(
@@ -163,6 +171,7 @@ test("every action has a name, and texts name keys only through placeholders", (
     ...shortcutsEn,
     ...textEn,
     ...controlsEn,
+    ...shapesEn,
   };
   for (const s of SHORTCUTS)
     assert.ok(

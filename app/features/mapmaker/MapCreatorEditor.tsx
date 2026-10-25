@@ -21,6 +21,7 @@ import {
   Circle,
   Group,
   Image as KonvaImage,
+  Shape,
   Transformer,
 } from "react-konva";
 import "../../lib/i18n";
@@ -70,8 +71,8 @@ import {
   type BrushState,
 } from "./brush/state";
 import { textureDef } from "./brush/textures";
-import { biomeSwatchDataUrl, biomeTexture } from "./textures";
 import { LineShapeNode } from "./lines/LineShape";
+import { tracePath } from "./lines/render";
 import { LINE_DRAW_MODES, LinePanel } from "./lines/LinePanel";
 import { LineNodeEditor } from "./lines/LineNodeEditor";
 import {
@@ -79,6 +80,7 @@ import {
   builtinLineStyles,
   loadLineTool,
   saveLineTool,
+  stampFromSet,
   withSet,
   type LineStyle,
   type LineToolState,
@@ -94,14 +96,55 @@ import {
 } from "./lines/geometry";
 import { lineAssetKeys, lineSet, lineSetLabel } from "./lines/catalog";
 import { useLineLibrary } from "./lines/remote";
+import { ShapeMaskNode, ShapeShapeNode } from "./shapes/ShapeNode";
 import {
-  BIOME_LABEL_KEY,
-  BIOME_LIST,
-  createLayer,
-  pushRecent,
-  resolutionBadge,
-  TOOL_DEFAULTS,
-} from "./domain";
+  COMBINE_GLYPH,
+  SHAPE_DRAW_MODES,
+  ShapePanel,
+  type PartRow,
+} from "./shapes/ShapePanel";
+import {
+  ShapeDoorsEditor,
+  ShapeGuides,
+  ShapePartsEditor,
+} from "./shapes/ShapeEditors";
+import {
+  baseShapeLook,
+  builtinShapeStyles,
+  freshLook,
+  loadShapeTool,
+  saveShapeTool,
+  SHAPE_COMBINES,
+  shapeLookOf,
+  type ShapeStyle,
+  type ShapeToolState,
+} from "./shapes/state";
+import { useShapeLibrary } from "./shapes/remote";
+import {
+  combineParts,
+  containsPoint,
+  findPath,
+  flattenParts,
+  isGroup,
+  locatePart,
+  measure as measureOutline,
+  movePart,
+  nearestPath,
+  outline as shapeOutlineOf,
+  partsBox,
+  paths as shapePaths,
+  primFromDrag,
+  primNodes,
+  releaseParts,
+  replacePart,
+  SHAPE_LIMITS,
+  shiftShape,
+  transformShape,
+  withNodes,
+  withPrim,
+} from "./shapes/geometry";
+import { shapeReach } from "./shapes/render";
+import { createLayer, pushRecent, resolutionBadge } from "./domain";
 import { useHistory } from "./hooks/useHistory";
 import {
   MenuHint,
@@ -144,7 +187,6 @@ import { useAuth } from "../account/AuthProvider";
 import { saveHandoff } from "../studio/storage/projects";
 import { DEFAULT_DOCUMENT } from "../studio/domain/types";
 import type {
-  Biome,
   CloudBinding,
   CoastEffect,
   LandMode,
@@ -158,12 +200,19 @@ import type {
   MMPaint,
   MMPatch,
   MMProject,
+  MMShape,
   PaintMode,
   PaintPoint,
   PaintSource,
   Point,
   MMStamp,
   MMText,
+  ShapeLook,
+  ShapeOp,
+  ShapePart,
+  ShapePath,
+  ShapePrim,
+  ShapePrimKind,
   TextLook,
 } from "./types";
 import { ApiError } from "@/lib/api/client";
@@ -243,14 +292,14 @@ import {
   type StampToolState,
 } from "./stamps/state";
 
-type Tool = "select" | "brush" | "land" | "stamp" | "line" | "region" | "text";
+type Tool = "select" | "brush" | "land" | "stamp" | "line" | "shape" | "text";
 const TOOLS: { key: Tool; labelKey: string }[] = [
   { key: "select", labelKey: "mmToolSelect" },
   { key: "brush", labelKey: "mmToolBrush" },
   { key: "land", labelKey: "mmToolLand" },
   { key: "stamp", labelKey: "mmToolStamp" },
   { key: "line", labelKey: "mmToolLine" },
-  { key: "region", labelKey: "mmToolRegion" },
+  { key: "shape", labelKey: "mmToolShape" },
   { key: "text", labelKey: "mmToolText" },
 ];
 const HINT_KEY: Record<Tool, string> = {
@@ -259,7 +308,7 @@ const HINT_KEY: Record<Tool, string> = {
   land: "mmShortcutHintLand",
   stamp: "mmShortcutHintStamp",
   line: "lnHintPen",
-  region: "mmShortcutHintRegion",
+  shape: "shHintRect",
   text: "txHintTool",
 };
 // ---------------------------------------------------------------------------
@@ -273,8 +322,8 @@ const HINT_KEY: Record<Tool, string> = {
 // -----------------------------------------------------------------------------
 const MAX_LAYERS = 20,
   MAX_OBJECTS_PER_LAYER = 3000,
-  MAX_REGION_POINTS = 300,
-  /** Clicking within this distance of a region's first vertex closes it. */
+  MAX_POLYGON_POINTS = 300,
+  /** Clicking within this distance of a polygon's first vertex closes it. */
   REGION_CLOSE_PX = 10,
   /** A click this close to the last vertex is ignored (double-click, jitter). */
   REGION_DUPLICATE_PX = 4,
@@ -286,7 +335,12 @@ const MAX_LAYERS = 20,
 type StrokeDraft = Omit<MMBrush, "points">;
 type ObjUpdater = (
   o: MMObject,
-) => MMPatch | Partial<MMStamp> | Partial<MMLine> | Partial<MMText>;
+) =>
+  | MMPatch
+  | Partial<MMStamp>
+  | Partial<MMLine>
+  | Partial<MMText>
+  | Partial<MMShape>;
 type StagePoint = { x: number; y: number };
 /** Drawing on a land layer: its base texture and its current land coverage
  * (null while it has no land) — texture previews are clipped to the land. */
@@ -326,6 +380,8 @@ function lineLookOf(o: MMLine): LineLook {
 /** Clicking this close (screen px) to a line's end continues it with the Pen. */
 const LINE_END_PX = 8;
 
+/** The id of a layer's mask node (see ShapeMask). */
+const maskNodeId = (layerId: string) => `mask:${layerId}`;
 /** Konva's `#id` selector compares the raw string, so ids must never be
  * CSS-escaped: `CSS.escape` turns a UUID's leading digit into `\3X `, which
  * then never matches (≈10 in 16 objects). A predicate lookup sidesteps
@@ -417,23 +473,6 @@ function strokeAppearance(o: StrokeDraft, W: number) {
     perfectDrawEnabled: false,
   };
 }
-/** Biome texture fill, sized relative to the map (not to screen pixels). */
-function regionFill(
-  biome: Biome,
-  textureScale: number,
-  textureRotation: number,
-  W: number,
-) {
-  const s = textureScale * (W / EFFECT_REF_WIDTH);
-  return {
-    fillPatternImage: biomeTexture(biome) as unknown as HTMLImageElement,
-    fillPatternScale: { x: s, y: s },
-    fillPatternRotation: textureRotation,
-    fillPriority: "pattern",
-    perfectDrawEnabled: false,
-  };
-}
-
 // =============================================================================
 // The standalone map-creator page/editor
 // =============================================================================
@@ -511,15 +550,7 @@ export function MapCreatorEditor({
       error: string | null;
     }>({ busy: false, error: null }),
     /** Bumped after each placement, so the next stamp (and its preview) is a new draw. */
-    [stampDraw, setStampDraw] = useState(1),
-    [biome, setBiome] = useState<Biome>("forest"),
-    [textureScale, setTextureScale] = useState<number>(
-      TOOL_DEFAULTS.textureScale,
-    ),
-    [textureRotation, setTextureRotation] = useState<number>(
-      TOOL_DEFAULTS.textureRotation,
-    ),
-    [fillOpacity, setFillOpacity] = useState<number>(TOOL_DEFAULTS.fillOpacity);
+    [stampDraw, setStampDraw] = useState(1);
   // ---- Text Tool state ----
   /** The look the next text gets; remembered per browser. */
   const [textTool, setTextTool] = useState<TextToolState>(loadTextTool),
@@ -544,7 +575,22 @@ export function MapCreatorEditor({
       y: number;
       text: string;
     } | null>(null);
-  const [regionDraft, setRegionDraft] = useState<Point[] | null>(null);
+  // ---- Shape Tool state ----
+  /** The Shape tool's mode, settings and the look new shapes get; per browser. */
+  const [shapeTool, setShapeTool] = useState<ShapeToolState>(loadShapeTool),
+    /** A rectangle / ellipse / polygon / free shape preview is mounted. */
+    [shapeDrafting, setShapeDrafting] = useState(false),
+    /** Edit Nodes on a shape: which shape, which of its paths, which nodes. */
+    [shapeEditState, setShapeEdit] = useState<{
+      id: string;
+      part: string | null;
+      sel: number[];
+    } | null>(null),
+    /** Doors: the shape whose doors are shown, and the door picked. */
+    [doorEdit, setDoorEdit] = useState<{
+      id: string;
+      portal: string | null;
+    } | null>(null);
   // ---- Brush Tool 2.0 state ----
   /** Everything the Brush panel edits; remembered per browser. */
   const [brushState, setBrushState] = useState<BrushState>(loadBrushState),
@@ -583,6 +629,10 @@ export function MapCreatorEditor({
     uiLayerRef = useRef<Konva.Layer>(null),
     /** Live line preview (Free Draw trail, Pen rubber band), updated imperatively. */
     lineDraftRef = useRef<Konva.Shape>(null),
+    /** Live shape preview (a drag, the Pen, a free outline), updated imperatively. */
+    shapeDraftRef = useRef<Konva.Shape>(null),
+    /** The outline of a part being drawn (dashed, above the map). */
+    shapeDraftGuideRef = useRef<Konva.Shape>(null),
     /** The last pointer-down on a line (double-click → Edit Nodes). */
     lineClickRef = useRef<{ id: string; t: number } | null>(null),
     /** Pen: where the pointer is (stage px), for the rubber band to the next node. */
@@ -644,8 +694,7 @@ export function MapCreatorEditor({
     : undefined;
   const editedLine =
     (editedLayer?.objects.find((o) => o.id === nodeEditState?.id) as
-      | MMLine
-      | undefined) ?? null;
+      MMLine | undefined) ?? null;
   const nodeEditing =
     !!editedLine &&
     !!editedLayer &&
@@ -657,6 +706,39 @@ export function MapCreatorEditor({
   const nodeEdit =
     nodeEditState && nodeEditing && selectedIds.includes(nodeEditState.id)
       ? nodeEditState
+      : null;
+  /** Selected shapes, the one being reshaped, and the one whose doors are shown. */
+  const selectedShapes = selectedObjs.filter(
+    (o): o is MMShape => o.kind === "shape",
+  );
+  const shapeLayerOf = (id: string | undefined) =>
+    id
+      ? project.layers.find((l) => l.objects.some((o) => o.id === id))
+      : undefined;
+  const editable = (l: MMLayer | undefined, o: MMObject | undefined) =>
+    !!l && !!o && l.visible && !l.locked && !o.locked && !o.hidden;
+  const shapeEditLayer = shapeLayerOf(shapeEditState?.id),
+    shapeEditObj = shapeEditLayer?.objects.find(
+      (o) => o.id === shapeEditState?.id,
+    );
+  /** Edit Nodes on a shape, while it exists, is selected and can be changed. */
+  const shapeEdit =
+    shapeEditState &&
+    shapeEditObj?.kind === "shape" &&
+    editable(shapeEditLayer, shapeEditObj) &&
+    selectedIds.includes(shapeEditState.id)
+      ? shapeEditState
+      : null;
+  const editedShape = shapeEdit ? (shapeEditObj as MMShape) : null;
+  const doorLayer = shapeLayerOf(doorEdit?.id),
+    doorObj = doorLayer?.objects.find((o) => o.id === doorEdit?.id);
+  const doorShape =
+    doorEdit &&
+    tool === "shape" &&
+    shapeTool.draw === "doors" &&
+    doorObj?.kind === "shape" &&
+    editable(doorLayer, doorObj)
+      ? doorObj
       : null;
   /** Pen: an existing line being continued (hidden while its draft is shown). */
   const [penTarget, setPenTarget] = useState<{
@@ -843,6 +925,19 @@ export function MapCreatorEditor({
     () => [...lineLib.own, ...lineLib.official],
     [lineLib.own, lineLib.official],
   );
+  // ---- Shape styles from the server (see ./shapes/remote) ----
+  const describeShapeError = useCallback(
+    (e: unknown) =>
+      e instanceof ApiError && e.code === "plan_limit_reached"
+        ? t("shStyleLimit", { max: e.body.max })
+        : errorMessage(t, e),
+    [t],
+  );
+  const shapeLib = useShapeLibrary(user, describeShapeError);
+  const shapeLibraryStyles: ShapeStyle[] = useMemo(
+    () => [...shapeLib.own, ...shapeLib.official],
+    [shapeLib.own, shapeLib.official],
+  );
 
   // ---- Cloud saving (see ./cloud/useCloudSync) ----
   const sync = useCloudSync({
@@ -897,6 +992,7 @@ export function MapCreatorEditor({
         (tool === "text" && selectedObjs.every((o) => o.kind === "text"))) &&
       selectionEditable &&
       !nodeEdit &&
+      !shapeEdit &&
       !pathEdit &&
       !textEdit;
     const nodes = handles
@@ -905,14 +1001,20 @@ export function MapCreatorEditor({
           .filter((n): n is Konva.Node => !!n)
       : [];
     tr.nodes(nodes);
+    // Lines and shapes are sized by their own W / H attributes (no x / y
+    // change tells the Transformer they moved when the zoom changed).
+    tr.forceUpdate();
     tr.getLayer()?.batchDraw();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
+    W,
+    H,
     tool,
     selectedIds,
     project,
     selectionEditable,
     nodeEdit,
+    shapeEdit,
     pathEdit,
     textEdit,
   ]);
@@ -940,6 +1042,10 @@ export function MapCreatorEditor({
     const timer = setTimeout(() => saveTextTool(textTool), 400);
     return () => clearTimeout(timer);
   }, [textTool]);
+  useEffect(() => {
+    const timer = setTimeout(() => saveShapeTool(shapeTool), 400);
+    return () => clearTimeout(timer);
+  }, [shapeTool]);
   // Shift snaps rotation to 15° steps while turning with the handle.
   useEffect(() => {
     const down = (e: KeyboardEvent) => e.key === "Shift" && setShiftDown(true),
@@ -1150,6 +1256,28 @@ export function MapCreatorEditor({
         removeEditedNodes();
         return;
       }
+      // ---- Shape Tool: nodes and doors come before object deletion ----
+      if (shapeEdit && shapeEdit.sel.length && is("line.removeLast")) {
+        e.preventDefault();
+        removeShapeNodes();
+        return;
+      }
+      if (doorShape && doorEdit?.portal && is("edit.delete")) {
+        e.preventDefault();
+        removeDoor();
+        return;
+      }
+      if (
+        tool === "shape" &&
+        shapeTool.draw !== "edit" &&
+        shapeTool.draw !== "doors" &&
+        selectedIds.length &&
+        is("edit.delete")
+      ) {
+        e.preventDefault();
+        removeObjects(selectedIds);
+        return;
+      }
       if (tool === "select" && selectedIds.length && is("edit.delete")) {
         e.preventDefault();
         removeObjects(selectedIds);
@@ -1168,6 +1296,10 @@ export function MapCreatorEditor({
         setPathEdit(null);
         setAttachPick(null);
         setContextMenu(null);
+        // A picked door lets go first; then the shape's doors and nodes.
+        if (doorEdit?.portal) setDoorEdit({ ...doorEdit, portal: null });
+        else setDoorEdit(null);
+        setShapeEdit(null);
         return;
       }
       if (is("edit.selectAll")) {
@@ -1196,7 +1328,13 @@ export function MapCreatorEditor({
               ? [0, 1]
               : null;
       // Arrows with nothing selected move the view.
-      if (nudge && !selectedIds.length && !penDraft && !nodeEdit) {
+      if (
+        nudge &&
+        !selectedIds.length &&
+        !penDraft &&
+        !nodeEdit &&
+        !shapeEdit
+      ) {
         e.preventDefault();
         const step = ctl.panStep * (e.shiftKey ? 4 : 1);
         nav.panBy(nudge[0] * step, nudge[1] * step);
@@ -1208,7 +1346,8 @@ export function MapCreatorEditor({
         (tool === "select" ||
           tool === "text" ||
           tool === "stamp" ||
-          tool === "line")
+          tool === "line" ||
+          tool === "shape")
       ) {
         e.preventDefault();
         const step = e.shiftKey ? 10 : 1;
@@ -1272,6 +1411,71 @@ export function MapCreatorEditor({
       ) {
         e.preventDefault();
         toggleNodeEdit(selectedLines[0].id);
+        return;
+      }
+      // ---- Shape Tool ----
+      if (
+        is("line.editNodes") &&
+        selectedShapes.length === 1 &&
+        selectedObjs.length === 1 &&
+        (tool === "select" || tool === "shape")
+      ) {
+        e.preventDefault();
+        if (tool === "shape")
+          changeShapeTool({
+            ...shapeTool,
+            draw: shapeTool.draw === "edit" ? "rect" : "edit",
+          });
+        else toggleShapeEdit(selectedShapes[0]);
+        return;
+      }
+      if (tool === "shape") {
+        const mode = is("shape.rect")
+          ? "rect"
+          : is("shape.ellipse")
+            ? "ellipse"
+            : is("shape.polygon")
+              ? "polygon"
+              : is("shape.pen")
+                ? "pen"
+                : is("shape.free")
+                  ? "free"
+                  : is("shape.doors")
+                    ? "doors"
+                    : is("line.editNodes")
+                      ? "edit"
+                      : null;
+        if (mode) {
+          e.preventDefault();
+          changeShapeTool({
+            ...shapeTool,
+            draw: mode,
+            // Polygon again: polygon ⇄ star.
+            ...(mode === "polygon" && shapeTool.draw === "polygon"
+              ? { star: !shapeTool.star }
+              : {}),
+          });
+          return;
+        }
+        if (is("shape.combine")) {
+          e.preventDefault();
+          const order = SHAPE_COMBINES,
+            at = order.indexOf(shapeTool.combine);
+          changeShapeTool({
+            ...shapeTool,
+            combine:
+              order[(at + (e.shiftKey ? order.length - 1 : 1)) % order.length],
+          });
+          return;
+        }
+      }
+      if (
+        (tool === "shape" || selectedShapes.length > 0) &&
+        (is("shape.wider") || is("shape.thinner"))
+      ) {
+        e.preventDefault();
+        const k = e.altKey ? 1.02 : e.shiftKey ? 1.5 : 1.15;
+        scaleShapeStroke(is("shape.wider") ? k : 1 / k);
         return;
       }
       if (
@@ -1355,6 +1559,9 @@ export function MapCreatorEditor({
     controlsOpen,
     ctl,
     fitScale,
+    shapeTool,
+    shapeEditState,
+    doorEdit,
   ]);
 
   // ---- Shared small helpers (used by keyboard shortcuts, the Edit menu and
@@ -1362,7 +1569,6 @@ export function MapCreatorEditor({
   function cancelDrafts() {
     // Aborts an in-flight stroke/marquee gesture without committing it.
     pointerSessionRef.current?.();
-    setRegionDraft(null);
     finishTextEdit();
     setPolyDraft(null);
     setPenDraft(null);
@@ -1371,6 +1577,10 @@ export function MapCreatorEditor({
   function selectTool(next: Tool) {
     cancelDrafts();
     if (next !== "line" && next !== "select") setNodeEdit(null);
+    if (next !== "shape" && next !== "select") {
+      setShapeEdit(null);
+      setDoorEdit(null);
+    }
     if (next !== "text" && next !== "select") setPathEdit(null);
     setAttachPick(null);
     setTool(next);
@@ -1568,6 +1778,8 @@ export function MapCreatorEditor({
       return { ...o, id: nid, ...shiftText(o, 0.02, 0.02) };
     if (o.kind === "line")
       return { ...o, id: nid, nodes: shiftNodes(o.nodes, 0.02, 0.02) };
+    if (o.kind === "shape")
+      return { ...o, id: nid, ...shiftShape(o, 0.02, 0.02) };
     return {
       ...o,
       id: nid,
@@ -1741,11 +1953,15 @@ export function MapCreatorEditor({
           ? shiftText(cur, dx, dy)
           : cur.kind === "line"
             ? { nodes: shiftNodes(cur.nodes, dx, dy) }
-            : { points: cur.points.map((p) => ({ x: p.x + dx, y: p.y + dy })) },
+            : cur.kind === "shape"
+              ? shiftShape(cur, dx, dy)
+              : {
+                  points: cur.points.map((p) => ({ x: p.x + dx, y: p.y + dy })),
+                },
     );
   }
   function onObjectTransformEnd(o: MMObject, node: Konva.Node) {
-    setGestureInfo(null);
+    hideGestureInfo();
     if (restoreIfCancelled(node)) return;
     const uniform = Math.sqrt(Math.abs(node.scaleX() * node.scaleY())) || 1;
     if (o.kind === "stamp") {
@@ -1811,6 +2027,8 @@ export function MapCreatorEditor({
           y: mid.y,
         };
       }
+      if (cur.kind === "shape")
+        return transformShape(cur, w, h, (p) => m.point(p), uniform, roundNode);
       if (cur.kind === "line")
         return {
           nodes: transformNodes(cur.nodes, w, h, (p) => m.point(p)).map(
@@ -1879,6 +2097,15 @@ export function MapCreatorEditor({
           setNodeEdit({ id: o.id, sel: [] });
           return;
         }
+        // Shape tool, Edit Nodes: clicking a shape picks it (its first path).
+        if (
+          tool === "shape" &&
+          shapeTool.draw === "edit" &&
+          o.kind === "shape"
+        ) {
+          if (shapeEdit?.id !== o.id) startShapeEdit(o);
+          return;
+        }
         if (tool !== "select") return;
         // Shift, or Ctrl/⌘, adds the object to the selection or takes it out.
         if (e.evt.shiftKey || e.evt.ctrlKey || e.evt.metaKey)
@@ -1895,7 +2122,11 @@ export function MapCreatorEditor({
         if (layer.locked || e.evt.button !== 0) return;
         const textEditable =
           o.kind === "text" && (tool === "select" || tool === "text");
-        if (!textEditable && (tool !== "select" || o.kind !== "line")) return;
+        if (
+          !textEditable &&
+          (tool !== "select" || (o.kind !== "line" && o.kind !== "shape"))
+        )
+          return;
         const now = performance.now(),
           last = lineClickRef.current;
         lineClickRef.current = { id: o.id, t: now };
@@ -1905,6 +2136,10 @@ export function MapCreatorEditor({
           if (o.kind === "text") {
             e.evt.preventDefault();
             editTextInline(o.id);
+            return;
+          }
+          if (o.kind === "shape") {
+            startShapeEdit(o);
             return;
           }
           selectOnly(o.id);
@@ -2270,6 +2505,18 @@ export function MapCreatorEditor({
       startTextDraft(snap(toNorm(pos)));
       return;
     }
+    if (tool === "shape" && shapeTool.draw === "edit") {
+      // Clicking empty canvas ends Edit Nodes (shapes are picked by their own click).
+      if (e.target === stage) {
+        setShapeEdit(null);
+        clearSelection();
+      }
+      return;
+    }
+    if (tool === "shape" && shapeTool.draw === "doors") {
+      doorsDown(pos);
+      return;
+    }
     if (tool === "line" && lineTool.draw === "edit") {
       // Clicking empty canvas ends Edit Nodes (lines are picked by their own click).
       if (e.target === stage) {
@@ -2279,7 +2526,6 @@ export function MapCreatorEditor({
       return;
     }
     if (!active || active.locked) return;
-    const p = toNorm(pos);
     if (tool === "brush" || tool === "land") {
       if (tool === "land" && active.role !== "land") return;
       startDraw(pos, e.evt);
@@ -2288,8 +2534,15 @@ export function MapCreatorEditor({
       else penDown(pos, e.evt);
     } else if (tool === "stamp") {
       startStamping(pos, e.evt.pointerId);
-    } else if (tool === "region") {
-      addRegionPoint(snap(p));
+    } else if (tool === "shape") {
+      if (shapeTool.draw === "pen") penDown(pos, e.evt);
+      else if (shapeTool.draw === "free") startShapeFree(pos, e.evt.pointerId);
+      else
+        startShapeDrag(
+          pos,
+          e.evt.pointerId,
+          e.target !== stage ? e.target.id() : null,
+        );
     }
   }
 
@@ -2388,11 +2641,12 @@ export function MapCreatorEditor({
   /** Pen preview: the nodes placed so far plus a rubber band to the pointer. */
   function showPenPreview(nodes: LineNode[], cursor: Vec | null) {
     const { w, h } = viewRef.current;
-    showLineDraft(
+    const all =
       cursor && nodes.length
         ? [...nodes, { x: cursor.x / w, y: cursor.y / h }]
-        : nodes,
-    );
+        : nodes;
+    if (tool === "shape") previewShapeDraft(all.length >= 2 ? all : null);
+    else showLineDraft(all);
   }
   /** Where the Pen puts the next node: Shift turns it to the angle steps
    * from the previous node; otherwise it snaps to line ends / the grid. */
@@ -2405,9 +2659,9 @@ export function MapCreatorEditor({
       return snapAngle(
         { x: prev.x * W, y: prev.y * H },
         pos,
-        lineTool.angleStep,
+        tool === "shape" ? shapeTool.angleStep : lineTool.angleStep,
       );
-    return snapLinePoint(pos);
+    return tool === "shape" ? snapShapePoint(pos) : snapLinePoint(pos);
   }
 
   /** Free Draw: drag to draw; the trail becomes a few smooth nodes. */
@@ -2474,7 +2728,7 @@ export function MapCreatorEditor({
    * continues that line. */
   function penDown(pos: StagePoint, ev: PointerEvent) {
     const draft = penDraft;
-    if (!draft) {
+    if (!draft && tool === "line") {
       const end = lineEndAt(pos);
       if (end) {
         setPenTarget({ id: end.line.id, atStart: end.atStart });
@@ -2499,7 +2753,7 @@ export function MapCreatorEditor({
       prev &&
       Math.hypot(prev.x * W - p.x, prev.y * H - p.y) < REGION_DUPLICATE_PX * 1.5
     ) {
-      if (draft!.length >= 2) finishPen(false);
+      if (draft!.length >= (tool === "shape" ? 3 : 2)) finishPen(false);
       return;
     }
     if (draft && draft.length >= 2000) return;
@@ -2531,6 +2785,12 @@ export function MapCreatorEditor({
     setPenDraft(null);
     setPenTarget(null);
     penCursorRef.current = null;
+    if (tool === "shape") {
+      // Shapes are always closed.
+      previewShapeDraft(null);
+      if (draft && draft.length >= 3) commitShapePath(draft);
+      return;
+    }
     if (!draft || draft.length < 2) return;
     if (target) {
       const nodes = (target.atStart ? reverseNodes(draft) : draft).map(
@@ -2697,8 +2957,7 @@ export function MapCreatorEditor({
         // Stamps drawn from art sized for the picture, not the screen.
         if (o.kind === "stamp") {
           const img = (node as Konva.Group).findOne(`.${STAMP_IMAGE}`) as
-              | Konva.Image
-              | undefined,
+              Konva.Image | undefined,
             hi = stampPicture(o, o.size * W * k, W, H);
           if (img && hi) {
             const old = img.image();
@@ -3281,7 +3540,7 @@ export function MapCreatorEditor({
     }
     if (
       dist(draft[draft.length - 1], pt) < REGION_DUPLICATE_PX ||
-      draft.length >= MAX_REGION_POINTS
+      draft.length >= MAX_POLYGON_POINTS
     )
       return;
     setPolyDraft([...draft, pt]);
@@ -3296,7 +3555,12 @@ export function MapCreatorEditor({
     moveStampGhost(e.target.getStage()?.getPointerPosition() ?? null);
     const pos = e.target.getStage()?.getPointerPosition();
     // Pen: rubber band from the last node to where the next one would go.
-    if (tool === "line" && penDraft && pos && !pointerSessionRef.current) {
+    if (
+      (tool === "line" || tool === "shape") &&
+      penDraft &&
+      pos &&
+      !pointerSessionRef.current
+    ) {
       const prev = penDraft[penDraft.length - 1];
       penCursorRef.current = penPoint(pos, e.evt.shiftKey, prev);
       showPenPreview(penDraft, penCursorRef.current);
@@ -3399,40 +3663,537 @@ export function MapCreatorEditor({
     );
   }
 
-  /** Region (polygon) tool: click to add vertices; click the first vertex,
-   * double-click, or press "Finish shape" to close it. */
-  function addRegionPoint(p: Point) {
-    const draft = regionDraft;
-    if (!draft) {
-      setRegionDraft([p]);
-      return;
-    }
-    const distPx = (a: Point, b: Point) =>
-      Math.hypot((a.x - b.x) * W, (a.y - b.y) * H);
-    if (draft.length >= 3 && distPx(draft[0], p) < REGION_CLOSE_PX) {
-      commitRegion(draft);
-      return;
-    }
-    // The two pointer-downs of a double-click (or a shaky click) land on the
-    // same spot — never turn them into duplicate vertices.
-    if (distPx(draft[draft.length - 1], p) < REGION_DUPLICATE_PX) return;
-    if (draft.length >= MAX_REGION_POINTS) return;
-    setRegionDraft([...draft, p]);
+  // ---- Shape Tool ---------------------------------------------------------------
+  // Rectangles, ellipses and polygons are dragged out (Shift: square / circle /
+  // 15° steps, Alt: from the centre); the Pen places nodes like the Line
+  // Tool's (always closing the shape); Free draws an outline by hand. A new
+  // part becomes a shape of its own, or joins the selected shape (add,
+  // subtract, intersect, exclude — every part stays editable). Previews are
+  // drawn imperatively: a draft node in the active layer for a new shape, or
+  // the target shape itself showing the combined result.
+
+  /** Path ids only need to be unique within their shape. */
+  const newPartId = () => crypto.randomUUID().slice(0, 13);
+  /** The shape a new part joins: the one selected shape of the active layer. */
+  const combineTarget: MMShape | null =
+    shapeTool.combine !== "new" &&
+    selectedObjs.length === 1 &&
+    selectedObjs[0].kind === "shape" &&
+    selectedLayer?.id === active?.id &&
+    !selectedObjs[0].locked
+      ? selectedObjs[0]
+      : null;
+  /** Patches shapes (any fields of MMShape) as one undo step. */
+  function patchShapes(ids: string[], patch: (o: MMShape) => Partial<MMShape>) {
+    setProject((p) =>
+      applyObjectPatches(
+        p,
+        new Map(
+          ids.map((id) => [
+            id,
+            (cur: MMObject) => (cur.kind === "shape" ? patch(cur) : {}),
+          ]),
+        ),
+      ),
+    );
   }
-  function commitRegion(points: Point[]) {
-    if (points.length < 3) return;
+  const roundPrim = (pr: ShapePrim): ShapePrim => ({
+    ...pr,
+    cx: q5(pr.cx),
+    cy: q5(pr.cy),
+    w: q5(pr.w),
+    h: q5(pr.h),
+    rot: Math.round(pr.rot * 100) / 100,
+  });
+  /** A drawn part: a new shape, or a part of the selected shape. */
+  function commitShapePath(nodes: LineNode[], prim?: ShapePrim) {
+    if (nodes.length < 3) return;
+    const path: ShapePath = {
+      id: newPartId(),
+      op: "add",
+      nodes: nodes.map(roundNode),
+      ...(prim ? { prim: roundPrim(prim) } : {}),
+    };
+    const target = combineTarget;
+    if (target && shapeTool.combine !== "new") {
+      if (shapePaths(target.parts).length >= SHAPE_LIMITS.maxPaths) {
+        setNoticeOk(false);
+        setNotice(t("shTooManyParts", { max: SHAPE_LIMITS.maxPaths }));
+        return;
+      }
+      const op = shapeTool.combine;
+      patchShapes([target.id], (cur) => ({
+        parts: [...cur.parts, { ...path, op }],
+      }));
+      return;
+    }
+    const look = freshLook(shapeTool.look),
+      box = partsBox([path], W, H);
     addObject({
       id: crypto.randomUUID(),
-      kind: "region",
-      biome,
-      points,
-      opacity: fillOpacity,
-      textureScale,
-      textureRotation,
+      kind: "shape",
+      parts: [path],
+      portals: [],
+      frame: { x: q5(box.x), y: q5(box.y), rot: 0, scale: 1 },
+      ...look,
+      styleId: shapeTool.styleId,
     });
-    setRegionDraft(null);
   }
-  /** Double-click closes a Region / Polygon draft — but only a *real* double
+  /** Snaps a point (stage px) to the grid when the grid is on. */
+  function snapShapePoint(p: Vec): Vec {
+    if (!project.snapToGrid) return p;
+    const g = snap({ x: p.x / W, y: p.y / H });
+    return { x: g.x * W, y: g.y * H };
+  }
+  /** Updates a shape's canvas nodes without a React render (its mask too). */
+  function previewShapeNode(shape: MMShape) {
+    const stage = stageRef.current;
+    if (!stage) return;
+    const n = findNode(stage, shape.id);
+    n?.setAttr("shape", shape);
+    if (shape.fill.type === "mask") {
+      const layer = project.layers.find((l) =>
+        l.objects.some((o) => o.id === shape.id),
+      );
+      const m = layer && findNode(stage, maskNodeId(layer.id));
+      if (m)
+        m.setAttr(
+          "masks",
+          (m.getAttr("masks") as MMShape[]).map((x) =>
+            x.id === shape.id ? shape : x,
+          ),
+        );
+      findNode(stage, `${shape.id}:stroke`)?.setAttr("shape", shape);
+    }
+    n?.getLayer()?.batchDraw();
+  }
+  /** The live preview of a part being drawn (null: none). */
+  function previewShapeDraft(nodes: LineNode[] | null) {
+    const { w, h } = viewRef.current;
+    const guide = shapeDraftGuideRef.current;
+    if (guide) {
+      guide.setAttrs({ nodes, W: w, H: h });
+      guide.getLayer()?.batchDraw();
+    }
+    const target = combineTarget;
+    if (target && shapeTool.combine !== "new") {
+      previewShapeNode(
+        nodes
+          ? {
+              ...target,
+              parts: [
+                ...target.parts,
+                { id: "draft", op: shapeTool.combine, nodes },
+              ],
+            }
+          : target,
+      );
+      return;
+    }
+    const node = shapeDraftRef.current;
+    if (!node) return;
+    node.setAttrs({
+      shape: nodes
+        ? {
+            ...shapeTool.look,
+            parts: [{ id: "draft", op: "add", nodes }],
+            portals: [],
+            frame: { x: 0, y: 0, rot: 0, scale: 1 },
+          }
+        : null,
+      W: w,
+      H: h,
+    });
+    node.getLayer()?.batchDraw();
+  }
+  /** "120 × 80 px · 3 × 2 cells" while dragging. */
+  function shapeDims(widthPx: number, heightPx: number) {
+    const mw = (widthPx / W) * project.width,
+      mh = (heightPx / H) * project.height;
+    let text = `${Math.round(mw)} × ${Math.round(mh)} px`;
+    if (project.snapToGrid)
+      text += ` · ${(mw / (project.width / project.tileCols)).toFixed(1)} × ${(mh / (project.height / project.tileRows)).toFixed(1)} ${t("shCells")}`;
+    return text;
+  }
+  /** Rectangle / Ellipse / Polygon: drag out a primitive. A click without
+   * a drag picks the shape under the pointer (the one new parts join). */
+  function startShapeDrag(
+    start: StagePoint,
+    pointerId: number,
+    downOn: string | null,
+  ) {
+    const kind: ShapePrimKind =
+      shapeTool.draw === "polygon"
+        ? shapeTool.star
+          ? "star"
+          : "polygon"
+        : shapeTool.draw === "ellipse"
+          ? "ellipse"
+          : "rect";
+    const a = snapShapePoint(start);
+    let prim: ShapePrim | null = null,
+      moved = false,
+      frame = 0;
+    flushSync(() => setShapeDrafting(true));
+    const draw = () => {
+      frame = 0;
+      const { w, h } = viewRef.current;
+      if (prim) previewShapeDraft(primNodes(prim, w, h));
+    };
+    trackPointer(
+      pointerId,
+      (pos, ev) => {
+        const b = snapShapePoint(pos);
+        if (!moved && Math.hypot(pos.x - start.x, pos.y - start.y) < 4) return;
+        moved = true;
+        const { w, h } = viewRef.current;
+        prim = primFromDrag(
+          kind,
+          a,
+          b,
+          {
+            constrain: ev.shiftKey,
+            // Polygons grow from their centre; Alt switches the others to it.
+            fromCenter: kind === "polygon" || kind === "star" || ev.altKey,
+            sides: shapeTool.sides,
+            inner: shapeTool.inner,
+            radius: shapeTool.radius,
+          },
+          w,
+          h,
+        );
+        showGestureInfo(shapeDims(prim.w * w, prim.h * w));
+        frame ||= requestAnimationFrame(draw);
+      },
+      (commit) => {
+        cancelAnimationFrame(frame);
+        previewShapeDraft(null);
+        setShapeDrafting(false);
+        hideGestureInfo();
+        if (!moved) {
+          // A click: pick the shape under the pointer (or nothing).
+          const hit = downOn
+            ? active?.objects.find((o) => o.id === downOn && o.kind === "shape")
+            : undefined;
+          if (hit) selectOnly(hit.id);
+          else clearSelection();
+          return;
+        }
+        if (!commit || !prim) return;
+        const { w, h } = viewRef.current;
+        if (prim.w * w < 2 || prim.h * w < 2) return;
+        commitShapePath(primNodes(prim, w, h), prim);
+      },
+    );
+  }
+  /** Free: draw an outline by hand; it closes and becomes a few smooth nodes. */
+  function startShapeFree(start: StagePoint, pointerId: number) {
+    const first = snapShapePoint(start),
+      trail: Vec[] = [first];
+    let frame = 0;
+    flushSync(() => setShapeDrafting(true));
+    const draw = () => {
+      frame = 0;
+      const { w, h } = viewRef.current,
+        step = Math.max(1, Math.floor(trail.length / 1500));
+      previewShapeDraft(
+        trail.length >= 3
+          ? trail
+              .filter((_, i) => i % step === 0 || i === trail.length - 1)
+              .map((p) => ({ x: p.x / w, y: p.y / h }))
+          : null,
+      );
+    };
+    trackPointer(
+      pointerId,
+      (pos) => {
+        const last = trail[trail.length - 1];
+        if (
+          Math.hypot(pos.x - last.x, pos.y - last.y) < 1.5 ||
+          trail.length >= MAX_PAINT_POINTS
+        )
+          return;
+        trail.push(pos);
+        frame ||= requestAnimationFrame(draw);
+      },
+      (commit) => {
+        cancelAnimationFrame(frame);
+        previewShapeDraft(null);
+        setShapeDrafting(false);
+        if (!commit || trail.length < 3) return;
+        const { w, h } = viewRef.current;
+        let length = 0;
+        for (let i = 1; i < trail.length; i++)
+          length += Math.hypot(
+            trail[i].x - trail[i - 1].x,
+            trail[i].y - trail[i - 1].y,
+          );
+        if (length < 12) return;
+        const nodes = fitTrail(trail, w, h, shapeTool.smoothing, true);
+        if (nodes.length >= 3) commitShapePath(nodes);
+      },
+    );
+  }
+  function changeShapeTool(next: ShapeToolState) {
+    if (next.draw !== shapeTool.draw) {
+      cancelDrafts();
+      if (next.draw !== "edit") setShapeEdit(null);
+      if (next.draw !== "doors") setDoorEdit(null);
+      // Edit Nodes and Doors pick up the selected shape.
+      const sel = selectedObj?.kind === "shape" ? selectedObj : null;
+      if (sel && next.draw === "edit") startShapeEdit(sel);
+      if (sel && next.draw === "doors")
+        setDoorEdit({ id: sel.id, portal: null });
+    }
+    setShapeTool(next);
+  }
+
+  // ---- Shape editing: nodes, parts, doors ----
+  function startShapeEdit(o: MMShape, part?: string) {
+    selectOnly(o.id);
+    setShapeEdit({
+      id: o.id,
+      part: part ?? shapePaths(o.parts)[0]?.id ?? null,
+      sel: [],
+    });
+  }
+  function toggleShapeEdit(o: MMShape) {
+    if (shapeEdit?.id === o.id) setShapeEdit(null);
+    else startShapeEdit(o);
+  }
+  /** Removes the selected nodes of the path being edited (a path keeps 3). */
+  function removeShapeNodes() {
+    if (!editedShape || !shapeEdit?.part) return;
+    const path = findPath(editedShape.parts, shapeEdit.part);
+    if (!path) return;
+    const drop = new Set(shapeEdit.sel),
+      nodes = path.nodes.filter((_, i) => !drop.has(i));
+    if (nodes.length < 3) return;
+    patchShapes([editedShape.id], (cur) =>
+      withNodes(cur, path.id, nodes, W, H),
+    );
+    setShapeEdit({ ...shapeEdit, sel: [] });
+  }
+  /** Doors mode: a click on a shape's outline adds a door there; a click
+   * inside a shape shows its doors; elsewhere, nothing is picked. */
+  function doorsDown(pos: StagePoint) {
+    if (!active || active.locked) return;
+    const shapes = active.objects.filter(
+      (o): o is MMShape => o.kind === "shape" && !o.hidden && !o.locked,
+    );
+    let best: {
+      shape: MMShape;
+      hit: NonNullable<ReturnType<typeof nearestPath>>;
+    } | null = null;
+    for (const sh of [...shapes].reverse()) {
+      const hit = nearestPath(sh.parts, pos, W, H);
+      if (!hit) continue;
+      const reach = Math.max(10, shapeReach(sh, W));
+      if (hit.gap <= reach && (!best || hit.gap < best.hit.gap))
+        best = { shape: sh, hit };
+    }
+    if (best) {
+      const { shape: sh, hit } = best;
+      if (sh.portals.length >= SHAPE_LIMITS.maxPortals) return;
+      const portal = {
+        id: newPartId(),
+        part: hit.path.id,
+        seg: hit.seg,
+        t: Math.round(hit.t * 1e4) / 1e4,
+        width: shapeTool.portalWidth,
+      };
+      patchShapes([sh.id], (cur) => ({ portals: [...cur.portals, portal] }));
+      selectOnly(sh.id);
+      setDoorEdit({ id: sh.id, portal: portal.id });
+      return;
+    }
+    // Inside a shape: show its doors.
+    const inside = [...shapes]
+      .reverse()
+      .find((sh) => containsShapePoint(sh, pos));
+    if (inside) {
+      selectOnly(inside.id);
+      setDoorEdit({ id: inside.id, portal: null });
+    } else {
+      setDoorEdit(null);
+      clearSelection();
+    }
+  }
+  function containsShapePoint(sh: MMShape, p: StagePoint) {
+    return containsPoint(shapeOutlineOf(sh.parts, W, H, 1), p);
+  }
+  function removeDoor() {
+    if (!doorShape || !doorEdit?.portal) return;
+    const id = doorEdit.portal;
+    patchShapes([doorShape.id], (cur) => ({
+      portals: cur.portals.filter((p) => p.id !== id),
+    }));
+    setDoorEdit({ ...doorEdit, portal: null });
+  }
+  /** New ids for every part of a shape (its doors follow), so shapes can be
+   * combined without two parts sharing an id. */
+  function reidParts(o: Pick<MMShape, "parts" | "portals">) {
+    const ids = new Map<string, string>();
+    const walk = (parts: ShapePart[]): ShapePart[] =>
+      parts.map((p) => {
+        const id = newPartId();
+        ids.set(p.id, id);
+        return isGroup(p) ? { ...p, id, parts: walk(p.parts) } : { ...p, id };
+      });
+    const parts = walk(o.parts);
+    return {
+      parts,
+      portals: o.portals.map((pt) => ({
+        ...pt,
+        id: newPartId(),
+        part: ids.get(pt.part) ?? pt.part,
+      })),
+    };
+  }
+  /** Combines the selected shapes into the lowest one, keeping every part. */
+  function combineSelectedShapes(op: ShapeOp) {
+    if (!selectedLayer) return;
+    const shapes = selectedLayer.objects.filter(
+      (o): o is MMShape => o.kind === "shape" && selectedIdSet.has(o.id),
+    );
+    if (shapes.length < 2) return;
+    const [base, ...rest] = shapes;
+    const merged = combineParts([base, ...rest.map(reidParts)], op, newPartId);
+    if (shapePaths(merged.parts).length > SHAPE_LIMITS.maxPaths) {
+      setNoticeOk(false);
+      setNotice(t("shTooManyParts", { max: SHAPE_LIMITS.maxPaths }));
+      return;
+    }
+    const gone = new Set(rest.map((o) => o.id)),
+      layerId = selectedLayer.id;
+    setProject((p) =>
+      mapLayer(p, layerId, (l) => ({
+        ...l,
+        objects: l.objects
+          .filter((o) => !gone.has(o.id))
+          .map((o) =>
+            o.id === base.id && o.kind === "shape"
+              ? { ...o, parts: merged.parts, portals: merged.portals }
+              : o,
+          ),
+      })),
+    );
+    setSelectedIds([base.id]);
+  }
+  /** Splits a shape's top-level parts into shapes of their own. */
+  function releaseShape(o: MMShape) {
+    const layer = project.layers.find((l) =>
+      l.objects.some((x) => x.id === o.id),
+    );
+    if (!layer || o.parts.length < 2) return;
+    const pieces = releaseParts(o).map((piece, i) =>
+      i === 0
+        ? { ...o, ...piece }
+        : ({ ...o, ...piece, id: crypto.randomUUID() } as MMShape),
+    );
+    setProject((p) =>
+      mapLayer(p, layer.id, (l) => {
+        const at = l.objects.findIndex((x) => x.id === o.id);
+        if (at < 0) return l;
+        const objects = l.objects.slice();
+        objects.splice(at, 1, ...pieces);
+        return { ...l, objects: objects.slice(0, MAX_OBJECTS_PER_LAYER) };
+      }),
+    );
+    setShapeEdit(null);
+    setSelectedIds(pieces.map((x) => x.id));
+  }
+  function flattenShape(o: MMShape) {
+    patchShapes([o.id], (cur) => flattenParts(cur, W, H, newPartId));
+    setShapeEdit(null);
+  }
+  /** A closed line becomes a shape with the same outline and stroke (no fill). */
+  function lineToShape(o: MMLine) {
+    if (!o.closed) return;
+    const fill = { ...shapeTool.look.fill, type: "none" as const },
+      path: ShapePath = { id: newPartId(), op: "add", nodes: o.nodes },
+      box = partsBox([path], W, H);
+    const shape: MMShape = {
+      id: o.id,
+      kind: "shape",
+      ...(o.group ? { group: o.group } : {}),
+      ...(o.name ? { name: o.name } : {}),
+      parts: [path],
+      portals: [],
+      frame: { x: q5(box.x), y: q5(box.y), rot: 0, scale: 1 },
+      stroke: {
+        mode: o.mode,
+        color: o.stroke,
+        stamp: o.stamp,
+        align: "center",
+        opacity: 1,
+      },
+      fill,
+      opacity: o.opacity,
+      ...(o.blend ? { blend: o.blend } : {}),
+    };
+    replaceObject(o.id, shape);
+  }
+  /** Puts another object in an object's place (a patch can't drop fields). */
+  function replaceObject(id: string, next: MMObject) {
+    setProject((p) => ({
+      ...p,
+      updatedAt: Date.now(),
+      layers: p.layers.map((l) =>
+        l.objects.some((x) => x.id === id)
+          ? { ...l, objects: l.objects.map((x) => (x.id === id ? next : x)) }
+          : l,
+      ),
+    }));
+  }
+  /** A one-path shape becomes a closed line with its stroke (the fill goes). */
+  function shapeToLine(o: MMShape) {
+    const path = o.parts[0];
+    if (o.parts.length !== 1 || isGroup(path)) return;
+    const line: MMLine = {
+      id: o.id,
+      kind: "line",
+      ...(o.group ? { group: o.group } : {}),
+      ...(o.name ? { name: o.name } : {}),
+      closed: true,
+      nodes: path.nodes,
+      mode: o.stroke.mode === "stamp" ? "stamp" : "color",
+      stroke: o.stroke.color,
+      stamp: o.stroke.stamp,
+      opacity: o.opacity * (o.stroke.mode === "none" ? 1 : o.stroke.opacity),
+      ...(o.blend ? { blend: o.blend } : {}),
+    };
+    replaceObject(o.id, line);
+  }
+  /** Width keys: the selected shapes' stroke, else the next shape's. */
+  function scaleShapeStroke(k: number) {
+    const scale = (l: ShapeLook): ShapeLook => ({
+      ...l,
+      stroke:
+        l.stroke.mode === "stamp"
+          ? {
+              ...l.stroke,
+              stamp: {
+                ...l.stroke.stamp,
+                size: clamp(l.stroke.stamp.size * k, 0.0005, 0.2),
+              },
+            }
+          : {
+              ...l.stroke,
+              color: {
+                ...l.stroke.color,
+                width: clamp(l.stroke.color.width * k, 0.0002, 0.2),
+              },
+            },
+    });
+    if (selectedShapes.length)
+      patchShapes(
+        selectedShapes.map((o) => o.id),
+        (o) => scale(shapeLookOf(o)),
+      );
+    else setShapeTool((st) => ({ ...st, look: scale(st.look) }));
+  }
+  /** Double-click closes a Brush / Land polygon draft — but only a *real* double
    * click: Konva fires dblclick for any two quick clicks, even far apart,
    * which would close a shape while the user is still placing corners fast. */
   function finishRegion(e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) {
@@ -3446,13 +4207,6 @@ export function MapCreatorEditor({
             REGION_DUPLICATE_PX * 2
         );
       };
-    if (
-      tool === "region" &&
-      regionDraft &&
-      regionDraft.length >= 3 &&
-      onLast(regionDraft)
-    )
-      commitRegion(regionDraft);
     if (
       (tool === "brush" || tool === "land") &&
       polyDraft &&
@@ -3665,6 +4419,11 @@ export function MapCreatorEditor({
       setGestureInfo({ x: pos.x, y: pos.y, text }),
     );
   }
+  /** Hides the value by the pointer (and drops one still on its way). */
+  function hideGestureInfo() {
+    cancelAnimationFrame(gestureFrame.current);
+    setGestureInfo(null);
+  }
   /** Every font the visible texts use, loaded (before a print or an export). */
   async function ensureTextFonts() {
     const texts = project.layers
@@ -3844,7 +4603,13 @@ export function MapCreatorEditor({
         for (const [id, n] of konvaLayersRef.current)
           if (n === layer) mapLayer = project.layers.find((l) => l.id === id);
         const objects = mapLayer?.objects.filter((o) => !o.hidden) ?? [];
-        const isVector = objects.map((o) => o.kind === "text" && vector(o));
+        // A masked layer stays one picture: its mask clips its texts too.
+        const masked = objects.some(
+          (o) => o.kind === "shape" && o.fill.type === "mask",
+        );
+        const isVector = objects.map(
+          (o) => !masked && o.kind === "text" && vector(o),
+        );
         if (!mapLayer || !isVector.some(Boolean)) {
           draw(layer);
           continue;
@@ -4097,8 +4862,15 @@ export function MapCreatorEditor({
         const set = setOfAsset(o.asset);
         return set ? setLabel(t, set) : t("mmToolStamp");
       }
-      case "region":
-        return t(BIOME_LABEL_KEY[o.biome]);
+      case "shape": {
+        if (o.name) return o.name;
+        const style = o.styleId
+          ? (builtinShapeStyles().find((x) => x.id === o.styleId) ??
+            shapeLibraryStyles.find((x) => x.id === o.styleId))
+          : undefined;
+        if (style) return style.name ?? t(style.labelKey ?? "mmToolShape");
+        return t(o.fill.type === "mask" ? "shMaskObject" : "mmToolShape");
+      }
       case "line": {
         if (o.name) return o.name;
         const style = o.styleId
@@ -4131,7 +4903,13 @@ export function MapCreatorEditor({
             !searchLower || objectLabel(o).toLowerCase().includes(searchLower),
         ),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [project.layers, searchLower, i18n.language, libraryStyles],
+    [
+      project.layers,
+      searchLower,
+      i18n.language,
+      libraryStyles,
+      shapeLibraryStyles,
+    ],
   );
 
   /** How the live preview composites into its layer (see previewRaster). */
@@ -4485,9 +5263,135 @@ export function MapCreatorEditor({
         }
       : null;
 
+  // ---- Shape panel: the tool's settings, or the selected shapes ----
+  const shapeEditing =
+    selectedShapes.length > 0 &&
+    selectedShapes.length === selectedObjs.length &&
+    (tool === "select" ||
+      (tool === "shape" &&
+        (shapeTool.draw === "edit" || shapeTool.draw === "doors")))
+      ? {
+          count: selectedShapes.length,
+          look: shapeLookOf(selectedShapes[0]),
+          styleId: selectedShapes[0].styleId ?? null,
+        }
+      : null;
+  const shapeBase = baseShapeLook(
+    shapeEditing ? shapeEditing.styleId : shapeTool.styleId,
+    shapeLibraryStyles,
+  );
+  const singleShape =
+    shapeEditing && selectedShapes.length === 1 ? selectedShapes[0] : null;
+  const shapeActions = singleShape
+    ? (() => {
+        const o = singleShape,
+          rows: PartRow[] = [];
+        const walk = (list: ShapePart[], d: number) =>
+          list.forEach((p, i) => {
+            rows.push({
+              id: p.id,
+              depth: d,
+              op: p.op,
+              base: i === 0,
+              kind: isGroup(p) ? "group" : (p.prim?.kind ?? "path"),
+              nodes: isGroup(p) ? 0 : p.nodes.length,
+            });
+            if (isGroup(p)) walk(p.parts, d + 1);
+          });
+        walk(o.parts, 0);
+        const all = shapePaths(o.parts),
+          picked =
+            shapeEdit?.id === o.id && shapeEdit.part
+              ? findPath(o.parts, shapeEdit.part)
+              : all.length === 1
+                ? all[0]
+                : null,
+          ol = shapeOutlineOf(o.parts, W, H, 1),
+          m = measureOutline(ol),
+          k = project.width / W,
+          door =
+            doorEdit?.id === o.id && doorEdit.portal
+              ? o.portals.find((p) => p.id === doorEdit.portal)
+              : undefined;
+        return {
+          name: o.name ?? "",
+          onRename: (name: string) =>
+            patchShapes([o.id], () => ({ name: name || undefined })),
+          parts: rows,
+          selectedPart: shapeEdit?.id === o.id ? shapeEdit.part : null,
+          onSelectPart: (id: string | null) => {
+            if (!id) setShapeEdit(null);
+            else startShapeEdit(o, id);
+          },
+          onPartOp: (id: string, op: ShapeOp) =>
+            patchShapes([o.id], (cur) => {
+              const at = locatePart(cur.parts, id);
+              return at
+                ? { parts: replacePart(cur.parts, id, { ...at.part, op }) }
+                : {};
+            }),
+          onPartMove: (id: string, by: -1 | 1) =>
+            patchShapes([o.id], (cur) => ({
+              parts: movePart(cur.parts, id, by),
+            })),
+          onPartRemove: (id: string) => {
+            patchShapes([o.id], (cur) => {
+              const parts = replacePart(cur.parts, id, null);
+              if (!parts.length) return {};
+              const keep = new Set(shapePaths(parts).map((p) => p.id));
+              // The new first part is the base: it is added.
+              parts[0] = { ...parts[0], op: "add" };
+              return {
+                parts,
+                portals: cur.portals.filter((p) => keep.has(p.part)),
+              };
+            });
+            setShapeEdit(null);
+          },
+          prim: picked?.prim ? { pathId: picked.id, prim: picked.prim } : null,
+          onPrim: (pathId: string, prim: ShapePrim) =>
+            patchShapes([o.id], (cur) =>
+              withPrim(cur, pathId, roundPrim(prim), W, H, roundNode),
+            ),
+          measure: { area: m.area * k * k, perimeter: m.perimeter * k },
+          doors: o.portals.length,
+          onClearDoors: () => patchShapes([o.id], () => ({ portals: [] })),
+          editingNodes: shapeEdit?.id === o.id,
+          onEditNodes: () => toggleShapeEdit(o),
+          onFlatten: () => flattenShape(o),
+          onRelease: () => releaseShape(o),
+          canRelease: o.parts.length > 1,
+          door: door
+            ? {
+                width: door.width,
+                onWidth: (wd: number) =>
+                  patchShapes([o.id], (cur) => ({
+                    portals: cur.portals.map((p) =>
+                      p.id === door.id ? { ...p, width: wd } : p,
+                    ),
+                  })),
+                onRemove: removeDoor,
+              }
+            : null,
+        };
+      })()
+    : null;
+  /** A new look for the selected shapes (and the style it came from, when one was applied). */
+  function editSelectedShapes(look: ShapeLook, styleId?: string | null) {
+    patchShapes(
+      selectedShapes.map((o) => o.id),
+      () => ({
+        ...look,
+        blend: look.blend,
+        ...(styleId !== undefined ? { styleId } : {}),
+      }),
+    );
+  }
+
   const floatingPanel =
     (stampEditing && tool !== "stamp") ||
     (lineEditing && tool !== "line") ||
+    (shapeEditing && tool !== "shape") ||
     (textEditing && tool !== "text");
   const blendOp = (b?: string): GlobalCompositeOperation =>
     b && b !== "normal" ? (b as GlobalCompositeOperation) : "source-over";
@@ -4994,6 +5898,91 @@ export function MapCreatorEditor({
             }
           />
         )}
+        {(tool === "shape" || shapeEditing) && (
+          <ShapePanel
+            state={shapeTool}
+            onChange={changeShapeTool}
+            editing={shapeEditing}
+            onEditLook={editSelectedShapes}
+            onDoneEditing={() => {
+              clearSelection();
+              setShapeEdit(null);
+              setDoorEdit(null);
+            }}
+            baseLook={shapeBase}
+            shape={shapeActions}
+            combineCount={
+              selectedShapes.length === selectedObjs.length
+                ? selectedShapes.length
+                : 0
+            }
+            onCombine={combineSelectedShapes}
+            combineTarget={combineTarget ? objectLabel(combineTarget) : null}
+            library={{
+              signedIn: !!user,
+              own: shapeLib.own,
+              official: shapeLib.official,
+              max: shapeLib.max,
+              busy: shapeLib.busy,
+              error: shapeLib.error,
+              onSave: (name) =>
+                void shapeLib.save(
+                  name,
+                  shapeEditing ? shapeEditing.look : shapeTool.look,
+                ),
+              onDelete: (id) => void shapeLib.remove(id),
+              onLimit: shapeLib.promptLimit,
+            }}
+            uploads={{
+              signedIn: !!user,
+              busy: lineLib.uploadBusy,
+              error: lineLib.uploadError,
+              onUpload: (files) =>
+                void lineLib.upload(files).then((id) => {
+                  const set = id ? lineSet(id) : undefined;
+                  if (!set) return;
+                  const apply = (l: ShapeLook): ShapeLook => ({
+                    ...l,
+                    stroke: {
+                      ...l.stroke,
+                      mode: "stamp",
+                      stamp: stampFromSet(set, l.stroke.stamp),
+                    },
+                  });
+                  if (shapeEditing)
+                    editSelectedShapes(apply(shapeEditing.look));
+                  else
+                    setShapeTool((st) => ({
+                      ...st,
+                      look: apply(st.look),
+                      styleId: null,
+                    }));
+                }),
+              onAddPiece: (setId, role, file) =>
+                void lineLib.addPiece(setId, role, file),
+            }}
+            t={t}
+            mapWidthPx={project.width}
+            gridCellPx={
+              project.snapToGrid ? project.width / project.tileCols : null
+            }
+            recentColors={recentColors}
+            onCommitColor={(c) => setRecentColors((r) => pushRecent(r, c))}
+            floating={tool !== "shape"}
+            target={
+              active &&
+              tool === "shape" && (
+                <EditTarget
+                  role={active.role ?? "custom"}
+                  layerName={active.name}
+                  what={t("shTarget")}
+                  note={active.locked ? t("mmTargetLocked") : undefined}
+                  warning={active.locked}
+                />
+              )
+            }
+          />
+        )}
         {(tool === "text" || textEditing) && (
           <TextPanel
             state={textTool}
@@ -5348,60 +6337,63 @@ export function MapCreatorEditor({
                 )}
               </>
             )}
-            {tool === "region" && (
+            {tool === "shape" && (
               <>
-                <div className="mm-texture-picker">
-                  {BIOME_LIST.map((b) => (
+                <div
+                  className="mm-tb-modes"
+                  role="radiogroup"
+                  aria-label={t("shDrawMode")}
+                >
+                  {SHAPE_DRAW_MODES.map((m) => (
                     <button
-                      key={b}
-                      className={`mm-texture-swatch ${biome === b ? "selected" : ""}`}
-                      title={t(BIOME_LABEL_KEY[b])}
-                      style={{
-                        backgroundImage: `url(${biomeSwatchDataUrl(b)})`,
-                      }}
-                      onClick={() => setBiome(b)}
-                    />
+                      key={m.key}
+                      className={shapeTool.draw === m.key ? "active" : ""}
+                      title={`${t(m.labelKey)} (${shortcutLabel(m.shortcut, keys)})`}
+                      role="radio"
+                      aria-checked={shapeTool.draw === m.key}
+                      onClick={() =>
+                        changeShapeTool({ ...shapeTool, draw: m.key })
+                      }
+                    >
+                      <Glyph name={m.glyph} size={16} />
+                    </button>
                   ))}
                 </div>
-                <span className="mm-toolbar-note mm-texture-name">
-                  {t(BIOME_LABEL_KEY[biome])}
-                </span>
-                <Slider
-                  label={t("mmTextureScale")}
-                  defaultValue={TOOL_DEFAULTS.textureScale}
-                  value={textureScale}
-                  min={0.4}
-                  max={3}
-                  step={0.1}
-                  onChange={setTextureScale}
-                />
-                <Slider
-                  label={t("mmTextureRotation")}
-                  defaultValue={TOOL_DEFAULTS.textureRotation}
-                  value={textureRotation}
-                  min={0}
-                  max={359}
-                  step={1}
-                  onChange={setTextureRotation}
-                  format={(v) => `${v}°`}
-                />
-                <Slider
-                  label={t("mmFillOpacity")}
-                  defaultValue={TOOL_DEFAULTS.fillOpacity}
-                  value={fillOpacity}
-                  min={0.1}
-                  max={1}
-                  step={0.05}
-                  onChange={setFillOpacity}
-                  format={(v) => `${Math.round(v * 100)}%`}
-                />
-                {regionDraft && regionDraft.length >= 3 && (
+                {shapeTool.draw !== "edit" && shapeTool.draw !== "doors" && (
+                  <div
+                    className="mm-tb-modes"
+                    role="radiogroup"
+                    aria-label={t("shCombine")}
+                  >
+                    {SHAPE_COMBINES.map((c) => (
+                      <button
+                        key={c}
+                        className={shapeTool.combine === c ? "active" : ""}
+                        title={`${t(`shOp_${c}`)} (${shortcutLabel("shape.combine", keys)})`}
+                        role="radio"
+                        aria-checked={shapeTool.combine === c}
+                        onClick={() =>
+                          changeShapeTool({ ...shapeTool, combine: c })
+                        }
+                      >
+                        <Glyph name={COMBINE_GLYPH[c]} size={16} />
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {penDraft && penDraft.length >= 3 && (
                   <button
                     className="secondary-button"
-                    onClick={() => commitRegion(regionDraft)}
+                    onClick={() => finishPen(true)}
                   >
                     {t("mmFinishShape")}
                   </button>
+                )}
+                {shapeTool.draw === "edit" && !shapeEdit && (
+                  <span className="mm-toolbar-note">{t("shPickShape")}</span>
+                )}
+                {shapeTool.draw === "doors" && (
+                  <span className="mm-toolbar-note">{t("shDoorsNote")}</span>
                 )}
               </>
             )}
@@ -5521,8 +6513,6 @@ export function MapCreatorEditor({
             className="mm-canvas-wrap"
             ref={containerRef}
             style={{
-              // Room around the map, so it can be moved anywhere and zoomed at any point.
-              padding: `${Math.round(view.h * 0.5)}px ${Math.round(view.w * 0.5)}px`,
               cursor: panningActive
                 ? "grabbing"
                 : (spaceHeld && ctl.spacePan) || handMode
@@ -5537,130 +6527,227 @@ export function MapCreatorEditor({
                         : "crosshair",
             }}
           >
+            {/* Room around the map, so it can be moved anywhere and zoomed at
+              any point. On its own box, never as the scroller's padding: a
+              padding sized from the view would keep the view from shrinking. */}
             <div
-              className="mm-stage-box"
-              ref={stageBoxRef}
-              style={{ width: W, height: H }}
+              className="mm-canvas-space"
+              style={{
+                padding: `${Math.round(view.h * 0.5)}px ${Math.round(view.w * 0.5)}px`,
+              }}
             >
-              <Stage
-                ref={stageRef}
-                width={W}
-                height={H}
-                onPointerDown={handlePointerDown}
-                onPointerMove={handleStageHover}
-                onPointerLeave={hideBrushCursor}
-                onDblClick={finishRegion}
-                onDblTap={finishRegion}
-                onContextMenu={handleContextMenu}
+              <div
+                className="mm-stage-box"
+                ref={stageBoxRef}
+                style={{ width: W, height: H }}
               >
-                <Layer listening={false}>
-                  <Rect
-                    x={0}
-                    y={0}
-                    width={W}
-                    height={H}
-                    fill={project.background}
-                  />
-                  {project.snapToGrid && (
-                    <Group ref={gridGroupRef}>
-                      {Array.from({ length: project.tileCols + 1 }, (_, i) => (
-                        <Line
-                          key={`v${i}`}
-                          points={[i * tileW, 0, i * tileW, H]}
-                          stroke="rgba(255,255,255,0.14)"
-                          strokeWidth={1}
-                        />
-                      ))}
-                      {Array.from({ length: project.tileRows + 1 }, (_, i) => (
-                        <Line
-                          key={`h${i}`}
-                          points={[0, i * tileH, W, i * tileH]}
-                          stroke="rgba(255,255,255,0.14)"
-                          strokeWidth={1}
-                        />
-                      ))}
-                    </Group>
-                  )}
-                </Layer>
-                {project.layers.map((layer) => {
-                  const land = landByLayer.get(layer.id);
-                  return (
-                    <Layer
-                      key={layer.id}
-                      ref={(node) => {
-                        if (node) konvaLayersRef.current.set(layer.id, node);
-                        else konvaLayersRef.current.delete(layer.id);
-                      }}
-                      visible={layer.visible}
-                      opacity={layer.opacity}
-                      listening={layer.id === active?.id && !layer.locked}
-                    >
-                      {/* Land layers: land shapes, textured, inside one coastline. */}
-                      {land && (
-                        <LandLayerNode
-                          layerId={layer.id}
-                          lands={land.lands}
-                          paints={land.paints}
-                          base={land.base}
-                          fx={land.fx}
-                          seed={layerSeed(layer.id)}
-                          W={W}
-                          H={H}
-                          projectW={project.width}
-                          projectH={project.height}
-                          onBusyChange={onCoastBusy}
-                          onLandChange={onLandChange}
-                        />
-                      )}
-                      {layer.objects.map((o) => {
-                        // Land shapes and land texture are drawn by LandLayerNode.
-                        if (o.kind === "land" || o.hidden) return null;
-                        if (o.kind === "paint")
-                          return land ? null : (
-                            <PaintNode key={o.id} o={o} W={W} H={H} />
-                          );
-                        const handlers = objectHandlers(o, layer);
-                        if (o.kind === "region")
-                          return (
+                <Stage
+                  ref={stageRef}
+                  width={W}
+                  height={H}
+                  onPointerDown={handlePointerDown}
+                  onPointerMove={handleStageHover}
+                  onPointerLeave={hideBrushCursor}
+                  onDblClick={finishRegion}
+                  onDblTap={finishRegion}
+                  onContextMenu={handleContextMenu}
+                >
+                  <Layer listening={false}>
+                    <Rect
+                      x={0}
+                      y={0}
+                      width={W}
+                      height={H}
+                      fill={project.background}
+                    />
+                    {project.snapToGrid && (
+                      <Group ref={gridGroupRef}>
+                        {Array.from(
+                          { length: project.tileCols + 1 },
+                          (_, i) => (
                             <Line
-                              key={o.id}
-                              {...handlers}
-                              points={flattenPoints(o.points, W, H)}
-                              closed
-                              tension={0.3}
-                              {...regionFill(
-                                o.biome,
-                                o.textureScale,
-                                o.textureRotation,
-                                W,
-                              )}
-                              opacity={o.opacity}
+                              key={`v${i}`}
+                              points={[i * tileW, 0, i * tileW, H]}
+                              stroke="rgba(255,255,255,0.14)"
+                              strokeWidth={1}
                             />
-                          );
-                        if (o.kind === "line")
-                          // A line being continued with the Pen is shown by its draft.
-                          return penTarget?.id === o.id ? null : (
-                            <LineShapeNode
+                          ),
+                        )}
+                        {Array.from(
+                          { length: project.tileRows + 1 },
+                          (_, i) => (
+                            <Line
+                              key={`h${i}`}
+                              points={[0, i * tileH, W, i * tileH]}
+                              stroke="rgba(255,255,255,0.14)"
+                              strokeWidth={1}
+                            />
+                          ),
+                        )}
+                      </Group>
+                    )}
+                  </Layer>
+                  {project.layers.map((layer) => {
+                    const land = landByLayer.get(layer.id);
+                    return (
+                      <Layer
+                        key={layer.id}
+                        ref={(node) => {
+                          if (node) konvaLayersRef.current.set(layer.id, node);
+                          else konvaLayersRef.current.delete(layer.id);
+                        }}
+                        visible={layer.visible}
+                        opacity={layer.opacity}
+                        listening={layer.id === active?.id && !layer.locked}
+                      >
+                        {/* Land layers: land shapes, textured, inside one coastline. */}
+                        {land && (
+                          <LandLayerNode
+                            layerId={layer.id}
+                            lands={land.lands}
+                            paints={land.paints}
+                            base={land.base}
+                            fx={land.fx}
+                            seed={layerSeed(layer.id)}
+                            W={W}
+                            H={H}
+                            projectW={project.width}
+                            projectH={project.height}
+                            onBusyChange={onCoastBusy}
+                            onLandChange={onLandChange}
+                          />
+                        )}
+                        {layer.objects.map((o) => {
+                          // Land shapes and land texture are drawn by LandLayerNode.
+                          if (o.kind === "land" || o.hidden) return null;
+                          if (o.kind === "paint")
+                            return land ? null : (
+                              <PaintNode key={o.id} o={o} W={W} H={H} />
+                            );
+                          const handlers = objectHandlers(o, layer);
+                          if (o.kind === "shape")
+                            return (
+                              <ShapeShapeNode
+                                key={o.id}
+                                {...handlers}
+                                shape={o}
+                                W={W}
+                                H={H}
+                                // A mask draws nothing itself (see ShapeMaskNode below).
+                                pass={o.fill.type === "mask" ? "none" : "all"}
+                                opacity={o.opacity}
+                                globalCompositeOperation={blendOp(o.blend)}
+                              />
+                            );
+                          if (o.kind === "line")
+                            // A line being continued with the Pen is shown by its draft.
+                            return penTarget?.id === o.id ? null : (
+                              <LineShapeNode
+                                key={o.id}
+                                {...handlers}
+                                line={o}
+                                W={W}
+                                H={H}
+                                opacity={o.opacity}
+                                globalCompositeOperation={blendOp(o.blend)}
+                              />
+                            );
+                          if (o.kind === "brush")
+                            return (
+                              <Line
+                                key={o.id}
+                                {...handlers}
+                                points={flattenPoints(o.points, W, H)}
+                                {...strokeAppearance(o, W)}
+                              />
+                            );
+                          if (o.kind === "stamp")
+                            return (
+                              <StampNode
+                                key={o.id}
+                                o={o}
+                                W={W}
+                                H={H}
+                                shadow={resolveShadow(o, layer)}
+                                op={stampCompositeOp(o, layer)}
+                                handlers={handlers}
+                              />
+                            );
+                          // Texts: straight and arc ones turn around their anchor; path texts sit in map space.
+                          const onPath = o.curveMode === "path" && !!o.path;
+                          return (
+                            <MapTextNode
                               key={o.id}
                               {...handlers}
-                              line={o}
+                              text={o}
                               W={W}
                               H={H}
+                              x={onPath ? 0 : o.x * W}
+                              y={onPath ? 0 : o.y * H}
+                              rotation={onPath ? 0 : o.rotation}
                               opacity={o.opacity}
                               globalCompositeOperation={blendOp(o.blend)}
+                              editing={textEdit?.id === o.id}
                             />
                           );
-                        if (o.kind === "brush")
-                          return (
-                            <Line
-                              key={o.id}
-                              {...handlers}
-                              points={flattenPoints(o.points, W, H)}
-                              {...strokeAppearance(o, W)}
-                            />
+                        })}
+                        {/* The layer's masks: keep only what's inside them (or hide it). */}
+                        {(() => {
+                          const masks = layer.objects.filter(
+                            (o): o is MMShape =>
+                              o.kind === "shape" &&
+                              o.fill.type === "mask" &&
+                              !o.hidden,
                           );
-                        if (o.kind === "stamp")
+                          if (!masks.length) return null;
                           return (
+                            <>
+                              <ShapeMaskNode
+                                id={maskNodeId(layer.id)}
+                                masks={masks}
+                                W={W}
+                                H={H}
+                                listening={false}
+                              />
+                              {/* A mask's own walls go over what it clips. */}
+                              {masks
+                                .filter((o) => o.stroke.mode !== "none")
+                                .map((o) => (
+                                  <ShapeShapeNode
+                                    key={`${o.id}:stroke`}
+                                    id={`${o.id}:stroke`}
+                                    shape={o}
+                                    W={W}
+                                    H={H}
+                                    pass="stroke"
+                                    listening={false}
+                                    opacity={o.opacity}
+                                    globalCompositeOperation={blendOp(o.blend)}
+                                  />
+                                ))}
+                            </>
+                          );
+                        })()}
+                        {/* Shape being drawn (new shapes only; parts joining a
+                        shape preview on that shape), set imperatively. */}
+                        {(shapeDrafting || (tool === "shape" && !!penDraft)) &&
+                          layer.id === active?.id && (
+                            <ShapeShapeNode
+                              ref={shapeDraftRef}
+                              shape={null as unknown as MMShape}
+                              W={W}
+                              H={H}
+                              listening={false}
+                              opacity={shapeTool.look.opacity}
+                              globalCompositeOperation={blendOp(
+                                shapeTool.look.blend,
+                              )}
+                            />
+                          )}
+                        {/* Stamps being scattered (Multiple placement), not yet added. */}
+                        {scatterDraft &&
+                          layer.id === active?.id &&
+                          scatterDraft.map((o) => (
                             <StampNode
                               key={o.id}
                               o={o}
@@ -5668,374 +6755,403 @@ export function MapCreatorEditor({
                               H={H}
                               shadow={resolveShadow(o, layer)}
                               op={stampCompositeOp(o, layer)}
-                              handlers={handlers}
                             />
-                          );
-                        // Texts: straight and arc ones turn around their anchor; path texts sit in map space.
-                        const onPath = o.curveMode === "path" && !!o.path;
-                        return (
-                          <MapTextNode
-                            key={o.id}
-                            {...handlers}
-                            text={o}
-                            W={W}
-                            H={H}
-                            x={onPath ? 0 : o.x * W}
-                            y={onPath ? 0 : o.y * H}
-                            rotation={onPath ? 0 : o.rotation}
-                            opacity={o.opacity}
-                            globalCompositeOperation={blendOp(o.blend)}
-                            editing={textEdit?.id === o.id}
-                          />
-                        );
-                      })}
-                      {/* Stamps being scattered (Multiple placement), not yet added. */}
-                      {scatterDraft &&
-                        layer.id === active?.id &&
-                        scatterDraft.map((o) => (
-                          <StampNode
-                            key={o.id}
-                            o={o}
-                            W={W}
-                            H={H}
-                            shadow={resolveShadow(o, layer)}
-                            op={stampCompositeOp(o, layer)}
-                          />
-                        ))}
-                      {/* Line being drawn (Free Draw trail / Pen), set imperatively. */}
-                      {(lineDrafting || !!penDraft) &&
-                        layer.id === active?.id && (
-                          <LineShapeNode
-                            ref={lineDraftRef}
-                            line={lineDraftBase}
-                            W={W}
-                            H={H}
-                            listening={false}
-                            opacity={lineTool.look.opacity}
-                            globalCompositeOperation={blendOp(
-                              lineTool.look.blend,
-                            )}
-                          />
-                        )}
-                      {/* Live Brush / Land preview — inside the active layer, so
+                          ))}
+                        {/* Line being drawn (Free Draw trail / Pen), set imperatively. */}
+                        {(lineDrafting || (tool === "line" && !!penDraft)) &&
+                          layer.id === active?.id && (
+                            <LineShapeNode
+                              ref={lineDraftRef}
+                              line={lineDraftBase}
+                              W={W}
+                              H={H}
+                              listening={false}
+                              opacity={lineTool.look.opacity}
+                              globalCompositeOperation={blendOp(
+                                lineTool.look.blend,
+                              )}
+                            />
+                          )}
+                        {/* Live Brush / Land preview — inside the active layer, so
                         erasers and blend modes preview exactly as they commit.
                         Its image/position are set imperatively per frame. */}
-                      {(paintPreview || !!polyDraft) &&
-                        layer.id === active?.id && (
-                          <KonvaImage
-                            ref={paintImageRef}
-                            image={undefined}
-                            visible={false}
-                            listening={false}
-                            opacity={previewLook.opacity}
-                            globalCompositeOperation={previewLook.op}
-                          />
-                        )}
-                    </Layer>
-                  );
-                })}
-                {/* Editor-only overlays: live drafts and the marquee. Hidden
-                  when rendering the map for print. */}
-                <Layer ref={overlayLayerRef} listening={false}>
-                  {penDraft &&
-                    penDraft.map((n, i) => (
-                      <Circle
-                        key={i}
-                        x={n.x * W}
-                        y={n.y * H}
-                        radius={i === 0 ? 5 : 3.5}
-                        fill={i === 0 ? "#f2a65a" : "#ffffff"}
-                        stroke="#1b1f24"
-                        strokeWidth={1}
-                      />
-                    ))}
-                  {polyDraft && (
-                    <>
-                      <Line
-                        points={flattenPoints(polyDraft, W, H)}
-                        stroke="#f2a65a"
-                        strokeWidth={1.5}
-                        dash={[4, 3]}
-                        closed={polyDraft.length >= 3}
-                      />
-                      {polyDraft.map((p, i) => (
-                        <Circle
-                          key={i}
-                          x={p.x * W}
-                          y={p.y * H}
-                          radius={i === 0 ? 5 : 4}
-                          fill={i === 0 ? "#f2a65a" : "#cfd7de"}
-                        />
-                      ))}
-                    </>
-                  )}
-                  {(tool === "brush" || tool === "land" || tool === "line") && (
-                    <Circle
-                      ref={brushCursorRef}
-                      radius={Math.max(
-                        1,
-                        ((tool === "land"
-                          ? landTool.size
-                          : tool === "line"
-                            ? lineTool.look.mode === "stamp"
-                              ? lineTool.look.stamp.size
-                              : lineTool.look.stroke.width +
-                                2 * lineTool.look.stroke.casing
-                            : brushState.brush.size) *
-                          W) /
-                          2,
-                      )}
-                      stroke="rgba(255,255,255,0.9)"
-                      strokeWidth={1}
-                      shadowColor="#000"
-                      shadowBlur={2}
-                      shadowOpacity={0.8}
-                      visible={false}
-                      dash={
-                        tool !== "line" &&
-                        (tool === "land" ? landTool.erase : brushState.erase)
-                          ? [3, 3]
-                          : undefined
-                      }
-                    />
-                  )}
-                  {regionDraft && (
-                    <>
-                      {regionDraft.length >= 3 && (
-                        <Line
-                          points={flattenPoints(regionDraft, W, H)}
-                          closed
-                          tension={0.3}
-                          {...regionFill(
-                            biome,
-                            textureScale,
-                            textureRotation,
-                            W,
+                        {(paintPreview || !!polyDraft) &&
+                          layer.id === active?.id && (
+                            <KonvaImage
+                              ref={paintImageRef}
+                              image={undefined}
+                              visible={false}
+                              listening={false}
+                              opacity={previewLook.opacity}
+                              globalCompositeOperation={previewLook.op}
+                            />
                           )}
-                          opacity={fillOpacity * 0.6}
-                        />
-                      )}
-                      <Line
-                        points={flattenPoints(regionDraft, W, H)}
-                        closed={regionDraft.length >= 3}
-                        tension={0.3}
-                        stroke="#f2a65a"
-                        strokeWidth={1.5}
-                        dash={[4, 3]}
-                      />
-                      {regionDraft.map((p, i) => (
+                      </Layer>
+                    );
+                  })}
+                  {/* Editor-only overlays: live drafts and the marquee. Hidden
+                  when rendering the map for print. */}
+                  <Layer ref={overlayLayerRef} listening={false}>
+                    {penDraft &&
+                      penDraft.map((n, i) => (
                         <Circle
                           key={i}
-                          x={p.x * W}
-                          y={p.y * H}
-                          radius={i === 0 ? 5 : 4}
-                          fill={i === 0 ? "#f2a65a" : "#cfd7de"}
+                          x={n.x * W}
+                          y={n.y * H}
+                          radius={i === 0 ? 5 : 3.5}
+                          fill={i === 0 ? "#f2a65a" : "#ffffff"}
+                          stroke="#1b1f24"
+                          strokeWidth={1}
                         />
                       ))}
-                    </>
-                  )}
-                  {tool === "stamp" && nextStamp && (
-                    <Group
-                      ref={stampGhostRef}
-                      name="stampGhost"
-                      visible={false}
-                      opacity={0.7}
-                    >
-                      <StampNode
-                        o={nextStamp}
-                        W={W}
-                        H={H}
-                        shadow={
-                          active ? resolveShadow(nextStamp, active) : null
-                        }
-                      />
-                      {stampTool.placement !== "single" &&
-                        stampTool.spread > 0 && (
+                    {polyDraft && (
+                      <>
+                        <Line
+                          points={flattenPoints(polyDraft, W, H)}
+                          stroke="#f2a65a"
+                          strokeWidth={1.5}
+                          dash={[4, 3]}
+                          closed={polyDraft.length >= 3}
+                        />
+                        {polyDraft.map((p, i) => (
                           <Circle
-                            radius={
-                              (stampTool.spread * stampTool.look.size * W) / 2
-                            }
-                            stroke="rgba(255,255,255,0.7)"
-                            strokeWidth={1}
-                            dash={[4, 4]}
-                            opacity={
-                              stampTool.placement === "multiple" ? 1 : 0.45
-                            }
+                            key={i}
+                            x={p.x * W}
+                            y={p.y * H}
+                            radius={i === 0 ? 5 : 4}
+                            fill={i === 0 ? "#f2a65a" : "#cfd7de"}
                           />
+                        ))}
+                      </>
+                    )}
+                    {(tool === "brush" ||
+                      tool === "land" ||
+                      tool === "line") && (
+                      <Circle
+                        ref={brushCursorRef}
+                        radius={Math.max(
+                          1,
+                          ((tool === "land"
+                            ? landTool.size
+                            : tool === "line"
+                              ? lineTool.look.mode === "stamp"
+                                ? lineTool.look.stamp.size
+                                : lineTool.look.stroke.width +
+                                  2 * lineTool.look.stroke.casing
+                              : brushState.brush.size) *
+                            W) /
+                            2,
                         )}
-                    </Group>
-                  )}
-                  {marqueeStart && (
-                    <Rect
-                      ref={marqueeRectRef}
-                      x={marqueeStart.x}
-                      y={marqueeStart.y}
-                      width={0}
-                      height={0}
-                      fill="rgba(242,166,90,0.12)"
-                      stroke="#f2a65a"
-                      strokeWidth={1}
-                      dash={[4, 3]}
-                    />
-                  )}
-                </Layer>
-                <Layer ref={uiLayerRef}>
-                  {nodeEditing && editedLine && nodeEdit && (
-                    <LineNodeEditor
-                      line={editedLine}
-                      W={W}
-                      H={H}
-                      selected={nodeEdit.sel}
-                      onSelect={(sel) =>
-                        setNodeEdit({ id: editedLine.id, sel })
-                      }
-                      onPreview={(nodes) => {
-                        const n =
-                          stageRef.current &&
-                          findNode(stageRef.current, editedLine.id);
-                        if (!n) return;
-                        n.setAttr("line", { ...editedLine, nodes });
-                        n.getLayer()?.batchDraw();
-                      }}
-                      onCommit={(nodes) =>
-                        patchLines([editedLine.id], () => ({
-                          nodes: nodes.map(roundNode),
-                        }))
-                      }
-                      snap={(p) => snapLinePoint(p, editedLine.id)}
-                    />
-                  )}
-                  {/* The path under a selected text, shown while it's selected. */}
-                  {selectedTexts.map((o) =>
-                    o.curveMode === "path" && o.path ? (
-                      <Line
-                        key={`guide-${o.id}`}
-                        points={Array.from(
-                          flatten(
-                            o.path.reverse
-                              ? [...o.path.nodes].reverse()
-                              : o.path.nodes,
-                            false,
-                            W,
-                            H,
-                            0.5,
-                          ).xy,
-                        )}
-                        stroke="#f2a65a"
+                        stroke="rgba(255,255,255,0.9)"
                         strokeWidth={1}
-                        dash={[5, 4]}
-                        opacity={0.8}
-                        listening={false}
-                      />
-                    ) : null,
-                  )}
-                  {pathText && pathEdit && (
-                    <LineNodeEditor
-                      line={
-                        {
-                          ...lineTool.look,
-                          id: pathText.id,
-                          kind: "line",
-                          closed: false,
-                          nodes: pathText.path!.nodes,
-                        } as MMLine
-                      }
-                      W={W}
-                      H={H}
-                      selected={pathEdit.sel}
-                      onSelect={(sel) => setPathEdit({ id: pathText.id, sel })}
-                      onPreview={(nodes) => {
-                        const n =
-                          stageRef.current &&
-                          findNode(stageRef.current, pathText.id);
-                        if (!n) return;
-                        n.setAttr("text", {
-                          ...pathText,
-                          path: { ...pathText.path!, nodes },
-                        });
-                        n.getLayer()?.batchDraw();
-                      }}
-                      onCommit={(nodes) => {
-                        const rounded = nodes.map(roundNode),
-                          mid = pathMiddle(rounded);
-                        patchTexts([pathText.id], (cur) =>
-                          cur.path
-                            ? {
-                                path: { ...cur.path, nodes: rounded },
-                                x: mid.x,
-                                y: mid.y,
-                              }
-                            : {},
-                        );
-                      }}
-                      snap={(p) => snapLinePoint(p)}
-                    />
-                  )}
-                  {(tool === "select" || tool === "text") &&
-                    selectedIds.length > 0 && (
-                      <Transformer
-                        ref={transformerRef}
-                        rotateEnabled
-                        anchorSize={9}
-                        keepRatio={selectedObjs.every(
-                          (o) => o.kind === "stamp" || o.kind === "text",
-                        )}
-                        enabledAnchors={
-                          selectedObjs.length === 1 &&
-                          selectedObjs[0].kind === "text" &&
-                          selectedObjs[0].curveMode !== "path"
-                            ? [
-                                "top-left",
-                                "top-right",
-                                "bottom-left",
-                                "bottom-right",
-                                "middle-left",
-                                "middle-right",
-                              ]
+                        shadowColor="#000"
+                        shadowBlur={2}
+                        shadowOpacity={0.8}
+                        visible={false}
+                        dash={
+                          tool !== "line" &&
+                          (tool === "land" ? landTool.erase : brushState.erase)
+                            ? [3, 3]
                             : undefined
                         }
-                        rotationSnaps={
-                          shiftDown
-                            ? Array.from({ length: 24 }, (_, i) => i * 15)
-                            : []
-                        }
-                        rotationSnapTolerance={shiftDown ? 7.5 : 0}
-                        onTransformStart={() => beginGesture([])}
-                        onDragStart={() => beginGesture([])}
                       />
                     )}
-                </Layer>
-              </Stage>
-              {textEdit &&
-                (() => {
-                  const o = textEdit.id
-                    ? selectedTexts.find((x) => x.id === textEdit.id)
-                    : null;
-                  const look = o ?? textTool.look;
-                  const onPath = !!o && o.curveMode === "path" && !!o.path;
-                  return (
-                    <InlineTextEditor
-                      key={textEdit.id ?? "new"}
-                      text={textEdit.draft}
-                      look={look}
-                      x={(o ? o.x : textEdit.x) * W}
-                      y={(o ? o.y : textEdit.y) * H}
-                      rotation={o && !onPath ? o.rotation : 0}
-                      W={W}
-                      onChange={typeText}
-                      onDone={finishTextEdit}
-                      placeholder={t("txTypeHere")}
-                    />
-                  );
-                })()}
-              {gestureInfo && (
-                <div
-                  className="mm-gesture-info"
-                  style={{ left: gestureInfo.x + 16, top: gestureInfo.y + 16 }}
-                >
-                  {gestureInfo.text}
-                </div>
-              )}
+                    {/* Masks of the active layer, and the shape a new part
+                    joins, as dashed outlines (masks draw nothing themselves). */}
+                    {active && (tool === "shape" || tool === "select") && (
+                      <ShapeGuides
+                        outlines={active.objects
+                          .filter(
+                            (o): o is MMShape =>
+                              o.kind === "shape" &&
+                              !o.hidden &&
+                              (o.fill.type === "mask" ||
+                                (tool === "shape" &&
+                                  o.id === combineTarget?.id)),
+                          )
+                          .map((o) => shapeOutlineOf(o.parts, W, H, 1))}
+                      />
+                    )}
+                    {/* The outline of a part being drawn, set imperatively. */}
+                    {tool === "shape" && (
+                      <Shape
+                        ref={shapeDraftGuideRef}
+                        listening={false}
+                        sceneFunc={(ctx, node) => {
+                          const nodes = node.getAttr("nodes") as
+                              LineNode[] | null | undefined,
+                            w = (node.getAttr("W") as number) || W,
+                            h = (node.getAttr("H") as number) || H;
+                          if (!nodes || nodes.length < 2) return;
+                          const c = (
+                            ctx as unknown as {
+                              _context: CanvasRenderingContext2D;
+                            }
+                          )._context;
+                          c.save();
+                          c.beginPath();
+                          tracePath(c, nodes, true, w, h);
+                          c.lineWidth = 1.2;
+                          c.strokeStyle = "#f2a65a";
+                          c.setLineDash([5, 3]);
+                          c.stroke();
+                          c.restore();
+                        }}
+                      />
+                    )}
+                    {tool === "stamp" && nextStamp && (
+                      <Group
+                        ref={stampGhostRef}
+                        name="stampGhost"
+                        visible={false}
+                        opacity={0.7}
+                      >
+                        <StampNode
+                          o={nextStamp}
+                          W={W}
+                          H={H}
+                          shadow={
+                            active ? resolveShadow(nextStamp, active) : null
+                          }
+                        />
+                        {stampTool.placement !== "single" &&
+                          stampTool.spread > 0 && (
+                            <Circle
+                              radius={
+                                (stampTool.spread * stampTool.look.size * W) / 2
+                              }
+                              stroke="rgba(255,255,255,0.7)"
+                              strokeWidth={1}
+                              dash={[4, 4]}
+                              opacity={
+                                stampTool.placement === "multiple" ? 1 : 0.45
+                              }
+                            />
+                          )}
+                      </Group>
+                    )}
+                    {marqueeStart && (
+                      <Rect
+                        ref={marqueeRectRef}
+                        x={marqueeStart.x}
+                        y={marqueeStart.y}
+                        width={0}
+                        height={0}
+                        fill="rgba(242,166,90,0.12)"
+                        stroke="#f2a65a"
+                        strokeWidth={1}
+                        dash={[4, 3]}
+                      />
+                    )}
+                  </Layer>
+                  <Layer ref={uiLayerRef}>
+                    {editedShape && shapeEdit && (
+                      <ShapePartsEditor
+                        shape={editedShape}
+                        W={W}
+                        H={H}
+                        part={shapeEdit.part}
+                        onPickPart={(id) =>
+                          setShapeEdit({ ...shapeEdit, part: id, sel: [] })
+                        }
+                        nodeSel={shapeEdit.sel}
+                        onSelectNodes={(sel) =>
+                          setShapeEdit({ ...shapeEdit, sel })
+                        }
+                        onPreview={(pathId, nodes) =>
+                          previewShapeNode({
+                            ...editedShape,
+                            ...withNodes(editedShape, pathId, nodes, W, H),
+                          })
+                        }
+                        onCommit={(pathId, nodes) =>
+                          patchShapes([editedShape.id], (cur) =>
+                            withNodes(cur, pathId, nodes.map(roundNode), W, H),
+                          )
+                        }
+                        snap={(p) => snapShapePoint(p)}
+                      />
+                    )}
+                    {doorShape && doorEdit && (
+                      <ShapeDoorsEditor
+                        shape={doorShape}
+                        W={W}
+                        H={H}
+                        selected={doorEdit.portal}
+                        onSelect={(id) =>
+                          setDoorEdit({ id: doorShape.id, portal: id })
+                        }
+                        onPreview={(portals) =>
+                          previewShapeNode({ ...doorShape, portals })
+                        }
+                        onCommit={(portals) =>
+                          patchShapes([doorShape.id], () => ({ portals }))
+                        }
+                        thickness={shapeReach(doorShape, W) * 2}
+                      />
+                    )}
+                    {nodeEditing && editedLine && nodeEdit && (
+                      <LineNodeEditor
+                        line={editedLine}
+                        W={W}
+                        H={H}
+                        selected={nodeEdit.sel}
+                        onSelect={(sel) =>
+                          setNodeEdit({ id: editedLine.id, sel })
+                        }
+                        onPreview={(nodes) => {
+                          const n =
+                            stageRef.current &&
+                            findNode(stageRef.current, editedLine.id);
+                          if (!n) return;
+                          n.setAttr("line", { ...editedLine, nodes });
+                          n.getLayer()?.batchDraw();
+                        }}
+                        onCommit={(nodes) =>
+                          patchLines([editedLine.id], () => ({
+                            nodes: nodes.map(roundNode),
+                          }))
+                        }
+                        snap={(p) => snapLinePoint(p, editedLine.id)}
+                      />
+                    )}
+                    {/* The path under a selected text, shown while it's selected. */}
+                    {selectedTexts.map((o) =>
+                      o.curveMode === "path" && o.path ? (
+                        <Line
+                          key={`guide-${o.id}`}
+                          points={Array.from(
+                            flatten(
+                              o.path.reverse
+                                ? [...o.path.nodes].reverse()
+                                : o.path.nodes,
+                              false,
+                              W,
+                              H,
+                              0.5,
+                            ).xy,
+                          )}
+                          stroke="#f2a65a"
+                          strokeWidth={1}
+                          dash={[5, 4]}
+                          opacity={0.8}
+                          listening={false}
+                        />
+                      ) : null,
+                    )}
+                    {pathText && pathEdit && (
+                      <LineNodeEditor
+                        line={
+                          {
+                            ...lineTool.look,
+                            id: pathText.id,
+                            kind: "line",
+                            closed: false,
+                            nodes: pathText.path!.nodes,
+                          } as MMLine
+                        }
+                        W={W}
+                        H={H}
+                        selected={pathEdit.sel}
+                        onSelect={(sel) =>
+                          setPathEdit({ id: pathText.id, sel })
+                        }
+                        onPreview={(nodes) => {
+                          const n =
+                            stageRef.current &&
+                            findNode(stageRef.current, pathText.id);
+                          if (!n) return;
+                          n.setAttr("text", {
+                            ...pathText,
+                            path: { ...pathText.path!, nodes },
+                          });
+                          n.getLayer()?.batchDraw();
+                        }}
+                        onCommit={(nodes) => {
+                          const rounded = nodes.map(roundNode),
+                            mid = pathMiddle(rounded);
+                          patchTexts([pathText.id], (cur) =>
+                            cur.path
+                              ? {
+                                  path: { ...cur.path, nodes: rounded },
+                                  x: mid.x,
+                                  y: mid.y,
+                                }
+                              : {},
+                          );
+                        }}
+                        snap={(p) => snapLinePoint(p)}
+                      />
+                    )}
+                    {(tool === "select" || tool === "text") &&
+                      selectedIds.length > 0 && (
+                        <Transformer
+                          ref={transformerRef}
+                          rotateEnabled
+                          anchorSize={9}
+                          keepRatio={selectedObjs.every(
+                            (o) => o.kind === "stamp" || o.kind === "text",
+                          )}
+                          enabledAnchors={
+                            selectedObjs.length === 1 &&
+                            selectedObjs[0].kind === "text" &&
+                            selectedObjs[0].curveMode !== "path"
+                              ? [
+                                  "top-left",
+                                  "top-right",
+                                  "bottom-left",
+                                  "bottom-right",
+                                  "middle-left",
+                                  "middle-right",
+                                ]
+                              : undefined
+                          }
+                          rotationSnaps={
+                            shiftDown
+                              ? Array.from({ length: 24 }, (_, i) => i * 15)
+                              : []
+                          }
+                          rotationSnapTolerance={shiftDown ? 7.5 : 0}
+                          onTransformStart={() => beginGesture([])}
+                          onDragStart={() => beginGesture([])}
+                        />
+                      )}
+                  </Layer>
+                </Stage>
+                {textEdit &&
+                  (() => {
+                    const o = textEdit.id
+                      ? selectedTexts.find((x) => x.id === textEdit.id)
+                      : null;
+                    const look = o ?? textTool.look;
+                    const onPath = !!o && o.curveMode === "path" && !!o.path;
+                    return (
+                      <InlineTextEditor
+                        key={textEdit.id ?? "new"}
+                        text={textEdit.draft}
+                        look={look}
+                        x={(o ? o.x : textEdit.x) * W}
+                        y={(o ? o.y : textEdit.y) * H}
+                        rotation={o && !onPath ? o.rotation : 0}
+                        W={W}
+                        onChange={typeText}
+                        onDone={finishTextEdit}
+                        placeholder={t("txTypeHere")}
+                      />
+                    );
+                  })()}
+                {gestureInfo && (
+                  <div
+                    className="mm-gesture-info"
+                    style={{
+                      left: gestureInfo.x + 16,
+                      top: gestureInfo.y + 16,
+                    }}
+                  >
+                    {gestureInfo.text}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
           <div className="mm-status-bar">
@@ -6186,8 +7302,10 @@ export function MapCreatorEditor({
                             ? "stamp"
                             : o.kind === "text"
                               ? "text"
-                              : o.kind === "region"
-                                ? "region"
+                              : o.kind === "shape"
+                                ? o.fill.type === "mask"
+                                  ? "mask"
+                                  : "shape"
                                 : o.kind === "line"
                                   ? "line"
                                   : o.kind === "land"
@@ -6454,6 +7572,20 @@ export function MapCreatorEditor({
           onClose={lineLib.closeLimitPrompt}
         />
       )}
+      {shapeLib.limitPrompt && user && (
+        <UpgradeDialog
+          limit="shape_styles"
+          planCode={shapeLib.limitPrompt.plan ?? user.plan.code}
+          max={shapeLib.limitPrompt.max ?? shapeLib.max}
+          used={shapeLib.own.length}
+          title={t("shLimitTitle")}
+          message={t("shLimitText", {
+            plan: t(`acPlan_${shapeLib.limitPrompt.plan ?? user.plan.code}`),
+            max: shapeLib.limitPrompt.max ?? shapeLib.max,
+          })}
+          onClose={shapeLib.closeLimitPrompt}
+        />
+      )}
       {textLib.limitPrompt && user && (
         <UpgradeDialog
           limit="text_styles"
@@ -6556,6 +7688,93 @@ export function MapCreatorEditor({
               />
               <div className="mm-menu-divider" />
             </>
+          )}
+          {selectedShapes.length === 1 && selectedObjs.length === 1 && (
+            <>
+              <MenuRow
+                label={t("lnEditNodes")}
+                shortcut={shortcutLabel("line.editNodes", keys)}
+                icon="editNodes"
+                onClick={() => {
+                  startShapeEdit(selectedShapes[0]);
+                  setContextMenu(null);
+                }}
+              />
+              <MenuRow
+                label={t("shDrawDoors")}
+                shortcut={shortcutLabel("shape.doors", keys)}
+                icon="door"
+                onClick={() => {
+                  const o = selectedShapes[0];
+                  selectTool("shape");
+                  setShapeTool((st) => ({ ...st, draw: "doors" }));
+                  selectOnly(o.id);
+                  setDoorEdit({ id: o.id, portal: null });
+                  setContextMenu(null);
+                }}
+              />
+              {selectedShapes[0].parts.length > 1 && (
+                <>
+                  <MenuRow
+                    label={t("shFlatten")}
+                    icon="flatten"
+                    onClick={() => {
+                      flattenShape(selectedShapes[0]);
+                      setContextMenu(null);
+                    }}
+                  />
+                  <MenuRow
+                    label={t("shRelease")}
+                    icon="release"
+                    onClick={() => {
+                      releaseShape(selectedShapes[0]);
+                      setContextMenu(null);
+                    }}
+                  />
+                </>
+              )}
+              {selectedShapes[0].parts.length === 1 &&
+                !isGroup(selectedShapes[0].parts[0]) && (
+                  <MenuRow
+                    label={t("shToLine")}
+                    icon="line"
+                    onClick={() => {
+                      shapeToLine(selectedShapes[0]);
+                      setContextMenu(null);
+                    }}
+                  />
+                )}
+              <div className="mm-menu-divider" />
+            </>
+          )}
+          {selectedShapes.length >= 2 &&
+            selectedShapes.length === selectedObjs.length && (
+              <>
+                {(["add", "subtract", "intersect", "exclude"] as const).map(
+                  (op) => (
+                    <MenuRow
+                      key={op}
+                      label={t(`shCombine_${op}`)}
+                      icon={COMBINE_GLYPH[op]}
+                      onClick={() => {
+                        combineSelectedShapes(op);
+                        setContextMenu(null);
+                      }}
+                    />
+                  ),
+                )}
+                <div className="mm-menu-divider" />
+              </>
+            )}
+          {singleLine && singleLine.closed && (
+            <MenuRow
+              label={t("shFromLine")}
+              icon="shape"
+              onClick={() => {
+                lineToShape(singleLine);
+                setContextMenu(null);
+              }}
+            />
           )}
           {lineActions && singleLine && (
             <MenuRow

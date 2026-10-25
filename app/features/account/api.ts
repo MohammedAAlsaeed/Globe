@@ -2,13 +2,19 @@
  * Typed calls to the API: accounts, maps and the asset library. Components use these, never
  * `api` directly, so every endpoint has one place that knows its shape.
  */
-import type { LineLook, MMProject, TextLook } from "../mapmaker/types";
+import type {
+  LineLook,
+  MMProject,
+  ShapeLook,
+  TextLook,
+} from "../mapmaker/types";
 import type {
   Asset,
   AssetPack,
   CloudMap,
   LineStyleRecord,
   Plan,
+  ShapeStyleRecord,
   TextStyleRecord,
   User,
 } from "./types";
@@ -160,9 +166,10 @@ export const maps = {
    */
   recordExport: (id: string | null, width: number, height: number) =>
     api
-      .post<
-        One<{ id: number; plan: string; commercial_use: boolean }>
-      >(id ? `maps/${id}/exports` : "exports", { width, height })
+      .post<One<{ id: number; plan: string; commercial_use: boolean }>>(
+        id ? `maps/${id}/exports` : "exports",
+        { width, height },
+      )
       .then((r) => r.data),
 };
 
@@ -184,9 +191,9 @@ export const library = {
   /** Assets by id, for drawing maps that use them (even from a locked pack). */
   resolve: (ids: string[]) =>
     api
-      .get<
-        Many<Asset>
-      >(`assets?${ids.map((id) => `ids[]=${encodeURIComponent(id)}`).join("&")}`)
+      .get<Many<Asset>>(
+        `assets?${ids.map((id) => `ids[]=${encodeURIComponent(id)}`).join("&")}`,
+      )
       .then((r) => r.data),
 
   /** Line art packs (pieces repeated along lines; `category` = the piece's role). */
@@ -292,4 +299,36 @@ export const textStyles = {
       .patch<One<TextStyleRecord>>(`text-styles/${id}`, patch)
       .then((r) => r.data),
   remove: (id: string) => api.delete<void>(`text-styles/${id}`),
+};
+
+// ---- Shape Tool styles ----------------------------------------------------------------
+export const shapeStyles = {
+  /** The person's own shape styles and the official ones, with their plan limit. */
+  list: () =>
+    api.get<{
+      data: ShapeStyleRecord[];
+      limits: { count: number; max: number | null };
+    }>("shape-styles"),
+  create: (input: {
+    name: string;
+    look: ShapeLook;
+    official?: boolean;
+    tier?: number;
+    published?: boolean;
+  }) =>
+    api.post<One<ShapeStyleRecord>>("shape-styles", input).then((r) => r.data),
+  update: (
+    id: string,
+    patch: {
+      name?: string;
+      look?: ShapeLook;
+      tier?: number;
+      published?: boolean;
+      sort?: number;
+    },
+  ) =>
+    api
+      .patch<One<ShapeStyleRecord>>(`shape-styles/${id}`, patch)
+      .then((r) => r.data),
+  remove: (id: string) => api.delete<void>(`shape-styles/${id}`),
 };

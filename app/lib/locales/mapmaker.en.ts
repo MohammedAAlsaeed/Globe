@@ -52,7 +52,6 @@ export const mapmakerEn = {
   mmToolStamp: "Stamp",
   mmToolPath: "Path",
   mmToolLine: "Line",
-  mmToolRegion: "Region",
   mmToolLabel: "Text",
 
   mmBrushSize: "Brush size",
@@ -80,7 +79,6 @@ export const mapmakerEn = {
   mmBiomeSwamp: "Swamp",
   mmTextureScale: "Texture scale",
   mmTextureRotation: "Rotation",
-  mmFillOpacity: "Fill opacity",
   mmFinishShape: "Finish shape",
 
   mmLabelText: "Label text",
@@ -143,8 +141,6 @@ export const mapmakerEn = {
   mmShortcutHintStamp:
     "Click to place one stamp · drag to scatter (Auto, Multiple) · switch to Select to adjust",
   mmShortcutHintPath: "Drag to draw · release to finish",
-  mmShortcutHintRegion:
-    "Click to add corners · double-click or close the loop to fill",
   mmShortcutHintLabel: "Click the canvas, then type",
 
   mmBackHome: "Back home",
@@ -244,6 +240,8 @@ export const mapmakerEn = {
   mmTexLava: "Lava",
   mmTexParchment: "Parchment",
   mmTexCobble: "Cobblestone",
+  mmTexPlanks: "Wooden planks",
+  mmTexFlagstone: "Flagstones",
   mmTexInkWash: "Ink wash",
   mmColorFilters: "Color filters",
   mmHue: "Hue",
