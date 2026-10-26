@@ -410,6 +410,25 @@ function findNode(stage: Konva.Stage, id: string): Konva.Node | null {
 function clamp(v: number, min: number, max: number) {
   return Math.max(min, Math.min(max, v));
 }
+/** How far drawing reaches past each edge of the map, as a fraction of the
+ * map: as far as a document's coordinates may go (-1..2, see
+ * ./validation.ts). What lies outside the map is kept whole — the map is
+ * only the frame it is seen through — so an Edge Shape or an ellipse
+ * dragged across the edge keeps its exact shape, cut cleanly by the frame. */
+const DRAW_REACH = 1;
+/** A normalized coordinate kept within the drawing reach. */
+function inReach(v: number) {
+  return clamp(v, -DRAW_REACH, 1 + DRAW_REACH);
+}
+/** A stage point kept within the drawing reach. */
+function reachPoint(p: StagePoint, stage: Konva.Stage): StagePoint {
+  const w = stage.width(),
+    h = stage.height();
+  return {
+    x: clamp(p.x, -w * DRAW_REACH, w * (1 + DRAW_REACH)),
+    y: clamp(p.y, -h * DRAW_REACH, h * (1 + DRAW_REACH)),
+  };
+}
 /** Wraps any angle into [-180, 180) to match the rotation sliders. */
 function normalizeAngle(deg: number) {
   return ((((deg + 180) % 360) + 360) % 360) - 180;
@@ -2417,6 +2436,49 @@ export function MapCreatorEditor({
     };
   }, []);
 
+  // Drawing can start in the room around the map and run onto it (the stage
+  // only hears pointers over the map). Gestures the navigation above took
+  // never get here; scroll bars and the editor's own controls are left alone.
+  const pointerDownRef = useRef(handlePointerDown);
+  useLayoutEffect(() => {
+    pointerDownRef.current = handlePointerDown;
+  });
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const onDown = (ev: PointerEvent) => {
+      const stage = stageRef.current,
+        t = ev.target as HTMLElement;
+      if (
+        !stage ||
+        !(
+          t === el ||
+          t === stageBoxRef.current ||
+          t.classList.contains("mm-canvas-space")
+        ) ||
+        // a scroll bar
+        (t === el &&
+          (ev.offsetX >= el.clientWidth || ev.offsetY >= el.clientHeight))
+      )
+        return;
+      // As on the stage (Konva does the same): no text selection while dragging.
+      if (ev.cancelable) ev.preventDefault();
+      stage.setPointersPositions(ev);
+      pointerDownRef.current(
+        {
+          type: "pointerdown",
+          evt: ev,
+          target: stage,
+          currentTarget: stage,
+          cancelBubble: false,
+        } as unknown as Konva.KonvaEventObject<PointerEvent>,
+        true,
+      );
+    };
+    el.addEventListener("pointerdown", onDown);
+    return () => el.removeEventListener("pointerdown", onDown);
+  }, []);
+
   /** Right-click context menu: walk up from whatever Konva node was clicked
    * (an icon's inner Path, say) to find the ancestor carrying the object's
    * own `id` (set on the Line/Group/Text root of each rendered object). */
@@ -2469,7 +2531,8 @@ export function MapCreatorEditor({
     pointerSessionRef.current?.();
     function read(ev: PointerEvent) {
       s.setPointersPositions(ev);
-      return s.getPointerPosition();
+      const p = s.getPointerPosition();
+      return p && reachPoint(p, s);
     }
     function move(ev: PointerEvent) {
       if (ev.pointerId !== pointerId) return;
@@ -2509,7 +2572,11 @@ export function MapCreatorEditor({
     pointerSessionRef.current = abort;
   }
 
-  function handlePointerDown(e: Konva.KonvaEventObject<PointerEvent>) {
+  function handlePointerDown(
+    e: Konva.KonvaEventObject<PointerEvent>,
+    /** Pressed in the room around the map, not on it. */
+    outside = false,
+  ) {
     if (
       (spaceHeld && ctl.spacePan) ||
       handMode ||
@@ -2517,9 +2584,11 @@ export function MapCreatorEditor({
       pointerSessionRef.current
     )
       return;
+    if (outside && !startsOutsideMap()) return;
     const stage = e.target.getStage(),
-      pos = stage?.getPointerPosition();
-    if (!stage || !pos) return;
+      raw = stage?.getPointerPosition();
+    if (!stage || !raw) return;
+    const pos = reachPoint(raw, stage);
     if (attachPick && e.target === stage) {
       setAttachPick(null);
       return;
@@ -2579,6 +2648,25 @@ export function MapCreatorEditor({
           e.evt.pointerId,
           e.target !== stage ? e.target.id() : null,
         );
+    }
+  }
+
+  /** Whether the current tool may start in the room around the map: the
+   * drawing tools and the marquee (not a click that places something). */
+  function startsOutsideMap() {
+    if (attachPick) return false;
+    switch (tool) {
+      case "select":
+      case "brush":
+        return true;
+      case "land":
+        return active?.role === "land";
+      case "line":
+        return lineTool.draw !== "edit";
+      case "shape":
+        return shapeTool.draw !== "edit" && shapeTool.draw !== "doors";
+      default:
+        return false;
     }
   }
 
@@ -3410,8 +3498,8 @@ export function MapCreatorEditor({
   function paintSample(pos: StagePoint, ev: PointerEvent): PaintPoint {
     const { w, h } = viewRef.current,
       pt: PaintPoint = {
-        x: q5(clamp(pos.x / w, -0.05, 1.05)),
-        y: q5(clamp(pos.y / h, -0.05, 1.05)),
+        x: q5(inReach(pos.x / w)),
+        y: q5(inReach(pos.y / h)),
       };
     // Pressure only matters to the Brush (the land brush has a fixed size).
     if (
@@ -3431,7 +3519,7 @@ export function MapCreatorEditor({
   function startDraw(pos: StagePoint, ev: PointerEvent) {
     const mode = drawMode;
     if (mode === "polygon") {
-      addPolygonVertex(toNorm(pos));
+      addPolygonVertex({ x: inReach(pos.x / W), y: inReach(pos.y / H) });
       return;
     }
     const first = paintSample(pos, ev),
@@ -3449,7 +3537,12 @@ export function MapCreatorEditor({
         obj.kind !== "paint" ||
         !obj.cells ||
         !obj.grid ||
-        obj.cells.length >= MAX_GRID_CELLS
+        obj.cells.length >= MAX_GRID_CELLS ||
+        // cells wholly outside the map would never be seen
+        pt.x < 0 ||
+        pt.x > 1 ||
+        pt.y < 0 ||
+        pt.y > 1
       )
         return;
       const cell = gridCellAt(pt.x, pt.y, obj.grid, aspect),
@@ -3508,9 +3601,18 @@ export function MapCreatorEditor({
             dx = Math.sign(dx || 1) * m;
             dy = Math.sign(dy || 1) * m;
           }
-          const corner = { x: q5(first.x + dx / w), y: q5(first.y + dy / h) };
+          const corner = {
+            x: q5(inReach(first.x + dx / w)),
+            y: q5(inReach(first.y + dy / h)),
+          };
           obj.points = e.altKey
-            ? [{ x: q5(first.x - dx / w), y: q5(first.y - dy / h) }, corner]
+            ? [
+                {
+                  x: q5(inReach(first.x - dx / w)),
+                  y: q5(inReach(first.y - dy / h)),
+                },
+                corner,
+              ]
             : [first, corner];
         } else if (mode === "grid" && obj.kind === "paint") {
           // Fill every cell along the segment, so fast drags leave no gaps.
@@ -3548,6 +3650,7 @@ export function MapCreatorEditor({
   function drawIsWorthKeeping(o: MMPaint | MMLand) {
     const px = (a: PaintPoint, b: PaintPoint) =>
       Math.hypot((a.x - b.x) * W, (a.y - b.y) * H);
+    if (!touchesMap(o)) return false;
     switch (o.mode) {
       case "free":
         return o.points.length > 0;
@@ -3569,6 +3672,30 @@ export function MapCreatorEditor({
       default:
         return o.points.length >= 3;
     }
+  }
+  /** False for a draft drawn wholly outside the map (nothing of it would
+   * ever show). Generous: rough edges reach a little past the points. */
+  function touchesMap(o: MMPaint | MMLand) {
+    if (o.mode === "grid") return true;
+    const size =
+        o.mode === "free"
+          ? o.kind === "land"
+            ? (o.size ?? 0)
+            : (o.brush?.size ?? 0)
+          : 0,
+      mx = size + 0.05,
+      my = mx * (W / H);
+    let x0 = Infinity,
+      y0 = Infinity,
+      x1 = -Infinity,
+      y1 = -Infinity;
+    for (const p of o.points) {
+      x0 = Math.min(x0, p.x);
+      y0 = Math.min(y0, p.y);
+      x1 = Math.max(x1, p.x);
+      y1 = Math.max(y1, p.y);
+    }
+    return x1 > -mx && x0 < 1 + mx && y1 > -my && y0 < 1 + my;
   }
   /** Polygon sub-tool: click to add vertices; click the first vertex,
    * double-click or press Enter to close; Escape cancels. */
@@ -4764,7 +4891,14 @@ export function MapCreatorEditor({
           height: node.height(),
           visible: node.visible(),
         };
-      node.setAttrs({ image: snap ?? undefined, x: 0, y: 0, width: W, height: H, visible: !!snap });
+      node.setAttrs({
+        image: snap ?? undefined,
+        x: 0,
+        y: 0,
+        width: W,
+        height: H,
+        visible: !!snap,
+      });
       restore.push(() => node.setAttrs(keep));
     }
     let canvas: HTMLCanvasElement;
