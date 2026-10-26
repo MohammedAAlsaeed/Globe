@@ -40,6 +40,7 @@ import {
   liveLand,
   snapshotGpuLand,
 } from "./brush/gl/GpuLandLayerNode";
+import { LandDraftOutline, landDraft } from "./brush/LandDraftOutline";
 import { CoastEffectPanel } from "./brush/CoastEffectPanel";
 import { renderLandLayer } from "./brush/landLayer";
 import { layerSeed, resolveCoast } from "./brush/coastStyles";
@@ -1092,6 +1093,17 @@ export function MapCreatorEditor({
     document.addEventListener("pointerdown", onDown);
     return () => document.removeEventListener("pointerdown", onDown);
   }, [showLayerMenu]);
+  // Remove land, Polygon: outline the area the draft will open as water.
+  useEffect(() => {
+    if (!polyDraft || tool !== "land" || !landTool.erase) return;
+    landDraft.set(
+      polyDraft.length >= 3
+        ? (buildDraft("polygon", polyDraft, polySeedRef.current) as MMLand)
+        : null,
+    );
+    return () => landDraft.set(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [polyDraft, tool, landTool]);
   // Polygon sub-tool preview: re-rendered whenever a vertex is added.
   useEffect(() => {
     if (!polyDraft) return;
@@ -3450,6 +3462,9 @@ export function MapCreatorEditor({
     // On the GPU, land is drawn into the land layer itself, coast and all.
     const gpuLand = obj.kind === "land" && landOnGpu() && !!active;
     if (gpuLand) liveLand.set(active!.id, obj as MMLand);
+    // Removing land: outline what the draft covers (see LandDraftOutline).
+    const outline = obj.kind === "land" && obj.erase;
+    if (outline) landDraft.set(obj);
     // Mount the preview node now, so the first frame already has it.
     else flushSync(() => setPaintPreview(true));
     if (gpuLand) {
@@ -3508,6 +3523,7 @@ export function MapCreatorEditor({
             });
           pts.push(pt);
         }
+        if (outline) landDraft.bump();
         if (gpuLand) liveLand.bump();
         else schedulePaintFrame();
       },
@@ -3515,6 +3531,7 @@ export function MapCreatorEditor({
         cancelAnimationFrame(paintFrameRef.current);
         paintFrameRef.current = 0;
         paintSessionRef.current = null;
+        if (outline) landDraft.set(null);
         if (gpuLand) liveLand.set(null, null);
         else setPaintPreview(false);
         if (!commit || !drawIsWorthKeeping(obj)) return;
@@ -6864,6 +6881,9 @@ export function MapCreatorEditor({
                   {/* Editor-only overlays: live drafts and the marquee. Hidden
                   when rendering the map for print. */}
                   <Layer ref={overlayLayerRef} listening={false}>
+                    {tool === "land" && landTool.erase && (
+                      <LandDraftOutline W={W} H={H} />
+                    )}
                     {penDraft &&
                       penDraft.map((n, i) => (
                         <Circle
