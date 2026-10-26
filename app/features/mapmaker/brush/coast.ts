@@ -157,9 +157,9 @@ export function coastline(
     const n = normalAt(pts, i),
       d =
         amp *
-        (0.07 * gradientNoise(p.x / 0.12, p.y / 0.12, seed) + // headlands & bays
-          0.03 * gradientNoise(p.x / 0.045, p.y / 0.045, seed + 101) + // coves
-          0.011 * gradientNoise(p.x / 0.016, p.y / 0.016, seed + 202)); // inlets
+        (0.028 * gradientNoise(p.x / 0.12, p.y / 0.12, seed) + // headlands & bays
+          0.016 * gradientNoise(p.x / 0.045, p.y / 0.045, seed + 101) + // coves
+          0.008 * gradientNoise(p.x / 0.016, p.y / 0.016, seed + 202)); // inlets
     return { x: p.x + n.x * d, y: p.y + n.y * d };
   });
   // A light smoothing pass keeps the warp organic instead of kinked.

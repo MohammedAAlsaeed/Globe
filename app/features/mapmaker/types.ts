@@ -260,7 +260,8 @@ export interface MMLand extends MMObjectBase {
   points: PaintPoint[];
   /** Free only: brush diameter, fraction of the map width. */
   size?: number;
-  /** Edge Shape, and Polygon/Rect/Ellipse when `rough` is on. */
+  /** Natural edge. Free: roughness in proportion to the brush size (none
+   * when absent). Edge Shape, and Polygon/Rect/Ellipse when `rough` is on. */
   edge?: NaturalEdge;
   /** Polygon/Rect/Ellipse: use the natural, coastline-style edge. */
   rough?: boolean;
@@ -724,9 +725,10 @@ export interface CoastEffect {
   /** The preset a customized coast started from: what its resets return to. */
   baseStyle?: string | null;
   // ---- coastline shape
-  /** 0..1 how far the coast wanders from the drawn land edge (0 = exact). */
+  /** 0..1 fine jaggedness added along the coast — a few pixels at most, so
+   * the coast stays where the land was drawn (0 = exactly as drawn). */
   roughness: number;
-  /** 0..1 how much fine fractal jaggedness is added. */
+  /** 0..1 how many scales of that fine jaggedness. */
   detail: number;
   /** 0..1 rounds off small brush wobble before the coast is built. */
   smoothing: number;

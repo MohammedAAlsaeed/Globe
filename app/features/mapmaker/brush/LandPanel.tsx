@@ -45,7 +45,7 @@ export function LandPanel({
 }) {
   const s = state,
     shape = s.mode === "polygon" || s.mode === "rect" || s.mode === "ellipse",
-    natural = s.mode === "edge" || (shape && s.rough),
+    natural = s.mode === "free" || s.mode === "edge" || (shape && s.rough),
     modeInfo = LAND_MODES.find((m) => m.key === s.mode)!;
   const set = (patch: Partial<LandToolState>) => onChange({ ...s, ...patch });
   const setEdge = (patch: Partial<NaturalEdge>) =>

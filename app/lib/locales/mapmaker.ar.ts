@@ -324,6 +324,7 @@ export const mapmakerAr: typeof mapmakerEn = {
   mmCoastSoft: "ألوان مائية",
   mmCoastMinimal: "بسيط",
   mmCoastShape: "خط الساحل",
+  mmCoastJag: "تعرّج دقيق",
   mmCoastSmoothing: "التنعيم",
   mmCoastLand: "حافة اليابسة",
   mmLandEdgeShade: "تظليل الحافة",

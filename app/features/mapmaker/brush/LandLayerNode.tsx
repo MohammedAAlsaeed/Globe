@@ -11,7 +11,7 @@
  *  - new texture paint: clipped to the current land, erasers restoring the
  *    base texture.
  */
-import { memo, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Image as KonvaImage } from "react-konva";
 import { colorize, makeCanvas } from "./engine";
 import {
@@ -22,6 +22,8 @@ import {
   renderLandLayer,
   type LandLayerImage,
 } from "./landLayer";
+import { gpuAvailable } from "./gl/glContext";
+import { GpuLandLayerNode, type StageView } from "./gl/GpuLandLayerNode";
 import type { CoastEffect, MMLand, MMPaint, PaintSource } from "../types";
 
 type Result = LandLayerImage & { ids: Set<string> };
@@ -35,7 +37,48 @@ export const LAND_PENDING_NAME = "mm-land-pending";
 /** Id of the layer image node (swapped for a full-size image when printing). */
 export const landImageId = (layerId: string) => `land-${layerId}`;
 
-export const LandLayerNode = memo(function LandLayerNode({
+type NodeProps = {
+  layerId: string;
+  lands: MMLand[];
+  paints: MMPaint[];
+  base: PaintSource;
+  fx: CoastEffect;
+  seed: number;
+  /** Display size. */
+  W: number;
+  H: number;
+  projectW: number;
+  projectH: number;
+  onBusyChange?: (layerId: string, busy: boolean) => void;
+  /** The current land coverage (alpha canvas), or null when there's no land. */
+  onLandChange?: (layerId: string, land: HTMLCanvasElement | null) => void;
+};
+
+/** Whether land layers are drawn by the GPU engine (live coast, sharp at
+ * every zoom); false where WebGL2 is missing or the GPU engine failed. */
+let gpuFailed = false;
+export function landOnGpu() {
+  return !gpuFailed && gpuAvailable();
+}
+
+/**
+ * A land layer: drawn by the GPU engine where WebGL2 is available, else by
+ * the CPU coast worker.
+ */
+export const LandLayerNode = memo(function LandLayerNode(
+  props: NodeProps & { stage: StageView },
+) {
+  const [gpu, setGpu] = useState(landOnGpu);
+  const onFail = useCallback(() => {
+    gpuFailed = true;
+    setGpu(false);
+  }, []);
+  if (gpu) return <GpuLandLayerNode {...props} onFail={onFail} />;
+  return <CpuLandLayerNode {...props} />;
+});
+
+/** The CPU path: the coast worker (see ./landLayer.ts). */
+const CpuLandLayerNode = memo(function CpuLandLayerNode({
   layerId,
   lands,
   paints,
