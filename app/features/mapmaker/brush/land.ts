@@ -9,7 +9,13 @@
  * now belongs to the layer's coast.
  */
 import { DEFAULT_SOURCE } from "./presets";
-import { colorize, makeCanvas, shapeMask, type RenderedPaint } from "./engine";
+import {
+  clipToMap,
+  colorize,
+  makeCanvas,
+  shapeMask,
+  type RenderedPaint,
+} from "./engine";
 import {
   STROKE_STEP,
   StrokeBuilder,
@@ -66,10 +72,12 @@ function coverageCanvas(
 export function roughStrokeMask(
   s: RoughStroke,
   W: number,
+  /** Map height ÷ width. */
+  aspect: number,
 ): RenderedPaint | null {
   if (!s.line.length || s.radius <= 0) return null;
-  const b = strokeBounds(s, W);
-  if (b.w <= 0 || b.h <= 0) return null;
+  const b = clipToMap(strokeBounds(s, W), W, aspect, 2);
+  if (!b) return null;
   return { canvas: coverageCanvas(s, W, b), x: b.x, y: b.y };
 }
 
@@ -113,7 +121,7 @@ export class LiveLandStroke {
           ...s,
           line: line.slice(Math.max(0, this.drawn - 1), fixed),
         },
-        r = roughStrokeMask(part, this.W);
+        r = roughStrokeMask(part, this.W, this.H / this.W);
       if (r) this.mctx.drawImage(r.canvas, r.x, r.y);
       this.drawn = fixed;
     }
@@ -126,7 +134,7 @@ export class LiveLandStroke {
     ctx.globalCompositeOperation = "copy";
     ctx.drawImage(this.mask, 0, 0);
     ctx.globalCompositeOperation = "source-over";
-    const r = tail && roughStrokeMask(tail, this.W);
+    const r = tail && roughStrokeMask(tail, this.W, this.H / this.W);
     if (r) ctx.drawImage(r.canvas, r.x, r.y);
     if (this.source) {
       const tex = colorize(this.canvas, this.source, this.W, 0, 0);
@@ -148,7 +156,7 @@ export function renderLand(
 ): RenderedPaint | null {
   const aspect = H / W;
   if (o.mode === "free")
-    return o.size ? roughStrokeMask(landStroke(o, aspect), W) : null;
+    return o.size ? roughStrokeMask(landStroke(o, aspect), W, aspect) : null;
   return shapeMask(o, W, aspect, fast);
 }
 

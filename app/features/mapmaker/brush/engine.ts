@@ -372,6 +372,26 @@ export function renderPaint(
   );
 }
 
+/**
+ * A mask box (stage px) cut to the map, W × aspect·W, plus `margin` px
+ * around it; null when nothing of it is on the map. Objects may reach far
+ * past the map (they are drawn from outside it), but only what the map
+ * shows is ever rasterized — so a stroke from well outside costs no more
+ * than one inside, and a print never needs a canvas larger than the map.
+ */
+export function clipToMap(
+  box: { x: number; y: number; w: number; h: number },
+  W: number,
+  aspect: number,
+  margin = 0,
+) {
+  const x0 = Math.max(box.x, -margin),
+    y0 = Math.max(box.y, -margin),
+    x1 = Math.min(box.x + box.w, Math.ceil(W) + margin),
+    y1 = Math.min(box.y + box.h, Math.ceil(W * aspect) + margin);
+  return x1 > x0 && y1 > y0 ? { x: x0, y: y0, w: x1 - x0, h: y1 - y0 } : null;
+}
+
 /** Alpha mask of a free stroke: the dabs, cropped to their bounds. */
 export function strokeMask(
   points: PaintPoint[],
@@ -396,13 +416,23 @@ export function strokeMask(
     x1 = Math.max(x1, d.x + r);
     y1 = Math.max(y1, d.y + r);
   }
-  const ox = Math.floor(x0 * W) - 2,
-    oy = Math.floor(y0 * W) - 2,
-    w = Math.ceil(x1 * W) + 2 - ox,
-    h = Math.ceil(y1 * W) + 2 - oy;
-  const mask = makeCanvas(w, h);
-  drawDabs(mask.getContext("2d")!, dabs, brush, W, ox, oy);
-  return { canvas: mask, x: ox, y: oy };
+  const bx = Math.floor(x0 * W) - 2,
+    by = Math.floor(y0 * W) - 2,
+    b = clipToMap(
+      {
+        x: bx,
+        y: by,
+        w: Math.ceil(x1 * W) + 2 - bx,
+        h: Math.ceil(y1 * W) + 2 - by,
+      },
+      W,
+      aspect,
+      2,
+    );
+  if (!b) return null;
+  const mask = makeCanvas(b.w, b.h);
+  drawDabs(mask.getContext("2d")!, dabs, brush, W, b.x, b.y);
+  return { canvas: mask, x: b.x, y: b.y };
 }
 
 /** Alpha mask of a filled shape, cropped to its bounds; `feather` (px)
@@ -428,10 +458,22 @@ export function shapeMask(
       x1 = Math.max(x1, p.x);
       y1 = Math.max(y1, p.y);
     }
-  const ox = Math.floor(x0 * W) - margin,
-    oy = Math.floor(y0 * W) - margin,
-    w = Math.ceil(x1 * W) + margin - ox,
-    h = Math.ceil(y1 * W) + margin - oy;
+  const bx = Math.floor(x0 * W) - margin,
+    by = Math.floor(y0 * W) - margin,
+    // Past the map, keep enough for the feather to blur in from outside.
+    b = clipToMap(
+      {
+        x: bx,
+        y: by,
+        w: Math.ceil(x1 * W) + margin - bx,
+        h: Math.ceil(y1 * W) + margin - by,
+      },
+      W,
+      aspect,
+      margin,
+    );
+  if (!b) return null;
+  const { x: ox, y: oy, w, h } = b;
   const hard = makeCanvas(w, h),
     hctx = hard.getContext("2d")!;
   hctx.fillStyle = "#fff";
