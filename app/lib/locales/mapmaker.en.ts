@@ -327,6 +327,7 @@ export const mapmakerEn = {
   mmCoastSoft: "Watercolor",
   mmCoastMinimal: "Minimal",
   mmCoastShape: "Coastline",
+  mmCoastJag: "Fine jaggedness",
   mmCoastSmoothing: "Smoothing",
   mmCoastLand: "Land edge",
   mmLandEdgeShade: "Edge shading",

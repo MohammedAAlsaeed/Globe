@@ -33,7 +33,13 @@ import {
   LAND_PENDING_NAME,
   LandLayerNode,
   landImageId,
+  landOnGpu,
 } from "./brush/LandLayerNode";
+import {
+  exportGpuLand,
+  liveLand,
+  snapshotGpuLand,
+} from "./brush/gl/GpuLandLayerNode";
 import { CoastEffectPanel } from "./brush/CoastEffectPanel";
 import { renderLandLayer } from "./brush/landLayer";
 import { layerSeed, resolveCoast } from "./brush/coastStyles";
@@ -50,7 +56,7 @@ import {
 import {
   DEFAULT_LAND_TOOL,
   LAND_MODES,
-  landBrush,
+  LiveLandStroke,
   landSettings,
   loadLandTool,
   renderLand,
@@ -349,7 +355,7 @@ type LandContext = { base: PaintSource; land: HTMLCanvasElement | null };
  * stroke's incremental live rasterizer, and the land layer it's drawn on. */
 type DrawSession = {
   obj: MMPaint | MMLand;
-  live: LiveStroke | null;
+  live: LiveStroke | LiveLandStroke | null;
   onLand: LandContext | null;
 };
 /** Freehand brush/lasso samples closer than this (screen px) are dropped. */
@@ -953,6 +959,12 @@ export function MapCreatorEditor({
     copySuffix: t("mmCopySuffix"),
   });
 
+  // Where the stage sits, for land layers that compose only what's on screen.
+  const stageView = useMemo(
+    () => ({ container: containerRef, box: stageBoxRef }),
+    [],
+  );
+
   // Zoom 1 fits the whole map in the view, with a margin.
   const fitScale = Math.max(
       0.01,
@@ -1083,6 +1095,18 @@ export function MapCreatorEditor({
   // Polygon sub-tool preview: re-rendered whenever a vertex is added.
   useEffect(() => {
     if (!polyDraft) return;
+    // Land on the GPU: the draft is drawn into the land layer itself.
+    if (tool === "land" && landOnGpu() && active) {
+      liveLand.set(
+        active.id,
+        polyDraft.length >= 3
+          ? (buildDraft("polygon", polyDraft, polySeedRef.current) as MMLand)
+          : null,
+      );
+      return () => {
+        if (liveLand.layerId === active.id) liveLand.set(null, null);
+      };
+    }
     const raf = requestAnimationFrame(() => {
       const node = paintImageRef.current;
       if (!node) return;
@@ -3250,7 +3274,8 @@ export function MapCreatorEditor({
       mode,
       erase: l.erase,
       points,
-      ...(mode === "free" ? { size: l.size } : { edge: l.edge }),
+      ...(mode === "free" ? { size: l.size } : {}),
+      edge: l.edge,
       ...(shape ? { rough: l.rough } : {}),
       seed,
     };
@@ -3320,16 +3345,7 @@ export function MapCreatorEditor({
     return onLandPreview(renderPaint(o, w, h, true), o.erase, ctx, w, h);
   }
   /** How a free stroke is painted live (see previewRaster). */
-  function liveStyle(
-    o: MMPaint | MMLand,
-    ctx: LandContext | null,
-  ): StrokeStyle {
-    if (o.kind === "land")
-      return {
-        brush: landBrush(o.size ?? landTool.size),
-        source: o.erase ? null : (ctx?.base ?? null),
-        seed: o.seed,
-      };
+  function liveStyle(o: MMPaint, ctx: LandContext | null): StrokeStyle {
     // A texture eraser on a land layer paints the base texture back.
     return {
       brush: o.brush!,
@@ -3431,14 +3447,27 @@ export function MapCreatorEditor({
       obj.cells.push(cell);
     };
     paintSessionRef.current = session;
+    // On the GPU, land is drawn into the land layer itself, coast and all.
+    const gpuLand = obj.kind === "land" && landOnGpu() && !!active;
+    if (gpuLand) liveLand.set(active!.id, obj as MMLand);
     // Mount the preview node now, so the first frame already has it.
-    flushSync(() => setPaintPreview(true));
-    if (mode === "free") {
+    else flushSync(() => setPaintPreview(true));
+    if (gpuLand) {
+      // nothing else: the land layer follows liveLand
+    } else if (mode === "free") {
       const { w, h } = viewRef.current;
-      session.live = new LiveStroke(liveStyle(obj, session.onLand), w, h);
+      session.live =
+        obj.kind === "land"
+          ? new LiveLandStroke(
+              obj,
+              obj.erase ? null : (session.onLand?.base ?? null),
+              w,
+              h,
+            )
+          : new LiveStroke(liveStyle(obj, session.onLand), w, h);
       session.live.add(first);
     } else if (mode === "grid") addCell(first);
-    if (mode !== "rect" && mode !== "ellipse") schedulePaintFrame();
+    if (!gpuLand && mode !== "rect" && mode !== "ellipse") schedulePaintFrame();
 
     trackPointer(
       ev.pointerId,
@@ -3451,7 +3480,7 @@ export function MapCreatorEditor({
         if (mode === "free") {
           if (gapPx < PAINT_GAP_PX || pts.length >= MAX_PAINT_POINTS) return;
           pts.push(pt);
-          session.live!.add(pt);
+          session.live?.add(pt);
         } else if (mode === "edge") {
           if (gapPx < LASSO_GAP_PX || pts.length >= MAX_PAINT_POINTS) return;
           pts.push(pt);
@@ -3479,13 +3508,15 @@ export function MapCreatorEditor({
             });
           pts.push(pt);
         }
-        schedulePaintFrame();
+        if (gpuLand) liveLand.bump();
+        else schedulePaintFrame();
       },
       (commit) => {
         cancelAnimationFrame(paintFrameRef.current);
         paintFrameRef.current = 0;
         paintSessionRef.current = null;
-        setPaintPreview(false);
+        if (gpuLand) liveLand.set(null, null);
+        else setPaintPreview(false);
         if (!commit || !drawIsWorthKeeping(obj)) return;
         // Grid Block stores cells, not the pointer trail.
         addObject(
@@ -4493,6 +4524,11 @@ export function MapCreatorEditor({
     for (const layer of project.layers) {
       const land = layer.visible ? landByLayer.get(layer.id) : undefined;
       if (!land) continue;
+      const gpu = exportGpuLand(layer.id, outW, outH);
+      if (gpu !== undefined) {
+        landImages.set(layer.id, gpu);
+        continue;
+      }
       const img = await renderLandLayer(
         { layerId: layer.id, ...land, seed: layerSeed(layer.id) },
         outW,
@@ -4539,7 +4575,15 @@ export function MapCreatorEditor({
       if (landImages.has(layer.id)) {
         const node = findNode(stage, landImageId(layer.id)),
           img = landImages.get(layer.id) ?? null;
-        if (node) swap(node, { image: img ?? undefined, visible: !!img });
+        if (node)
+          swap(node, {
+            image: img ?? undefined,
+            visible: !!img,
+            x: 0,
+            y: 0,
+            width: W,
+            height: H,
+          });
         continue;
       }
       for (const o of layer.objects) {
@@ -4680,6 +4724,32 @@ export function MapCreatorEditor({
     ].filter((n): n is Konva.Group | Konva.Layer => !!n);
     const wasVisible = chrome.map((n) => n.visible());
     chrome.forEach((n) => n.visible(false));
+    // GPU land layers show only what's on screen: the whole layer, small.
+    const k = Math.min(1, 480 / W),
+      restore: (() => void)[] = [];
+    for (const layer of project.layers) {
+      if (!layer.visible || layer.role !== "land") continue;
+      const node = findNode(stage, landImageId(layer.id)) as Konva.Image | null,
+        snap = node
+          ? snapshotGpuLand(
+              layer.id,
+              Math.max(1, Math.round(W * k)),
+              Math.max(1, Math.round(H * k)),
+            )
+          : undefined;
+      if (!node || snap === undefined) continue;
+      const old = node.getAttrs(),
+        keep = {
+          image: old.image,
+          x: node.x(),
+          y: node.y(),
+          width: node.width(),
+          height: node.height(),
+          visible: node.visible(),
+        };
+      node.setAttrs({ image: snap ?? undefined, x: 0, y: 0, width: W, height: H, visible: !!snap });
+      restore.push(() => node.setAttrs(keep));
+    }
     let canvas: HTMLCanvasElement;
     try {
       canvas = stage.toCanvas({
@@ -4687,10 +4757,11 @@ export function MapCreatorEditor({
         y: 0,
         width: W,
         height: H,
-        pixelRatio: Math.min(1, 480 / W),
+        pixelRatio: k,
       });
     } finally {
       chrome.forEach((n, i) => n.visible(wasVisible[i]));
+      restore.forEach((f) => f());
     }
     return new Promise((resolve) => canvas.toBlob(resolve, "image/webp", 0.82));
   }
@@ -6615,6 +6686,7 @@ export function MapCreatorEditor({
                             projectH={project.height}
                             onBusyChange={onCoastBusy}
                             onLandChange={onLandChange}
+                            stage={stageView}
                           />
                         )}
                         {layer.objects.map((o) => {

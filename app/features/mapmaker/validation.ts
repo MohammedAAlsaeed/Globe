@@ -169,7 +169,7 @@ function validLand(obj: Record<string, unknown>) {
     (obj.rough !== undefined && !bool(obj.rough))
   )
     return false;
-  if (mode === "free") return finite(obj.size, 0.0001, 0.5);
+  if (mode === "free" && !finite(obj.size, 0.0001, 0.5)) return false;
   return obj.edge === undefined || validNaturalEdge(obj.edge);
 }
 function validLandSettings(v: unknown) {

@@ -18,11 +18,11 @@
  *      always has a crisp edge, whatever made it.
  *   2. Signed distance field — exact Euclidean distance transform
  *      (Felzenszwalb–Huttenlocher), positive on land, negative in water.
- *   3. Natural coastline — the distance field is displaced by fractal
- *      spatial noise near the edge (bays, headlands, fine jaggedness);
- *      islets grow from a second noise field in a band off the coast. Noise
- *      lives in map units, so the coast is identical at every resolution and
- *      only changes where the land itself changed.
+ *   3. Fine detail — the distance field is displaced by a little fractal
+ *      noise right at the edge (a few pixels: the big shapes come from the
+ *      land brush, so the coast stays where it was drawn); optional islets
+ *      grow from a second noise field in a band off the coast. Noise lives
+ *      in map units, so the coast is identical at every resolution.
  *   4. The final distance field of the new coastline.
  *
  *  **Compose** (composeCoast — decoration settings and texture)
@@ -306,16 +306,36 @@ function boxBlur(
   return out;
 }
 
-/** Fractal coastline noise at a map-unit position, roughly in [-1, 1]. */
-function coastNoise(mx: number, my: number, octaves: number, seed: number) {
+/**
+ * Fine coast detail: the largest edge movement (map units, at roughness 1),
+ * its base wavelength and octave falloff. Small on purpose — the coast stays
+ * where the land was drawn; the brush itself carries the big shapes.
+ * Shared with the GPU compose shader (./gl/shaders.ts).
+ */
+export const DETAIL_AMP = 0.0016,
+  DETAIL_WAVE = 0.006,
+  DETAIL_SEED = 101;
+
+/** Octaves of fine coast detail for a detail value (0..1). */
+export function detailOctaves(detail: number) {
+  return 2 + Math.round(Math.max(0, Math.min(1, detail)) * 3);
+}
+
+/** Fractal coastline detail at a map-unit position, roughly in [-1, 1]. */
+export function coastNoise(
+  mx: number,
+  my: number,
+  octaves: number,
+  seed: number,
+) {
   let sum = 0,
     amp = 1,
     norm = 0,
-    wl = 0.11;
+    wl = DETAIL_WAVE;
   for (let o = 0; o < octaves; o++) {
-    sum += amp * gradientNoise(mx / wl, my / wl, seed + o * 101);
+    sum += amp * gradientNoise(mx / wl, my / wl, (seed + o * DETAIL_SEED) | 0);
     norm += amp;
-    amp *= 0.64;
+    amp *= 0.6;
     wl *= 0.5;
   }
   return sum / norm;
@@ -360,9 +380,9 @@ export function buildCoastShape(
       D[i] = Math.max(-1.5, Math.min(1.5, (cov[i] - 0.5) * 2.5));
   }
 
-  // 3. natural coastline: fractal displacement near the edge + islets
-  const amp = fx.roughness * 0.045 * unit,
-    octaves = 2 + Math.round(fx.detail * 4),
+  // 3. fine coast detail near the edge (a few px at most) + islets
+  const amp = fx.roughness * DETAIL_AMP * unit,
+    octaves = detailOctaves(fx.detail),
     isleBand = 0.035 * unit,
     isleGap = 0.005 * unit,
     islets = fx.islets;

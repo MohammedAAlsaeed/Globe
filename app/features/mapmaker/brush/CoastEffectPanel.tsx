@@ -127,7 +127,7 @@ export function CoastEffectPanel({
 
       <Group title={t("mmCoastShape")} icon="edgeShape" open>
         <Slider
-          label={t("mmRoughness")}
+          label={t("mmCoastJag")}
           value={cur.roughness}
           defaultValue={base.roughness}
           min={0}
