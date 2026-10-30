@@ -183,7 +183,9 @@ The web app first calls `GET /sanctum/csrf-cookie`, then sends the `XSRF-TOKEN` 
 
 ## Production checklist
 
-- `APP_ENV=production`, `APP_DEBUG=false`, and HTTPS everywhere.
+The full guide (domains, the develop and production environments, DNS, email, Google sign-in, settings templates) is [`../deploy/README.md`](../deploy/README.md). On each server, `php artisan idrisi:check-deploy` checks the settings below and must end with **Ready**.
+
+- `APP_ENV=production`, `APP_DEBUG=false`, HTTPS everywhere, `SESSION_SECURE_COOKIE=true`, and `TRUSTED_PROXIES=*` behind Cloudflare or a load balancer.
 - The site and the API share one parent domain, for example `example.com` and `api.example.com`:
   - `SESSION_DOMAIN=.example.com`
   - `SANCTUM_STATEFUL_DOMAINS=example.com`
