@@ -93,12 +93,15 @@ uniform sampler2D src;
 uniform int r;
 uniform ivec2 dir;
 uniform ivec2 size;
+uniform bool wrap; // the left and right edges meet
 out vec4 color;
 void main() {
   ivec2 q = ivec2(gl_FragCoord.xy);
   float acc = 0.0;
   for (int k = -r; k <= r; k++) {
-    ivec2 p = clamp(q + dir * k, ivec2(0), size - 1);
+    ivec2 p = q + dir * k;
+    p.x = wrap ? ((p.x % size.x) + size.x) % size.x : clamp(p.x, 0, size.x - 1);
+    p.y = clamp(p.y, 0, size.y - 1);
     acc += texelFetch(src, p, 0).r;
   }
   color = vec4(acc / float(2 * r + 1));
@@ -177,9 +180,10 @@ void main() {
 `;
 
 // ---- signed distance (jump flooding) ------------------------------------------------
-/** Seeds: the sub-pixel coast point next to each texel on the coast
- * (fixed point ×8, 65535 = none). Works on a window of the map whose
- * top-left texel is \`org\`. */
+/** Seeds: the sub-pixel coast point next to each texel on the coast, in
+ * the window's own texels (fixed point ×8, 65535 = none). Works on a window
+ * of the map whose top-left texel is \`org\`; on a seamless map the window
+ * may reach past the left or right edge, and reads the other side there. */
 export const SEED_FS = /* glsl */ `#version 300 es
 precision highp float;
 precision highp int;
@@ -187,23 +191,30 @@ precision highp usampler2D;
 uniform sampler2D cov;
 uniform ivec2 org;
 uniform ivec2 size; // map size (cov)
+uniform bool wrap;  // the left and right edges meet
 out uvec2 seed;
+float at(ivec2 p) {
+  if (wrap) p.x = ((p.x % size.x) + size.x) % size.x;
+  return texelFetch(cov, p, 0).r;
+}
 void main() {
-  ivec2 q = ivec2(gl_FragCoord.xy) + org;
-  float c = texelFetch(cov, q, 0).r;
+  ivec2 l = ivec2(gl_FragCoord.xy), q = l + org;
+  float c = at(q);
   bool land = c >= 0.5;
   vec2 best = vec2(0.0);
   float bestD = 1e9;
   ivec2 dirs[4] = ivec2[4](ivec2(1, 0), ivec2(-1, 0), ivec2(0, 1), ivec2(0, -1));
   for (int i = 0; i < 4; i++) {
     ivec2 n = q + dirs[i];
-    if (n.x < 0 || n.y < 0 || n.x >= size.x || n.y >= size.y) continue;
-    float cn = texelFetch(cov, n, 0).r;
+    if (n.y < 0 || n.y >= size.y || (!wrap && (n.x < 0 || n.x >= size.x))) continue;
+    float cn = at(n);
     if ((cn >= 0.5) == land) continue;
     float t = clamp((0.5 - c) / (cn - c), 0.0, 1.0);
-    if (t < bestD) { bestD = t; best = vec2(q) + 0.5 + vec2(dirs[i]) * t; }
+    if (t < bestD) { bestD = t; best = vec2(l) + 0.5 + vec2(dirs[i]) * t; }
   }
-  seed = bestD < 1e8 ? uvec2(round(best * 8.0)) : uvec2(65535u);
+  // (a seed half a texel outside the window, at its very edge, is moved
+  // onto it: that edge is the window's margin, never measured from)
+  seed = bestD < 1e8 ? uvec2(round(max(best, vec2(0.0)) * 8.0)) : uvec2(65535u);
 }
 `;
 
@@ -213,12 +224,11 @@ precision highp int;
 precision highp usampler2D;
 uniform usampler2D src;
 uniform int step;
-uniform ivec2 org;    // window origin (map texels)
-uniform ivec2 wsize;  // window size
+uniform ivec2 wsize;  // window size (seeds are in window texels)
 out uvec2 seed;
 void main() {
   ivec2 q = ivec2(gl_FragCoord.xy);
-  vec2 p = vec2(q + org) + 0.5;
+  vec2 p = vec2(q) + 0.5;
   uvec2 best = uvec2(65535u);
   float bestD = 1e20;
   for (int y = -1; y <= 1; y++)
@@ -247,9 +257,10 @@ uniform float cap;
 out vec4 color;
 void main() {
   ivec2 q = ivec2(gl_FragCoord.xy);
-  uvec2 s = texelFetch(seeds, q - org, 0).rg;
+  ivec2 l = q - org;
+  uvec2 s = texelFetch(seeds, l, 0).rg;
   bool land = texelFetch(cov, q, 0).r >= 0.5;
-  float d = s.x == 65535u ? cap : min(cap, length(vec2(s) / 8.0 - (vec2(q) + 0.5)));
+  float d = s.x == 65535u ? cap : min(cap, length(vec2(s) / 8.0 - (vec2(l) + 0.5)));
   color = vec4(land ? d : -d);
 }
 `;

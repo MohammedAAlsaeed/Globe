@@ -5,6 +5,7 @@
 import { shortcutLabel } from "../shortcuts";
 import { useEffect, useRef } from "react";
 import Link from "next/link";
+import "../createMap.css";
 import { useTranslation } from "react-i18next";
 import { errorMessage } from "../../account/ui";
 import type { CloudStatus, ConflictChoice } from "./useCloudSync";

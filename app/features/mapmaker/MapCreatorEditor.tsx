@@ -4674,7 +4674,12 @@ export function MapCreatorEditor({
         continue;
       }
       const img = await renderLandLayer(
-        { layerId: layer.id, ...land, seed: layerSeed(layer.id) },
+        {
+          layerId: layer.id,
+          ...land,
+          seed: layerSeed(layer.id),
+          wrap: !!project.seamless,
+        },
         outW,
         outH,
       );
@@ -6835,6 +6840,7 @@ export function MapCreatorEditor({
                             H={H}
                             projectW={project.width}
                             projectH={project.height}
+                            wrap={!!project.seamless}
                             onBusyChange={onCoastBusy}
                             onLandChange={onLandChange}
                             stage={stageView}

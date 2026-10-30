@@ -191,6 +191,8 @@ export interface LandLayerInput {
   base: PaintSource;
   fx: CoastEffect;
   seed: number;
+  /** The map's left and right edges meet (see MMProject.seamless). */
+  wrap?: boolean;
 }
 export interface LandLayerImage {
   /** The finished layer at the working size. */
@@ -215,13 +217,14 @@ export async function renderLandLayer(
   W: number,
   H: number,
 ): Promise<LandLayerImage | null> {
-  const { lands, paints, base, fx, seed } = input;
+  const { lands, paints, base, fx, seed, wrap = false } = input;
   if (!lands.some((o) => !o.erase)) return null;
   const shapeKey = [
     input.layerId,
     `${W}x${H}`,
     seed,
     coastShapeKey(fx),
+    wrap ? "wrap" : "",
     lands.map(objKey).join(","),
   ].join("|");
   const out = await runCoast(
@@ -232,6 +235,7 @@ export async function renderLandLayer(
       rgba: buildLandTexture(base, paints, W, H),
       fx,
       seed,
+      wrap,
     },
     shapeKey,
   );

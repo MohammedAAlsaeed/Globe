@@ -43,7 +43,14 @@ export interface CoastInput {
   rgba: Uint8ClampedArray;
   fx: CoastEffect;
   seed: number;
+  /** The left and right edges meet (a world map that goes round a globe). */
+  wrap?: boolean;
 }
+
+/** How far past a seamless map's left and right edges the distance fields
+ * look (fraction of its width): far enough for the widest decoration and
+ * the depth shading to flow across the seam. */
+export const WRAP_REACH = 0.2;
 
 /** The coastline itself, independent of decoration and texture. */
 export interface CoastShape {
@@ -206,7 +213,12 @@ export function edt(
  * while doing a quarter of the work; callers refine the last pixel at the
  * edge themselves from full-resolution coverage.
  */
-export function signedDistance(land: Uint8Array, w: number, h: number) {
+export function signedDistance(
+  land: Uint8Array,
+  w: number,
+  h: number,
+  wrap = false,
+) {
   const f = w * h > 700_000 ? 2 : 1,
     w2 = Math.ceil(w / f),
     h2 = Math.ceil(h / f),
@@ -229,11 +241,33 @@ export function signedDistance(land: Uint8Array, w: number, h: number) {
       m[y * w2 + x] = l;
       inv[y * w2 + x] = 1 - l;
     }
-  const toLand = edt(m, w2, h2).dist,
-    toWater = edt(inv, w2, h2).dist;
   const S2 = new Float32Array(w2 * h2);
-  for (let i = 0; i < S2.length; i++)
-    S2[i] = m[i] ? toWater[i] - 0.5 : -(toLand[i] - 0.5);
+  if (wrap) {
+    // A seamless map: the grid with a band of the far side glued to each
+    // edge, so distances run across the seam; then the middle is kept.
+    const P = Math.min(w2, Math.ceil(w2 * WRAP_REACH)),
+      wp = w2 + 2 * P,
+      mp = new Uint8Array(wp * h2),
+      ip = new Uint8Array(wp * h2);
+    for (let y = 0; y < h2; y++)
+      for (let x = 0; x < wp; x++) {
+        const v = m[y * w2 + ((((x - P) % w2) + w2) % w2)];
+        mp[y * wp + x] = v;
+        ip[y * wp + x] = 1 - v;
+      }
+    const toLand = edt(mp, wp, h2).dist,
+      toWater = edt(ip, wp, h2).dist;
+    for (let y = 0; y < h2; y++)
+      for (let x = 0; x < w2; x++) {
+        const j = y * wp + x + P;
+        S2[y * w2 + x] = mp[j] ? toWater[j] - 0.5 : -(toLand[j] - 0.5);
+      }
+  } else {
+    const toLand = edt(m, w2, h2).dist,
+      toWater = edt(inv, w2, h2).dist;
+    for (let i = 0; i < S2.length; i++)
+      S2[i] = m[i] ? toWater[i] - 0.5 : -(toLand[i] - 0.5);
+  }
   if (f === 1) return S2;
   // Bilinear upsample; the x-mapping is the same for every row, so precompute it.
   const S = new Float32Array(w * h),
@@ -270,22 +304,22 @@ function boxBlur(
   w: number,
   h: number,
   r: number,
+  wrap = false,
 ): Float32Array {
   if (r < 1) return src;
   const tmp = new Float32Array(w * h),
     out = new Float32Array(w * h),
-    inv = 1 / (2 * r + 1);
+    inv = 1 / (2 * r + 1),
+    // past the left and right edges: the far side (seamless) or the edge
+    col = (x: number) =>
+      wrap ? ((x % w) + w) % w : x < 0 ? 0 : x >= w ? w - 1 : x;
   for (let y = 0; y < h; y++) {
     const row = y * w;
     let acc = 0;
-    for (let x = -r; x <= r; x++)
-      acc += src[row + (x < 0 ? 0 : x >= w ? w - 1 : x)];
+    for (let x = -r; x <= r; x++) acc += src[row + col(x)];
     for (let x = 0; x < w; x++) {
       tmp[row + x] = acc * inv;
-      const add = x + r + 1,
-        sub = x - r;
-      acc +=
-        src[row + (add >= w ? w - 1 : add)] - src[row + (sub < 0 ? 0 : sub)];
+      acc += src[row + col(x + r + 1)] - src[row + col(x - r)];
     }
   }
   // vertical pass row-by-row with a running column accumulator (contiguous)
@@ -353,6 +387,7 @@ export function buildCoastShape(
   h: number,
   fx: CoastEffect,
   seed: number,
+  wrap = false,
 ): CoastShape | null {
   const N = w * h,
     unit = w; // px per map unit
@@ -362,7 +397,7 @@ export function buildCoastShape(
   for (let i = 0; i < N; i++) raw[i] = mask[i] / 255;
   // A box blur rounds off brush wobble before the coast is built.
   const blurR = Math.round(fx.smoothing * 0.005 * unit),
-    cov: Float32Array = boxBlur(raw, w, h, blurR);
+    cov: Float32Array = boxBlur(raw, w, h, blurR, wrap);
   const land0 = new Uint8Array(N);
   let any = false;
   for (let i = 0; i < N; i++) {
@@ -373,7 +408,7 @@ export function buildCoastShape(
   if (!any) return null;
 
   // 2. signed distance of the drawn land
-  const D = signedDistance(land0, w, h);
+  const D = signedDistance(land0, w, h, wrap);
   for (let i = 0; i < N; i++) {
     // Sub-pixel edge position from the (smoothed) full-resolution coverage.
     if (D[i] > -2 && D[i] < 2)
@@ -412,7 +447,7 @@ export function buildCoastShape(
   // 4. final distance field of the new coastline
   const land = new Uint8Array(N);
   for (let i = 0; i < N; i++) land[i] = D[i] > 0 ? 1 : 0;
-  return { width: w, height: h, D, S: signedDistance(land, w, h) };
+  return { width: w, height: h, D, S: signedDistance(land, w, h, wrap) };
 }
 
 /** Renders the finished layer: the land texture inside the coast, and the
@@ -606,7 +641,8 @@ export function renderCoastEffect({
   rgba,
   fx,
   seed,
+  wrap,
 }: CoastInput): CoastOutput | null {
-  const shape = buildCoastShape(mask, width, height, fx, seed);
+  const shape = buildCoastShape(mask, width, height, fx, seed, wrap);
   return shape && composeCoast(shape, rgba, fx, seed);
 }

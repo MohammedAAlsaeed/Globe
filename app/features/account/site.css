@@ -21,7 +21,7 @@
   min-height: 100vh;
   background: var(--night);
   color: var(--vellum);
-  font-family: var(--body);
+  font-family: var(--body), sans-serif;
   font-size: 15px;
   line-height: 1.55;
 }
@@ -58,7 +58,7 @@ html:has(.site) body {
   display: flex;
   align-items: center;
   gap: 12px;
-  font-family: var(--display);
+  font-family: var(--display), serif;
   font-size: 22px;
   letter-spacing: 0.3px;
   color: var(--vellum);
@@ -287,7 +287,7 @@ html:has(.site) body {
   justify-items: center;
   gap: 18px;
   color: var(--muted, #a9b0cf);
-  font-family: var(--body, sans-serif);
+  font-family: var(--body), sans-serif;
   font-size: 15px;
 }
 .compass-loader img {
@@ -361,7 +361,7 @@ html:has(.site) body {
   gap: 18px;
 }
 .auth-card h1 {
-  font-family: var(--display);
+  font-family: var(--display), serif;
   font-weight: 700;
   font-size: clamp(32px, 4vw, 42px);
   line-height: 1.15;
@@ -432,7 +432,7 @@ html:has(.site) body {
   gap: 20px;
 }
 .maps-head h1 {
-  font-family: var(--display);
+  font-family: var(--display), serif;
   font-size: clamp(32px, 4vw, 44px);
   font-weight: 700;
   line-height: 1.1;
@@ -474,7 +474,7 @@ html:has(.site) body {
   gap: 16px;
 }
 .maps-section h2 {
-  font-family: var(--display);
+  font-family: var(--display), serif;
   font-size: 24px;
   font-weight: 700;
 }
@@ -608,7 +608,7 @@ html:has(.site) body {
   max-width: 560px;
 }
 .landing-copy h1 {
-  font-family: var(--display);
+  font-family: var(--display), serif;
   font-weight: 700;
   font-size: clamp(40px, 6vw, 76px);
   line-height: 1.04;
@@ -662,7 +662,7 @@ html:has(.site) body {
   background: var(--night);
 }
 .landing-path h2 {
-  font-family: var(--display);
+  font-family: var(--display), serif;
   font-size: 28px;
   font-weight: 700;
 }
@@ -803,6 +803,34 @@ dialog.mm-modal .mm-option-card.selected {
 dialog.mm-modal .mm-option-card:disabled {
   opacity: 0.45;
   cursor: not-allowed;
+}
+dialog.mm-modal .mm-template-blank {
+  border-color: rgba(169, 176, 207, 0.45);
+}
+dialog.mm-modal .mm-template-note,
+dialog.mm-modal .mm-template-hint {
+  color: #a9b0cf;
+}
+dialog.mm-modal .mm-earth-layer {
+  color: #f3e8cc;
+  font-size: 13px;
+}
+dialog.mm-modal .mm-earth-layer input {
+  accent-color: #d9a93b;
+}
+dialog.mm-modal .mm-earth-pov select {
+  height: 42px;
+  padding: 0 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(169, 176, 207, 0.28);
+  background: rgba(13, 22, 54, 0.6);
+  color: #f3e8cc;
+  font: inherit;
+  font-size: 14px;
+}
+dialog.mm-modal .mm-earth-pov select:focus {
+  outline: none;
+  border-color: #d9a93b;
 }
 dialog.mm-modal .mm-aspect-swatch {
   border-color: #a9b0cf;
