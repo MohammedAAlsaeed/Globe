@@ -363,6 +363,7 @@ export function validateProject(value: unknown): MMProject {
     !ASPECTS.includes(p.aspect as string) ||
     !hexColor(p.background) ||
     typeof p.snapToGrid !== "boolean" ||
+    (p.seamless !== undefined && typeof p.seamless !== "boolean") ||
     !Array.isArray(p.layers) ||
     p.layers.length === 0 ||
     p.layers.length > 40 ||

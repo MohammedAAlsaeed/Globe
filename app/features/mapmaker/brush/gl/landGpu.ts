@@ -18,6 +18,11 @@
  * memory bounded. Drawing is therefore live: the coast — waves, beach,
  * outline — follows the brush as it moves.
  *
+ * A seamless map (its left and right edges meet, as on a globe) floods
+ * across that seam: windows reach past one edge into the other side, and
+ * the fields are sampled with horizontal repeat, so the coast's decoration
+ * and the depth shading continue unbroken where the edges join.
+ *
  * Output is composed for any window of the map at any resolution
  * (`render`): the visible part of the screen at screen resolution, or an
  * export in tiles. The formulas mirror ../coastfx.ts (the CPU fallback).
@@ -195,8 +200,10 @@ export class GpuLandLayer {
   private texCanvas: HTMLCanvasElement | null = null;
   private texBase: PaintSource | null = null;
   private texPaints: MMPaint[] = [];
+  /** The left and right edges meet (MMProject.seamless). */
+  readonly wrap: boolean;
 
-  constructor(projectW: number, projectH: number) {
+  constructor(projectW: number, projectH: number, wrap = false) {
     const g = getGl();
     if (!g) throw new Error("WebGL2 unavailable");
     this.g = g;
@@ -215,6 +222,9 @@ export class GpuLandLayer {
     this.coarseCov = makeTex(g, cw, ch, "r8");
     this.coarse = makeTex(g, cw, ch, "r16f", true);
     this.texture = makeTex(g, w, h, "rgba8", true);
+    this.wrap = wrap;
+    if (wrap)
+      for (const t of [this.sdf, this.coarse, this.texture]) this.repeatX(t);
     for (const t of [this.committed, this.mask, this.cov]) {
       target(g, t);
       clearTarget(g, 0);
@@ -237,6 +247,37 @@ export class GpuLandLayer {
   get alive() {
     const g = getGl();
     return !!g && g === this.g && g.generation === this.generation;
+  }
+
+  /** Horizontal repeat, so sampling across the seam reads the other side. */
+  private repeatX(t: Tex) {
+    const { gl } = this.g;
+    gl.bindTexture(gl.TEXTURE_2D, t.tex);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
+  }
+
+  /** The parts of `r` on a field `w` × `h` texels: clipped to it, or on a
+   * seamless map with what reaches past the left or right edge brought in
+   * from the other side. */
+  private parts(r: Rect | null, w: number, h: number): Rect[] {
+    if (!r) return [];
+    const y = Math.max(0, r.y),
+      hh = Math.min(h, r.y + r.h) - y;
+    if (hh <= 0) return [];
+    if (!this.wrap) {
+      const x = Math.max(0, r.x),
+        ww = Math.min(w, r.x + r.w) - x;
+      return ww > 0 ? [{ x, y, w: ww, h: hh }] : [];
+    }
+    if (r.w >= w) return [{ x: 0, y, w, h: hh }];
+    const a = ((r.x % w) + w) % w,
+      b = a + r.w;
+    return b <= w
+      ? [{ x: a, y, w: r.w, h: hh }]
+      : [
+          { x: a, y, w: w - a, h: hh },
+          { x: 0, y, w: b - w, h: hh },
+        ];
   }
 
   private get full(): Rect {
@@ -472,61 +513,69 @@ export class GpuLandLayer {
   private flood(cov: Tex, out: Tex, region: Rect, cap: number) {
     const g = this.g,
       { gl } = g,
-      all = { x: 0, y: 0, w: cov.w, h: cov.h },
-      q = intersect(region, all);
-    if (!q) return;
+      all = { x: 0, y: 0, w: cov.w, h: cov.h };
     const margin = Math.ceil(cap) + 2;
     let kmax = 1;
     while (kmax < cap + 1) kmax *= 2;
-    for (let cy = q.y; cy < q.y + q.h; cy += CHUNK)
-      for (let cx = q.x; cx < q.x + q.w; cx += CHUNK) {
-        const chunk = {
-            x: cx,
-            y: cy,
-            w: Math.min(CHUNK, q.x + q.w - cx),
-            h: Math.min(CHUNK, q.y + q.h - cy),
-          },
-          e = intersect(grow(chunk, margin), all)!;
-        const [A, B] = this.seeds(e.w, e.h);
-        // seeds
-        gl.bindFramebuffer(gl.FRAMEBUFFER, A.fb);
-        gl.viewport(0, 0, e.w, e.h);
-        gl.disable(gl.SCISSOR_TEST);
-        bind(g, program(g, "seed", SEED_FS), {
-          cov: cov.tex,
-          org: { int: [e.x, e.y] },
-          size: { int: [cov.w, cov.h] },
-        });
-        drawQuad(g);
-        // flood
-        let src = A,
-          dst = B;
-        const steps: number[] = [];
-        for (let k = kmax; k >= 1; k >>= 1) steps.push(k);
-        steps.push(1);
-        const jfa = program(g, "jfa", JFA_FS);
-        for (const k of steps) {
-          gl.bindFramebuffer(gl.FRAMEBUFFER, dst.fb);
+    for (const q of this.parts(region, cov.w, cov.h))
+      for (let cy = q.y; cy < q.y + q.h; cy += CHUNK)
+        for (let cx = q.x; cx < q.x + q.w; cx += CHUNK) {
+          const chunk = {
+              x: cx,
+              y: cy,
+              w: Math.min(CHUNK, q.x + q.w - cx),
+              h: Math.min(CHUNK, q.y + q.h - cy),
+            },
+            grown = grow(chunk, margin),
+            // seamless: the window may reach past the left or right edge
+            e = this.wrap
+              ? {
+                  x: grown.x,
+                  y: Math.max(0, grown.y),
+                  w: grown.w,
+                  h: Math.min(all.h, grown.y + grown.h) - Math.max(0, grown.y),
+                }
+              : intersect(grown, all)!;
+          const [A, B] = this.seeds(e.w, e.h);
+          // seeds
+          gl.bindFramebuffer(gl.FRAMEBUFFER, A.fb);
           gl.viewport(0, 0, e.w, e.h);
-          bind(g, jfa, {
-            src: src.tex,
-            step: { int: k },
+          gl.disable(gl.SCISSOR_TEST);
+          bind(g, program(g, "seed", SEED_FS), {
+            cov: cov.tex,
             org: { int: [e.x, e.y] },
-            wsize: { int: [e.w, e.h] },
+            size: { int: [cov.w, cov.h] },
+            wrap: this.wrap,
           });
           drawQuad(g);
-          [src, dst] = [dst, src];
+          // flood
+          let src = A,
+            dst = B;
+          const steps: number[] = [];
+          for (let k = kmax; k >= 1; k >>= 1) steps.push(k);
+          steps.push(1);
+          const jfa = program(g, "jfa", JFA_FS);
+          for (const k of steps) {
+            gl.bindFramebuffer(gl.FRAMEBUFFER, dst.fb);
+            gl.viewport(0, 0, e.w, e.h);
+            bind(g, jfa, {
+              src: src.tex,
+              step: { int: k },
+              wsize: { int: [e.w, e.h] },
+            });
+            drawQuad(g);
+            [src, dst] = [dst, src];
+          }
+          // signed distance for the chunk
+          target(g, out, chunk);
+          bind(g, program(g, "sdf", SDF_FS), {
+            seeds: src.tex,
+            cov: cov.tex,
+            org: { int: [e.x, e.y] },
+            cap,
+          });
+          drawQuad(g);
         }
-        // signed distance for the chunk
-        target(g, out, chunk);
-        bind(g, program(g, "sdf", SDF_FS), {
-          seeds: src.tex,
-          cov: cov.tex,
-          org: { int: [e.x, e.y] },
-          cap,
-        });
-        drawQuad(g);
-      }
   }
 
   /** Rebuilds every field inside `r` (fine texels) after the mask changed
@@ -534,55 +583,64 @@ export class GpuLandLayer {
   private rebuildFields(r: Rect) {
     const g = this.g,
       fx = this.fx!,
+      W = this.bw,
+      H = this.bh,
       blurR = Math.round(fx.smoothing * 0.005 * this.bw);
-    let o = this.clip(r);
-    if (!o) return;
-    // 1. smoothing
+    if (!this.parts(r, W, H).length) return;
+    // 1. smoothing (on a seamless map, across the seam too)
+    const o = blurR >= 1 ? grow(r, blurR) : r;
     if (blurR >= 1) {
-      o = this.clip(grow(o, blurR))!;
-      const hRect = this.clip({
-          x: o.x,
-          y: o.y - blurR,
-          w: o.w,
-          h: o.h + 2 * blurR,
-        })!,
-        blur = program(g, "blur", BLUR_FS);
-      target(g, this.covTmp, hRect);
-      bind(g, blur, {
-        src: this.mask.tex,
-        r: { int: blurR },
-        dir: { int: [1, 0] },
-        size: { int: [this.bw, this.bh] },
-      });
-      drawQuad(g);
-      target(g, this.cov, o);
-      bind(g, blur, {
-        src: this.covTmp.tex,
-        r: { int: blurR },
-        dir: { int: [0, 1] },
-        size: { int: [this.bw, this.bh] },
-      });
-      drawQuad(g);
-    } else this.copy(this.mask, this.cov, o);
+      const blur = program(g, "blur", BLUR_FS);
+      for (const p of this.parts(o, W, H)) {
+        target(
+          g,
+          this.covTmp,
+          this.clip({ ...p, y: p.y - blurR, h: p.h + 2 * blurR })!,
+        );
+        bind(g, blur, {
+          src: this.mask.tex,
+          r: { int: blurR },
+          dir: { int: [1, 0] },
+          size: { int: [W, H] },
+          wrap: this.wrap,
+        });
+        drawQuad(g);
+        target(g, this.cov, p);
+        bind(g, blur, {
+          src: this.covTmp.tex,
+          r: { int: blurR },
+          dir: { int: [0, 1] },
+          size: { int: [W, H] },
+          wrap: this.wrap,
+        });
+        drawQuad(g);
+      }
+    } else
+      for (const p of this.parts(o, W, H)) this.copy(this.mask, this.cov, p);
     // 2. fine distance
-    const q = this.clip(grow(o, Math.ceil(this.capFine)))!;
+    const q = grow(o, Math.ceil(this.capFine));
     this.flood(this.cov, this.sdf, q, this.capFine);
     let finalCov = this.cov,
       changed = q;
     // 3. islets (then the distance once more, around them)
     if (fx.islets > 0) {
-      if (!this.cov2) this.cov2 = makeTex(g, this.bw, this.bh, "r8");
-      if (!this.sdf2) this.sdf2 = makeTex(g, this.bw, this.bh, "r16f", true);
-      target(g, this.cov2, q);
-      bind(g, program(g, "islet", ISLET_FS), {
-        cov: this.cov.tex,
-        sdf: this.sdf.tex,
-        unit: this.bw,
-        islets: fx.islets,
-        seed: { uint: this.seed },
-      });
-      drawQuad(g);
-      changed = this.clip(grow(q, Math.ceil(this.capFine)))!;
+      if (!this.cov2) this.cov2 = makeTex(g, W, H, "r8");
+      if (!this.sdf2) {
+        this.sdf2 = makeTex(g, W, H, "r16f", true);
+        if (this.wrap) this.repeatX(this.sdf2);
+      }
+      for (const p of this.parts(q, W, H)) {
+        target(g, this.cov2, p);
+        bind(g, program(g, "islet", ISLET_FS), {
+          cov: this.cov.tex,
+          sdf: this.sdf.tex,
+          unit: this.bw,
+          islets: fx.islets,
+          seed: { uint: this.seed },
+        });
+        drawQuad(g);
+      }
+      changed = grow(q, Math.ceil(this.capFine));
       this.flood(this.cov2, this.sdf2, changed, this.capFine);
       finalCov = this.cov2;
     }
@@ -594,42 +652,44 @@ export class GpuLandLayer {
   }
 
   /** Updates the coarse distance field where it is out of date. */
-  private rebuildCoarse(finalCov: Tex = this.fx!.islets > 0 && this.cov2 ? this.cov2 : this.cov) {
+  private rebuildCoarse(
+    finalCov: Tex = this.fx!.islets > 0 && this.cov2 ? this.cov2 : this.cov,
+  ) {
     const g = this.g,
       fx = this.fx!,
       changed = this.coarsePending;
     this.coarsePending = null;
     this.coarseAt = performance.now();
-    if (!changed) return;
-    if (fx.depthStrength > 0) {
-      const c = {
-          x: Math.floor(changed.x / COARSE),
-          y: Math.floor(changed.y / COARSE),
-          w:
-            Math.ceil((changed.x + changed.w) / COARSE) -
-            Math.floor(changed.x / COARSE),
-          h:
-            Math.ceil((changed.y + changed.h) / COARSE) -
-            Math.floor(changed.y / COARSE),
-        },
-        call = { x: 0, y: 0, w: this.coarse.w, h: this.coarse.h },
-        cr = intersect(c, call);
-      if (cr) {
-        target(g, this.coarseCov, cr);
-        bind(g, program(g, "down", DOWN_FS), {
-          src: finalCov.tex,
-          k: { int: COARSE },
-          size: { int: [this.bw, this.bh] },
-        });
-        drawQuad(g);
-        this.flood(
-          this.coarseCov,
-          this.coarse,
-          intersect(grow(cr, Math.ceil(this.capCoarse)), call)!,
-          this.capCoarse,
-        );
-      }
+    if (!changed || fx.depthStrength <= 0) return;
+    const c = {
+        x: Math.floor(changed.x / COARSE),
+        y: Math.floor(changed.y / COARSE),
+        w:
+          Math.ceil((changed.x + changed.w) / COARSE) -
+          Math.floor(changed.x / COARSE),
+        h:
+          Math.ceil((changed.y + changed.h) / COARSE) -
+          Math.floor(changed.y / COARSE),
+      },
+      cw = this.coarse.w,
+      ch = this.coarse.h,
+      down = this.parts(c, cw, ch);
+    if (!down.length) return;
+    for (const p of down) {
+      target(g, this.coarseCov, p);
+      bind(g, program(g, "down", DOWN_FS), {
+        src: finalCov.tex,
+        k: { int: COARSE },
+        size: { int: [this.bw, this.bh] },
+      });
+      drawQuad(g);
     }
+    this.flood(
+      this.coarseCov,
+      this.coarse,
+      grow(c, Math.ceil(this.capCoarse)),
+      this.capCoarse,
+    );
   }
 
   // ---- the layer's land texture ----------------------------------------------------------

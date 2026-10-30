@@ -11,7 +11,8 @@
     "typecheck": "tsc --noEmit",
     "format": "prettier --write app components features lib tests",
     "build:webpack": "next build --webpack",
-    "fonts:catalog": "node --import tsx scripts/build-font-catalog.mjs"
+    "fonts:catalog": "node --import tsx scripts/build-font-catalog.mjs",
+    "templates:earth": "node scripts/build-earth-template.mjs"
   },
   "dependencies": {
     "@pdf-lib/fontkit": "1.1.1",
@@ -21,7 +22,7 @@
     "harfbuzzjs": "1.6.2",
     "i18next": "^26.4.2",
     "konva": "^10.6.0",
-    "next": "16.3.6",
+    "next": "16.4.3",
     "pdf-lib": "^1.17.1",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
@@ -37,7 +38,7 @@
     "@types/react-dom": "^19",
     "@types/three": "^0.186.0",
     "eslint": "^9",
-    "eslint-config-next": "16.3.6",
+    "eslint-config-next": "16.4.3",
     "prettier": "^3.9.8",
     "tailwindcss": "^4",
     "tsx": "^4.23.13",

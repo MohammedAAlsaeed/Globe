@@ -49,6 +49,8 @@ type NodeProps = {
   H: number;
   projectW: number;
   projectH: number;
+  /** The map's left and right edges meet (MMProject.seamless). */
+  wrap?: boolean;
   onBusyChange?: (layerId: string, busy: boolean) => void;
   /** The current land coverage (alpha canvas), or null when there's no land. */
   onLandChange?: (layerId: string, land: HTMLCanvasElement | null) => void;
@@ -89,6 +91,7 @@ const CpuLandLayerNode = memo(function CpuLandLayerNode({
   H,
   projectW,
   projectH,
+  wrap = false,
   onBusyChange,
   onLandChange,
 }: {
@@ -103,6 +106,7 @@ const CpuLandLayerNode = memo(function CpuLandLayerNode({
   H: number;
   projectW: number;
   projectH: number;
+  wrap?: boolean;
   onBusyChange?: (layerId: string, busy: boolean) => void;
   /** The current land coverage (alpha canvas), or null when there's no land. */
   onLandChange?: (layerId: string, land: HTMLCanvasElement | null) => void;
@@ -113,23 +117,36 @@ const CpuLandLayerNode = memo(function CpuLandLayerNode({
       paints: MMPaint[];
       base: PaintSource;
       fx: CoastEffect;
+      wrap: boolean;
     } | null>(null),
-    token = useRef(0);
+    token = useRef(0),
+    timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // The rebuild is scheduled once per real change. Its timer lives in a
+  // ref, not in the effect's cleanup: a re-render that changes nothing
+  // (new array, same objects) must not cancel a rebuild still waiting.
   useEffect(() => {
     const prev = last.current;
     const sameLand = !!prev && sameRefs(prev.lands, lands),
       samePaint = !!prev && sameRefs(prev.paints, paints);
-    if (prev && sameLand && samePaint && prev.base === base && prev.fx === fx)
+    if (
+      prev &&
+      sameLand &&
+      samePaint &&
+      prev.base === base &&
+      prev.fx === fx &&
+      prev.wrap === wrap
+    )
       return;
     // Drawing rebuilds right away; slider drags are debounced a little.
     const settingsOnly = sameLand && samePaint;
-    last.current = { lands, paints, base, fx };
+    last.current = { lands, paints, base, fx, wrap };
     const my = ++token.current;
-    const timer = setTimeout(
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(
       async () => {
         onBusyChange?.(layerId, true);
-        const input = { layerId, lands, paints, base, fx, seed },
+        const input = { layerId, lands, paints, base, fx, seed, wrap },
           ids = new Set([...lands, ...paints].map((o) => o.id)),
           sharp = landScreenSize(projectW, projectH),
           quick = landScreenSize(projectW, projectH, LAND_QUICK);
@@ -149,7 +166,6 @@ const CpuLandLayerNode = memo(function CpuLandLayerNode({
       },
       settingsOnly ? 140 : 30,
     );
-    return () => clearTimeout(timer);
   }, [
     lands,
     paints,
@@ -158,6 +174,7 @@ const CpuLandLayerNode = memo(function CpuLandLayerNode({
     seed,
     projectW,
     projectH,
+    wrap,
     layerId,
     onBusyChange,
   ]);
@@ -166,6 +183,16 @@ const CpuLandLayerNode = memo(function CpuLandLayerNode({
     onLandChange?.(layerId, result?.land ?? null);
   }, [result, layerId, onLandChange]);
   // Make sure no busy flag or land mask outlives the layer.
+  useEffect(
+    () => () => {
+      // Unmounted (or, in development, unmounted and mounted again): the
+      // next mount must schedule its own rebuild.
+      if (timerRef.current) clearTimeout(timerRef.current);
+      timerRef.current = null;
+      last.current = null;
+    },
+    [],
+  );
   useEffect(
     () => () => {
       onBusyChange?.(layerId, false);

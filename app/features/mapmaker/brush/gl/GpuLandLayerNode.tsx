@@ -108,6 +108,7 @@ export const GpuLandLayerNode = memo(function GpuLandLayerNode({
   H,
   projectW,
   projectH,
+  wrap = false,
   stage,
   onLandChange,
   onFail,
@@ -123,6 +124,8 @@ export const GpuLandLayerNode = memo(function GpuLandLayerNode({
   H: number;
   projectW: number;
   projectH: number;
+  /** The map's left and right edges meet (MMProject.seamless). */
+  wrap?: boolean;
   stage: StageView;
   onLandChange?: (layerId: string, land: HTMLCanvasElement | null) => void;
   /** The GPU engine can't run (lost context, out of memory): use the CPU. */
@@ -151,7 +154,7 @@ export const GpuLandLayerNode = memo(function GpuLandLayerNode({
     if (e && !e.alive) e = engineRef.current = null;
     if (!e) {
       try {
-        e = engineRef.current = new GpuLandLayer(projectW, projectH);
+        e = engineRef.current = new GpuLandLayer(projectW, projectH, wrap);
       } catch {
         onFail();
         return null;
@@ -171,7 +174,7 @@ export const GpuLandLayerNode = memo(function GpuLandLayerNode({
       });
     }
     return e;
-  }, [projectW, projectH, layerId, onFail]);
+  }, [projectW, projectH, wrap, layerId, onFail]);
 
   /** The part of the stage to compose (stage px), visible area + margin. */
   const visibleRect = useCallback(() => {
@@ -317,22 +320,40 @@ export const GpuLandLayerNode = memo(function GpuLandLayerNode({
       if (liveLand.layerId === layerId || shownRef.current) schedule(false);
     };
     liveLand.listeners.add(onLive);
-    const c = stage.container.current,
-      onScroll = () => {
-        if (!frameRef.current)
-          frameRef.current = requestAnimationFrame(() => {
-            frameRef.current = 0;
-            draw(false);
-          });
-      };
-    c?.addEventListener("scroll", onScroll, { passive: true });
-    const ro = c ? new ResizeObserver(onScroll) : null;
-    if (c) ro!.observe(c);
+    const onScroll = () => {
+      if (!frameRef.current)
+        frameRef.current = requestAnimationFrame(() => {
+          frameRef.current = 0;
+          draw(false);
+        });
+    };
+    // The stage's own children mount before the elements around the stage
+    // get their refs: wait a frame for them when they aren't there yet.
+    // Watched: scrolling, the view's size, and the room around the map (it
+    // changes with the view and moves the map without any scrolling).
+    let c: HTMLElement | null = null,
+      ro: ResizeObserver | null = null,
+      wait = 0;
+    const attach = () => {
+      c = stage.container.current;
+      if (!c) {
+        wait = requestAnimationFrame(attach);
+        return;
+      }
+      c.addEventListener("scroll", onScroll, { passive: true });
+      ro = new ResizeObserver(onScroll);
+      ro.observe(c);
+      const room = stage.box.current?.parentElement;
+      if (room) ro.observe(room);
+      onScroll();
+    };
+    attach();
     const offLost = onGlLost(() => {
       engineRef.current = null;
       schedule(true);
     });
     return () => {
+      cancelAnimationFrame(wait);
       liveLand.listeners.delete(onLive);
       c?.removeEventListener("scroll", onScroll);
       ro?.disconnect();
@@ -350,7 +371,7 @@ export const GpuLandLayerNode = memo(function GpuLandLayerNode({
       engines.delete(layerId);
       onLandChange?.(layerId, null);
     },
-    [layerId, projectW, projectH, onLandChange],
+    [layerId, projectW, projectH, wrap, onLandChange],
   );
 
   return (

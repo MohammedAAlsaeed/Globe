@@ -1,0 +1,159 @@
+/* The "Create a map" dialog. Its own file, imported by CreateMapModal: the
+   dialog opens on the home page and My maps too, where the editor's
+   stylesheet isn't loaded. (Its lapis colours: ../account/site.css.) */
+.mm-modal {
+  width: min(560px, 92vw);
+}
+.mm-modal-sub {
+  color: var(--muted);
+  font-size: 12px;
+  margin: -6px 0 16px;
+}
+.mm-name-field input {
+  font-size: 14px;
+}
+.mm-field-error {
+  color: #a8432f;
+  font-size: 11px;
+  margin: -8px 0 10px;
+}
+.mm-modal-section {
+  margin-bottom: 16px;
+}
+.mm-modal-label {
+  display: block;
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+.mm-option-grid-4 {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+.mm-option-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 6px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--paper);
+  font-size: 11px;
+  text-align: center;
+}
+.mm-option-card b {
+  font-size: 12px;
+}
+.mm-option-card small {
+  color: var(--muted);
+  font-size: 9.5px;
+}
+.mm-option-card.selected {
+  border-color: var(--gold);
+  background: rgba(170, 137, 83, 0.12);
+}
+.mm-aspect-swatch {
+  display: block;
+  border: 1.5px solid var(--muted);
+  border-radius: 2px;
+  margin-bottom: 2px;
+}
+.mm-aspect-landscape {
+  width: 26px;
+  height: 19px;
+}
+.mm-aspect-portrait {
+  width: 19px;
+  height: 26px;
+}
+.mm-aspect-square {
+  width: 22px;
+  height: 22px;
+}
+.mm-aspect-custom {
+  width: 24px;
+  height: 24px;
+  border-style: dashed;
+}
+.mm-custom-dims {
+  display: flex;
+  gap: 12px;
+  margin-top: 10px;
+}
+.mm-dimensions-preview {
+  font-size: 11px;
+  color: var(--muted);
+  background: var(--paper);
+  border: 1px dashed var(--line);
+  border-radius: 6px;
+  padding: 8px 12px;
+}
+.mm-modal-actions {
+  margin-top: 8px;
+}
+.mm-modal {
+  max-height: 92vh;
+  overflow-y: auto;
+}
+/* Start from: blank or a template */
+.mm-template-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+.mm-template-thumb {
+  display: block;
+  width: 100%;
+  aspect-ratio: 2 / 1;
+  height: auto;
+  border-radius: 4px;
+  margin-bottom: 4px;
+  object-fit: cover;
+}
+.mm-template-blank {
+  border: 1.5px dashed var(--line);
+}
+.mm-template-note {
+  font-size: 12px;
+  line-height: 1.6;
+  margin: -4px 0 14px;
+}
+.mm-template-hint {
+  display: block;
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 6px;
+}
+.mm-earth-layers {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px 12px;
+}
+.mm-earth-layer {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.mm-earth-layer input {
+  accent-color: var(--gold);
+}
+.mm-earth-pov {
+  display: block;
+  margin-bottom: 4px;
+}
+.mm-earth-pov select {
+  display: block;
+  width: 100%;
+  margin-top: 6px;
+}
+@media (max-width: 520px) {
+  .mm-earth-layers {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}

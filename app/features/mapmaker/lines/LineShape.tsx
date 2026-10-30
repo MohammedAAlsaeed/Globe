@@ -9,8 +9,9 @@
  *     selection boxes, the Transformer and marquee selection hug the line;
  *   - is hit along the path with a comfortable minimum width, so thin lines
  *     are still easy to click;
- *   - draws through a buffer when semi-transparent, so overlapping pieces
- *     and the casing don't stack up darker than the line's opacity.
+ *   - draws through a buffer when semi-transparent and made of overlapping
+ *     parts (pieces, a casing), so they don't stack up darker than the
+ *     line's opacity; a plain stroke takes its opacity directly.
  *
  * Its look is read from the `line` attribute, so the node editor and live
  * previews update a line imperatively (setAttr) without re-rendering React.
@@ -84,7 +85,14 @@ export class LineShape extends Konva.Shape {
     };
   }
   _useBufferCanvas() {
-    return this.getAbsoluteOpacity() < 1 && !!this.getStage();
+    if (this.getAbsoluteOpacity() >= 1 || !this.getStage()) return false;
+    // A plain stroke is one path stroked once: no pixel is painted twice, so
+    // the opacity applies directly. Pieces (stamp strokes) and a casing
+    // under the stroke overlap, so they need the buffer — a stage-sized
+    // canvas per line, far too slow to give every line (a world map has
+    // hundreds of semi-transparent rivers and borders).
+    const l = this.line();
+    return !l || l.mode === "stamp" || l.stroke.casing > 0;
   }
 }
 (Konva as unknown as Record<string, unknown>).LineShape = LineShape;

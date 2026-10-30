@@ -808,6 +808,10 @@ export interface MMProject {
   background: string;
   snapToGrid: boolean;
   layers: MMLayer[];
+  /** A world map whose left and right edges meet, as on a globe (the Earth
+   * template): land decoration and depth shading flow across that seam, so
+   * a printed globe shows no join. Unset = false. */
+  seamless?: boolean;
   updatedAt: number;
   /** Set when the project is saved in the cloud (see features/account). */
   cloud?: CloudBinding;

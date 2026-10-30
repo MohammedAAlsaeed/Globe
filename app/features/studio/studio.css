@@ -120,7 +120,7 @@
 .project-title input {
   border: 0;
   border-bottom: 1px solid #d7dbcd;
-  font-family: var(--serif);
+  font-family: var(--serif), serif;
   font-size: 18px;
   color: var(--ink);
   background: transparent;
@@ -387,7 +387,7 @@
   gap: 15px;
 }
 .section-heading h3 {
-  font-family: var(--serif);
+  font-family: var(--serif), serif;
   font-size: 19px;
   font-weight: 400;
 }

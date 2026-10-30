@@ -35,7 +35,7 @@
   min-height: 100vh;
   background: var(--bg);
   color: var(--text);
-  font-family: var(--body);
+  font-family: var(--body), sans-serif;
   font-size: 14px;
   line-height: 1.5;
   color-scheme: dark;
@@ -168,7 +168,7 @@ html:has(.adm[data-theme="light"]) body {
   line-height: 1.2;
 }
 .adm-brand b {
-  font-family: var(--display);
+  font-family: var(--display), serif;
   font-size: 17px;
   font-weight: 400;
 }
@@ -422,7 +422,7 @@ html:has(.adm[data-theme="light"]) body {
 .adm-profile h1,
 .adm-gate h1 {
   margin: 0;
-  font-family: var(--display);
+  font-family: var(--display), serif;
   font-size: 30px;
   font-weight: 400;
   line-height: 1.2;

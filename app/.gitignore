@@ -42,3 +42,6 @@ next-env.d.ts
 
 # Local print QA artifacts
 /tmp/
+
+# downloaded template sources (scripts/build-earth-template.mjs)
+/scripts/.cache/

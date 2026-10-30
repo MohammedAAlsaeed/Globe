@@ -43,6 +43,7 @@ function shapeFor(req: CoastRequest) {
     req.height,
     req.fx,
     req.seed,
+    req.wrap,
   );
   shapes.set(req.shapeKey, shape);
   if (shapes.size > MAX_SHAPES) shapes.delete(shapes.keys().next().value!);

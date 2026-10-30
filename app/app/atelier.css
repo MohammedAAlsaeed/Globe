@@ -15,7 +15,7 @@ body {
   margin: 0;
   background: var(--paper);
   color: var(--ink);
-  font-family: var(--sans);
+  font-family: var(--sans), sans-serif;
   font-size: 13px;
   -webkit-font-smoothing: antialiased;
 }
@@ -95,7 +95,7 @@ button:hover {
   line-height: 1;
 }
 .brand b {
-  font-family: var(--serif);
+  font-family: var(--serif), serif;
   font-size: 23px;
   font-weight: normal;
   letter-spacing: 3px;
@@ -175,7 +175,7 @@ main {
   background: var(--gold);
 }
 h1 {
-  font-family: var(--serif);
+  font-family: var(--serif), serif;
   font-size: 49px;
   letter-spacing: -1.5px;
   font-weight: 400;
@@ -249,7 +249,7 @@ h1 {
   gap: 7px;
 }
 .steps b {
-  font-family: var(--serif);
+  font-family: var(--serif), serif;
   font-weight: normal;
   font-size: 11px;
   color: var(--gold);
@@ -291,7 +291,7 @@ h2 {
 }
 .section-number {
   margin-inline-start: auto;
-  font-family: var(--serif);
+  font-family: var(--serif), serif;
   font-size: 11px;
   color: #a9ab9e;
 }
@@ -316,7 +316,7 @@ h2 {
   margin-bottom: 2px;
 }
 .upload-zone strong {
-  font-family: var(--serif);
+  font-family: var(--serif), serif;
   font-size: 17px;
   font-weight: 400;
 }
@@ -673,7 +673,7 @@ input[type="range"] {
   margin: 10px 0 12px;
 }
 .plate-title h3 {
-  font-family: var(--serif);
+  font-family: var(--serif), serif;
   font-size: 22px;
   font-weight: 400;
   color: #63654c;
@@ -777,7 +777,7 @@ input[type="range"] {
   color: #7a885f;
 }
 .export-heading h2 {
-  font-family: var(--serif);
+  font-family: var(--serif), serif;
   font-size: 20px;
   font-weight: 400;
 }
@@ -876,7 +876,7 @@ input[type="range"] {
   line-height: 1;
 }
 .craft-banner h3 {
-  font-family: var(--serif);
+  font-family: var(--serif), serif;
   font-size: 17px;
   font-weight: 400;
   color: #6c7557;
@@ -936,7 +936,7 @@ dialog::backdrop {
   justify-content: space-between;
 }
 dialog h2 {
-  font-family: var(--serif);
+  font-family: var(--serif), serif;
   font-size: 29px;
   margin: 20px 0;
 }

@@ -44,7 +44,7 @@
 }
 .pr-page .pr-hero h1 {
   margin: 8px 0 10px;
-  font-family: var(--display);
+  font-family: var(--display), serif;
   font-size: clamp(32px, 4.4vw, 52px);
   font-weight: 700;
   line-height: 1.08;
@@ -108,7 +108,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-family: var(--display);
+  font-family: var(--display), serif;
   font-size: 20px;
   color: var(--vellum);
 }
@@ -183,7 +183,7 @@
 .pr-page .project-title input {
   border-bottom-color: var(--pr-border);
   color: var(--vellum);
-  font-family: var(--display);
+  font-family: var(--display), serif;
 }
 .pr-page .project-actions button {
   color: var(--gold-pale);
@@ -232,7 +232,7 @@
 }
 .pr-page .control-section h2 {
   color: var(--vellum);
-  font-family: var(--display);
+  font-family: var(--display), serif;
   font-size: 18px;
 }
 .pr-page .control-section h2 > svg {
@@ -506,7 +506,7 @@
 }
 .pr-page .preview-header h2 {
   color: var(--vellum);
-  font-family: var(--display);
+  font-family: var(--display), serif;
 }
 .pr-page .live {
   background: rgba(143, 207, 160, 0.12);
@@ -619,7 +619,7 @@
 /* ---- printing panel ---- */
 .pr-page .export-heading h2 {
   color: var(--vellum);
-  font-family: var(--display);
+  font-family: var(--display), serif;
 }
 .pr-page .export-heading p {
   color: var(--muted);
