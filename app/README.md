@@ -27,11 +27,13 @@ npm run format
 
 The print studio works on its own. The map creator's accounts, cloud maps, asset library and plans need the Laravel API in [`../api`](../api/README.md) running on `http://localhost:8000`. Without it, the editor still works signed out and saves on the device.
 
-Optional settings go in `app/.env.local` (restart `npm run dev` after changing them):
+Optional settings go in `app/.env.local` (start from `.env.example`; restart `npm run dev` after changing them). The develop and production values are in [`../deploy`](../deploy/README.md).
 
 | Variable | Default | |
 |---|---|---|
 | `NEXT_PUBLIC_API_URL` | `http://localhost:8000` | Where the API runs. |
+| `NEXT_PUBLIC_SITE_URL` | `http://localhost:3000` | The site's own address: canonical links, link previews, the sitemap. |
+| `NEXT_PUBLIC_APP_ENV` | `local` | `production` on the customers' site only: it is the one search engines may index (robots.txt, sitemap) and the one sent with strict transport security. |
 | `NEXT_PUBLIC_UPGRADE_URL` | *(empty)* | Checkout page for plan upgrades; the upgrade prompt links to it with `?plan=<code>&from=<limit>`. Empty: the prompt shows "coming soon". |
 
 Always open the site as `localhost`, not `127.0.0.1`, so the session cookie set by the API is sent back.

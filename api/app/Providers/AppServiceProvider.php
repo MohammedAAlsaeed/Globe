@@ -12,9 +12,11 @@ use App\Observers\OfficialContentObserver;
 use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Http\Middleware\TrustProxies;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Facades\URL;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
 
@@ -30,6 +32,19 @@ class AppServiceProvider extends ServiceProvider
         // Catch N+1 queries and silently dropped attributes while developing.
         Model::preventLazyLoading(! $this->app->isProduction());
         Model::preventSilentlyDiscardingAttributes(! $this->app->isProduction());
+
+        // Behind a proxy (Cloudflare, the host's load balancer): trust it for
+        // the client's IP and the original https scheme (TRUSTED_PROXIES).
+        $proxies = config('idrisi.trusted_proxies');
+        if (is_string($proxies) && trim($proxies) !== '') {
+            TrustProxies::at(trim($proxies) === '*' ? '*' : array_map('trim', explode(',', $proxies)));
+        }
+
+        // A site served over https builds every link over https (email
+        // verification links are signed: the scheme is part of the signature).
+        if (str_starts_with((string) config('app.url'), 'https://')) {
+            URL::forceScheme('https');
+        }
 
         Gate::define('admin', fn (User $user) => $user->isAdmin());
 

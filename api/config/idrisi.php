@@ -9,6 +9,13 @@ return [
     // Where the web app lives: links in emails and OAuth redirects go here.
     'frontend_url' => rtrim(env('FRONTEND_URL', 'http://localhost:3000'), '/'),
 
+    // The load balancers / proxies in front of the API (Cloudflare, the
+    // host's own): '*' trusts whoever connects (fine when only the proxy can
+    // reach the server), or a comma-separated list of IPs / CIDR ranges.
+    // Without it the API thinks every request is plain http from the proxy:
+    // wrong links in emails, rate limits shared by everyone.
+    'trusted_proxies' => env('TRUSTED_PROXIES'),
+
     // Interface languages the web app ships.
     'locales' => ['ar', 'en'],
 
