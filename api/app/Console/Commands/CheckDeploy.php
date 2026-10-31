@@ -138,7 +138,7 @@ class CheckDeploy extends Command
         }
         $db = (string) config('database.default');
         if ($live && $db === 'sqlite') {
-            $this->add('warn', 'Database', 'SQLite on a live server: use PostgreSQL.');
+            $this->add('warn', 'Database', 'SQLite on a live server: its file is lost on every deploy. Attach a MySQL or PostgreSQL database.');
         }
         $queue = (string) config('queue.default');
         if ($live && $queue === 'sync') {

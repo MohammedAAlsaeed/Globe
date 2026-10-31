@@ -3,10 +3,13 @@
 namespace Tests\Feature;
 
 use App\Models\User;
+use Illuminate\Auth\Events\Registered;
 use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Auth\Notifications\VerifyEmail;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\URL;
+use RuntimeException;
 use Tests\TestCase;
 
 class AuthTest extends TestCase
@@ -32,6 +35,20 @@ class AuthTest extends TestCase
 
         $this->assertAuthenticated();
         Notification::assertSentTo(User::first(), VerifyEmail::class);
+    }
+
+    public function test_register_succeeds_when_the_email_cannot_be_sent(): void
+    {
+        Event::listen(Registered::class, fn () => throw new RuntimeException('SMTP down'));
+
+        $this->postJson('/api/v1/auth/register', [
+            'name' => 'Mohammed',
+            'email' => 'mo@example.com',
+            'password' => 'secret123',
+            'password_confirmation' => 'secret123',
+        ])->assertCreated()->assertJsonPath('data.email_verified', false);
+
+        $this->assertAuthenticated();
     }
 
     public function test_register_rejects_weak_passwords_and_duplicate_emails(): void

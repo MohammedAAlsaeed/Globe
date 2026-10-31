@@ -46,6 +46,22 @@ class MapTest extends TestCase
         $this->assertStringEndsWith('.json.gz', $stored->document_path);
     }
 
+    public function test_documents_are_plain_gzip_files_and_read_either_way(): void
+    {
+        $user = User::factory()->create();
+        $map = $this->createMap($user, ['document' => $this->document(['label' => 'one'])]);
+        $path = Map::find($map['id'])->document_path;
+
+        // A gzip file on disk.
+        $this->assertStringStartsWith("\x1f\x8b", Storage::disk('s3')->get($path));
+
+        // A file written with `Content-Encoding: gzip` (earlier versions) comes
+        // back from S3 / R2 already decompressed by the HTTP client.
+        Storage::disk('s3')->put($path, json_encode($this->document(['label' => 'two'])));
+        $this->actingAs($user)->getJson("/api/v1/maps/{$map['id']}")
+            ->assertOk()->assertJsonPath('document.label', 'two');
+    }
+
     public function test_free_plan_allows_three_maps(): void
     {
         $user = User::factory()->create();

@@ -7,6 +7,7 @@ use App\Models\MapVersion;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use RuntimeException;
 
 /**
  * Stores map documents: gzip-compressed JSON on the owner's region disk,
@@ -62,10 +63,23 @@ class MapDocuments
         });
     }
 
-    /** The current document as a JSON string. */
+    /**
+     * The current document as a JSON string. Files are gzip, but one written
+     * with a `Content-Encoding: gzip` header (as earlier versions did) comes
+     * back from S3 / R2 already decompressed by the HTTP client: both work.
+     */
     public function read(Map $map): string
     {
-        return gzdecode(Storage::disk($map->disk)->get($map->document_path));
+        $stored = (string) Storage::disk($map->disk)->get($map->document_path);
+        if (! str_starts_with($stored, "\x1f\x8b")) {
+            return $stored;
+        }
+        $json = gzdecode($stored);
+        if ($json === false) {
+            throw new RuntimeException("Map document {$map->document_path} is not valid gzip.");
+        }
+
+        return $json;
     }
 
     /** Deletes every file of a map (after the row is gone for good). */
@@ -77,9 +91,10 @@ class MapDocuments
     private function write(Map $map, string $json): void
     {
         $path = $this->directory($map)."/r{$map->revision}.json.gz";
+        // A plain gzip file, not `Content-Encoding: gzip`: with that header the
+        // HTTP client decompresses it on the way back, behind our back.
         Storage::disk($map->disk)->put($path, gzencode($json, 6), [
-            'ContentType' => 'application/json',
-            'ContentEncoding' => 'gzip',
+            'ContentType' => 'application/gzip',
         ]);
         $map->document_path = $path;
         $map->document_bytes = strlen($json);

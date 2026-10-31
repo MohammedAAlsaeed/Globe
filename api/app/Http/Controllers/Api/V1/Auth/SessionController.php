@@ -14,6 +14,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
 use Illuminate\Validation\ValidationException;
+use Throwable;
 
 /**
  * Email + password accounts for the web app (Sanctum SPA): the session lives
@@ -39,7 +40,14 @@ class SessionController extends Controller
             'locale' => $data['locale'] ?? config('app.locale'),
             'region' => $regions->resolve($data['region'] ?? null),
         ]);
-        event(new Registered($user)); // sends the verification email
+        try {
+            event(new Registered($user)); // sends the verification email
+        } catch (Throwable $e) {
+            // The account exists: an email that couldn't go out mustn't turn the
+            // sign-up into an error (a retry would then say "email taken"). The
+            // app offers to send it again; the failure is in the logs.
+            report($e);
+        }
 
         Auth::login($user);
         $request->session()->regenerate();
