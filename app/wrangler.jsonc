@@ -1,0 +1,29 @@
+// Cloudflare Workers settings for the web app, built with OpenNext
+// (npm run deploy, or Workers Builds on every push). See deploy/README.md.
+//
+//   develop    → Worker idrisi-app-develop → https://idrisi.win
+//   production → Worker idrisi-app (--env production) → the .sa domain
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "idrisi-app-develop",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2026-10-01",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS",
+  },
+  "services": [
+    { "binding": "WORKER_SELF_REFERENCE", "service": "idrisi-app-develop" },
+  ],
+  "observability": { "enabled": true },
+  "env": {
+    "production": {
+      "name": "idrisi-app",
+      "services": [
+        { "binding": "WORKER_SELF_REFERENCE", "service": "idrisi-app" },
+      ],
+      "observability": { "enabled": true },
+    },
+  },
+}

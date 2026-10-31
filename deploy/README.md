@@ -11,6 +11,7 @@ Two copies of Al-Idrisi Atelier run on the internet, each built from its own bra
 | Files (R2 bucket) | `idrisi-dev` | `idrisi-prod` |
 | Google sign-in | its own OAuth client | its own OAuth client |
 | Search engines | closed (`noindex`, robots.txt disallows all) | open |
+| Web app on | Cloudflare Worker `idrisi-app-develop` | Cloudflare Worker `idrisi-app` |
 | Settings | [`env/*.develop.env.example`](env) | [`env/*.production.env.example`](env) |
 
 **Our domains:** the develop copy is on **`idrisi.win`** (filled in under `env/*.develop.env.example`). The production domain, a `.sa` one, is still to be bought: `example.sa` stands for it in `env/*.production.env.example` (`example.com.sa` works the same). In the rest of this guide, `example.com` means whichever domain you are setting up.
@@ -32,8 +33,8 @@ Two copies of Al-Idrisi Atelier run on the internet, each built from its own bra
 
 | Name | Type | Points to |
 |---|---|---|
-| `example.com` | CNAME (flattened) / A | web app host (production) |
-| `www` | CNAME | `example.com` (redirected by the rule above) |
+| `example.com` | Worker custom domain | the web app's Worker (created by Cloudflare when you add the domain to it) |
+| `www` | Worker custom domain | the same Worker (redirected by the rule above) |
 | `api` | CNAME | API host (production) |
 | `assets` *(later)* | R2 custom domain | bucket `idrisi-prod`, for public stamp files |
 
@@ -65,7 +66,7 @@ In Google Cloud Console → APIs & Services → Credentials, one OAuth client pe
 
 ## 5. Settings and the check
 
-1. Web app host (e.g. Vercel): set the variables from `env/app.production.env.example` for production (branch `master`) and `env/app.develop.env.example` for develop (branch `develop`). `NEXT_PUBLIC_` values are built into the site: redeploy after changing them.
+1. Web app: on Cloudflare Workers (see [The web app on Cloudflare Workers](#the-web-app-on-cloudflare-workers) below), with the variables from `env/app.develop.env.example` for develop (branch `develop`) and `env/app.production.env.example` for production (branch `master`).
 2. API host: the variables from `env/api.*.env.example`, secrets filled in.
 3. On each API server:
 
@@ -77,6 +78,28 @@ In Google Cloud Console → APIs & Services → Credentials, one OAuth client pe
 
    `idrisi:check-deploy` checks what must agree for sign-in to work: the site and the API on one domain, the cookie domain covering both, Sanctum and CORS knowing the site, and the Google callback. It also checks https, debug mode, email and storage. It must end with **Ready**; it exits with an error otherwise, so a deploy script can stop there.
 4. The first owner: sign up on the site, then `php artisan idrisi:make-admin you@example.com --role=owner`, and set up two-factor sign-in in the admin panel.
+
+### The web app on Cloudflare Workers
+
+The web app (`app/`) runs on Cloudflare Workers, built with OpenNext: on the same account as the domain, its DNS and the R2 buckets. Settings: `app/wrangler.jsonc` (the Worker's name, one per environment) and `app/open-next.config.ts` (pages are built once at deploy time and served from the Worker's static files).
+
+**Connect the repository** (once per environment). Cloudflare → Workers & Pages → Create → Import a repository → `Globe`:
+
+| | develop | production |
+|---|---|---|
+| Project name | `idrisi-app-develop` | `idrisi-app` |
+| Production branch | `develop` | `master` |
+| Root directory | `app` | `app` |
+| Build command | `npx opennextjs-cloudflare build` | `npx opennextjs-cloudflare build` |
+| Deploy command | `npx opennextjs-cloudflare deploy` | `npx opennextjs-cloudflare deploy -- --env production` |
+
+The project name must match the Worker's name in `wrangler.jsonc`. Under **Settings → Build → Variables and secrets**, add the variables from `env/app.*.env.example`. They are needed at build time: the `NEXT_PUBLIC_` values are built into the site, so rebuild after changing them (Deployments → Retry). Then **Settings → Domains & Routes → Add → Custom domain**: `idrisi.win` (and `www.idrisi.win`, redirected by the rule in section 1). Cloudflare creates the DNS record and the certificate itself.
+
+Every push to the branch then builds and publishes the site; a push to another branch builds a preview version with its own address.
+
+**By hand**, from `app/`: `npm run preview` runs the built site locally in the Workers runtime; `npm run deploy` publishes the develop Worker (`npx wrangler login` once first).
+
+**Size:** the Workers free plan takes a server bundle of up to 3 MiB compressed (10 MiB on the paid plan); the build shows it (`gzip:` in the deploy output). The site is about 1.8 MiB today: most of its code runs in the browser and doesn't count.
 
 ## 6. After it is live
 
