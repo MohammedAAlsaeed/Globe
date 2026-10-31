@@ -21,6 +21,8 @@ npm run build:webpack
 npm run format
 ```
 
+`npm run preview` builds the site for Cloudflare Workers and runs it locally in the Workers runtime (http://localhost:8787), the way it runs online; `npm run deploy` publishes it (see [`../deploy`](../deploy/README.md)). Their settings are in `wrangler.jsonc` and `open-next.config.ts`.
+
 `npm run build` also supports the default Turbopack build. `build:webpack` is useful in environments that restrict the local ports used by Turbopack CSS workers. Tests generate ignored PDF QA fixtures under `tmp/pdfs/`.
 
 ### The map creator and the API
