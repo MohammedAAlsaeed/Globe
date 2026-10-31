@@ -11,19 +11,19 @@
   "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
   "assets": {
     "directory": ".open-next/assets",
-    "binding": "ASSETS",
+    "binding": "ASSETS"
   },
   "services": [
-    { "binding": "WORKER_SELF_REFERENCE", "service": "idrisi-app-develop" },
+    { "binding": "WORKER_SELF_REFERENCE", "service": "idrisi-app-develop" }
   ],
   "observability": { "enabled": true },
   "env": {
     "production": {
       "name": "idrisi-app",
       "services": [
-        { "binding": "WORKER_SELF_REFERENCE", "service": "idrisi-app" },
+        { "binding": "WORKER_SELF_REFERENCE", "service": "idrisi-app" }
       ],
-      "observability": { "enabled": true },
-    },
-  },
+      "observability": { "enabled": true }
+    }
+  }
 }
