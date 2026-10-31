@@ -5,17 +5,17 @@ Two copies of Al-Idrisi Atelier run on the internet, each built from its own bra
 | | develop (the team's copy) | production (customers) |
 |---|---|---|
 | Branch | `develop` | `master` |
-| Web app | `https://example-dev.com` | `https://idrisi.win` (`www.` redirects to it) |
-| API | `https://api.example-dev.com` | `https://api.idrisi.win` |
+| Web app | `https://idrisi.win` | `https://example.sa` (`www.` redirects to it) |
+| API | `https://api.idrisi.win` | `https://api.example.sa` |
 | Database | its own | its own |
 | Files (R2 bucket) | `idrisi-dev` | `idrisi-prod` |
 | Google sign-in | its own OAuth client | its own OAuth client |
 | Search engines | closed (`noindex`, robots.txt disallows all) | open |
 | Settings | [`env/*.develop.env.example`](env) | [`env/*.production.env.example`](env) |
 
-**Our domains:** production is **`idrisi.win`** (filled in under `env/*.production.env.example`). The develop domain is still to be chosen: `example-dev.com` below and in `env/*.develop.env.example` stands for it. In the rest of this guide, `example.com` means `idrisi.win`.
+**Our domains:** the develop copy is on **`idrisi.win`** (filled in under `env/*.develop.env.example`). The production domain, a `.sa` one, is still to be bought: `example.sa` stands for it in `env/*.production.env.example` (`example.com.sa` works the same). In the rest of this guide, `example.com` means whichever domain you are setting up.
 
-**Why a second domain for develop.** The API and the web app share one domain so the sign-in cookies reach both (the cookie is set on `.example.com`). A develop copy on `dev.example.com` would sit under that same cookie domain: its session and `XSRF-TOKEN` cookies would collide with the real site's for anyone who uses both, causing sudden sign-outs and "page expired" errors. A second, cheap domain keeps the two copies fully apart (cookies, search results, email reputation).
+**Each copy on its own domain.** The API and the web app share one domain so the sign-in cookies reach both (the cookie is set on `.example.com`). Never put one copy on a subdomain of the other (e.g. develop on `dev.example.sa`): its session and `XSRF-TOKEN` cookies would collide with the other's for anyone who uses both, causing sudden sign-outs and "page expired" errors. Separate domains also keep search results and email reputation apart.
 
 ## 1. The domain
 
