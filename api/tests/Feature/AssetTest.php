@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Asset;
 use App\Models\AssetPack;
+use App\Models\Plan;
 use App\Models\User;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
@@ -55,7 +56,7 @@ class AssetTest extends TestCase
             ->assertCreated();
 
         // A plan without uploads can't even make a pack.
-        \App\Models\Plan::query()->where('code', 'explorer')->update(['upload_quota_bytes' => 0]);
+        Plan::query()->where('code', 'explorer')->update(['upload_quota_bytes' => 0]);
         $this->postJson('/api/v1/asset-packs', ['name' => 'More', 'kind' => 'stamps'])
             ->assertForbidden()->assertJsonPath('limit', 'upload_bytes');
     }
@@ -126,7 +127,7 @@ class AssetTest extends TestCase
         ])->assertUnprocessable();
 
         // Over the quota.
-        \App\Models\Plan::query()->where('code', 'cartographer')->update(['upload_quota_bytes' => 10]);
+        Plan::query()->where('code', 'cartographer')->update(['upload_quota_bytes' => 10]);
         $this->post("/api/v1/asset-packs/{$pack['id']}/assets", [
             'file' => UploadedFile::fake()->image('big.png', 64, 64),
         ])->assertForbidden()->assertJsonPath('limit', 'upload_bytes');

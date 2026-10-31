@@ -26,7 +26,7 @@ class ApiException extends RuntimeException
      * A plan limit was reached. `plan` (the person's current plan code) lets
      * the web app say which plan it is and offer the ones above it.
      */
-    public static function planLimit(string $what, int|null $limit, ?string $plan = null): self
+    public static function planLimit(string $what, ?int $limit, ?string $plan = null): self
     {
         return new self('plan_limit_reached', "Your plan's {$what} limit has been reached.", 403, array_filter([
             'limit' => $what,
