@@ -120,7 +120,7 @@ The API (`api/`) runs on Laravel Cloud (plan Starter), region EU Central (Frankf
 |---|---|
 | **Web app** | `npm ci`, lint, typecheck, tests, the Cloudflare Workers build, and the Worker's size (fails above 2,900 KiB gzip, before the free plan's 3 MiB limit) |
 | **API (sqlite / mysql / pgsql)** | `composer validate`, the tests on each database (MySQL 8.4 as on Laravel Cloud, PostgreSQL 17), and Pint (code style) once |
-| **Dependency audit** | `npm audit` and `composer audit` on what ships (high severity and up) |
+| **Dependency audit** | On what ships: `npm audit` (high severity and up) and `composer audit` (any advisory) |
 
 **CD** is done by the hosts, on push: Cloudflare Workers Builds deploys the web app and Laravel Cloud the API, from `develop` (and later `master`). Workers Builds also builds every other branch as a preview version with its own address. CI doesn't deploy: what keeps a broken change from reaching them is **branch protection**.
 

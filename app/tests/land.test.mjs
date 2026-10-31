@@ -83,11 +83,14 @@ test("roughness moves the edge in proportion to the brush, never more", () => {
       R = size / 2;
     let lo = Infinity,
       hi = -Infinity;
-    for (let i = 0; i < 4000; i++) {
-      const r = radiusAt(s, Math.random(), Math.random() * 0.75) / R;
-      lo = Math.min(lo, r);
-      hi = Math.max(hi, r);
-    }
+    // A fixed grid over the whole map (not random points), so the test checks
+    // the same thing on every run.
+    for (let i = 0; i < 80; i++)
+      for (let j = 0; j < 60; j++) {
+        const r = radiusAt(s, (i + 0.5) / 80, ((j + 0.5) / 60) * 0.75) / R;
+        lo = Math.min(lo, r);
+        hi = Math.max(hi, r);
+      }
     assert.ok(
       lo >= 1 - ROUGH_AMP - 1e-9 && hi <= 1 + ROUGH_AMP + 1e-9,
       `${lo}..${hi}`,
