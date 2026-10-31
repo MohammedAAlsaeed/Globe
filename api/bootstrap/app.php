@@ -1,5 +1,9 @@
 <?php
 
+use App\Http\Middleware\AccountGuard;
+use App\Http\Middleware\EnsureAdminTwoFactor;
+use App\Http\Middleware\EnsureStaff;
+use App\Http\Middleware\RequirePermission;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -17,11 +21,11 @@ return Application::configure(basePath: dirname(__DIR__))
         // Sanctum SPA: requests from the web app's origin get session cookies.
         $middleware->statefulApi();
         // Suspended accounts and ended sessions are signed out at once.
-        $middleware->api(append: [\App\Http\Middleware\AccountGuard::class]);
+        $middleware->api(append: [AccountGuard::class]);
         $middleware->alias([
-            'staff' => \App\Http\Middleware\EnsureStaff::class,
-            'admin.2fa' => \App\Http\Middleware\EnsureAdminTwoFactor::class,
-            'permission' => \App\Http\Middleware\RequirePermission::class,
+            'staff' => EnsureStaff::class,
+            'admin.2fa' => EnsureAdminTwoFactor::class,
+            'permission' => RequirePermission::class,
         ]);
         // Signed-in users hitting guest-only routes, and guests hitting
         // protected ones, are sent to the web app (API clients get JSON).

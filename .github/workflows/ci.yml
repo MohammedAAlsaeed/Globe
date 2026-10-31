@@ -1,0 +1,168 @@
+# Checks every pull request and every push to develop and master.
+#
+# Deploys are not done here: Cloudflare Workers Builds (the web app) and
+# Laravel Cloud (the API) deploy a branch when it is pushed. What keeps a
+# broken change from reaching them is branch protection on develop and
+# master: changes arrive by pull request, and these checks must pass first
+# (see deploy/README.md, "CI/CD").
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [develop, master]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  app:
+    name: Web app
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: app
+    env:
+      # The develop copy's settings: the build is the one Cloudflare makes.
+      NEXT_PUBLIC_APP_ENV: develop
+      NEXT_PUBLIC_SITE_URL: https://idrisi.win
+      NEXT_PUBLIC_API_URL: https://api.idrisi.win
+      NEXT_TELEMETRY_DISABLED: 1
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Tests
+        run: npm test
+
+      - name: Build for Cloudflare Workers
+        run: npx opennextjs-cloudflare build
+
+      # The Workers free plan takes a server bundle of up to 3 MiB (gzip).
+      # Fail a little before that, with room to act.
+      - name: Worker size
+        run: |
+          npx wrangler deploy --dry-run --outdir .wrangler/dry-run | tee wrangler.log
+          kib=$(grep -oE 'gzip: [0-9.]+ KiB' wrangler.log | grep -oE '[0-9.]+' | tail -1)
+          echo "### Worker size: ${kib} KiB gzip (limit 3072 KiB on the free plan)" >> "$GITHUB_STEP_SUMMARY"
+          awk -v k="$kib" 'BEGIN { exit !(k != "" && k < 2900) }' \
+            || { echo "::error::Worker bundle is ${kib} KiB gzip: close to or over the 3 MiB free-plan limit."; exit 1; }
+
+  api:
+    name: API (${{ matrix.db }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: api
+    strategy:
+      fail-fast: false
+      matrix:
+        # sqlite: the fast default; mysql: the develop copy (Laravel Cloud);
+        # pgsql: local development and the production option.
+        db: [sqlite, mysql, pgsql]
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_DATABASE: idrisi_test
+          MYSQL_ROOT_PASSWORD: secret
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -psecret"
+          --health-interval=5s --health-timeout=5s --health-retries=20
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: idrisi_test
+          POSTGRES_PASSWORD: secret
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd="pg_isready -U postgres"
+          --health-interval=5s --health-timeout=5s --health-retries=20
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.5'
+          extensions: mbstring, intl, gd, exif, zip, zlib, sodium, pdo_sqlite, pdo_mysql, pdo_pgsql
+          coverage: none
+          tools: composer:v2
+
+      - name: Composer cache
+        id: composer-cache
+        run: echo "dir=$(composer config cache-files-dir)" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/cache@v4
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: composer-${{ runner.os }}-${{ hashFiles('api/composer.lock') }}
+          restore-keys: composer-${{ runner.os }}-
+
+      - name: composer.json and composer.lock agree
+        run: composer validate --strict --no-check-publish
+
+      - run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: App key
+        run: cp .env.example .env && php artisan key:generate
+
+      - name: Code style (Pint)
+        if: matrix.db == 'sqlite'
+        run: vendor/bin/pint --test
+
+      - name: Tests
+        run: php artisan test
+        env:
+          DB_CONNECTION: ${{ matrix.db }}
+          DB_HOST: 127.0.0.1
+          DB_PORT: ${{ matrix.db == 'mysql' && '3306' || '5432' }}
+          DB_DATABASE: ${{ matrix.db == 'sqlite' && ':memory:' || 'idrisi_test' }}
+          DB_USERNAME: ${{ matrix.db == 'mysql' && 'root' || 'postgres' }}
+          DB_PASSWORD: secret
+
+  audit:
+    name: Dependency audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+
+      # What ships to visitors: build-only tools (OpenNext, Wrangler, ESLint) are devDependencies.
+      - name: npm audit (web app)
+        working-directory: app
+        run: npm audit --omit=dev --audit-level=high
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.5'
+          coverage: none
+          tools: composer:v2
+
+      - name: composer audit (API)
+        working-directory: api
+        run: composer audit --locked --no-dev

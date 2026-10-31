@@ -112,6 +112,30 @@ The API (`api/`) runs on Laravel Cloud (plan Starter), region EU Central (Frankf
 - **Deploy commands:** `php artisan migrate --force`, `php artisan db:seed --class=PlanSeeder --force`, `php artisan idrisi:check-deploy` (a deploy stops there if a setting is wrong).
 - **Domain:** Settings → Network → Custom domains → `api.idrisi.win` ("managed by Cloudflare"); in Cloudflare DNS a `CNAME api → to.laravel.cloud`, **DNS only** (grey cloud).
 
+## CI/CD
+
+**CI** (`.github/workflows/ci.yml`, GitHub Actions) runs on every pull request and every push to `develop` and `master`:
+
+| Check | What it runs |
+|---|---|
+| **Web app** | `npm ci`, lint, typecheck, tests, the Cloudflare Workers build, and the Worker's size (fails above 2,900 KiB gzip, before the free plan's 3 MiB limit) |
+| **API (sqlite / mysql / pgsql)** | `composer validate`, the tests on each database (MySQL 8.4 as on Laravel Cloud, PostgreSQL 17), and Pint (code style) once |
+| **Dependency audit** | On what ships: `npm audit` (high severity and up) and `composer audit` (any advisory) |
+
+**CD** is done by the hosts, on push: Cloudflare Workers Builds deploys the web app and Laravel Cloud the API, from `develop` (and later `master`). Workers Builds also builds every other branch as a preview version with its own address. CI doesn't deploy: what keeps a broken change from reaching them is **branch protection**.
+
+**Branch protection** (GitHub → the repo → Settings → Branches → Add rule, once for `develop` and once for `master`):
+
+- Require a pull request before merging.
+- Require status checks to pass: `Web app`, `API (sqlite)`, `API (mysql)`, `API (pgsql)`, `Dependency audit`; and require branches to be up to date before merging.
+- Do not allow bypassing the above settings; block force pushes and deletions.
+
+So every change reaches `develop` and `master` by a pull request that passed CI, and only then do the hosts deploy it. A failed deploy check (`idrisi:check-deploy` on Laravel Cloud) still stops a deploy there.
+
+**Dependabot** (`.github/dependabot.yml`) opens update pull requests into `develop` every Sunday (npm, Composer; GitHub Actions monthly), minor and patch updates grouped, plus security fixes as they are published. They go through the same checks.
+
+**Locally**, before pushing: `npm run lint && npm run typecheck && npm test` in `app/`, and `vendor/bin/pint --test && php artisan test` in `api/`.
+
 ## 6. After it is live
 
 - Sign up, verify the email (check it isn't in spam), reset the password, sign in with Google: on both copies.

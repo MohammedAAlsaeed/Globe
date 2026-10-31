@@ -19,17 +19,21 @@ class PreferenceRules
         'ctrlWheel' => ['zoom', 'rotate'],
         'middleButton' => ['pan', 'none'],
     ];
+
     private const BOOLS = ['invertZoom', 'zoomToCursor', 'smoothZoom', 'spacePan'];
+
     private const NUMBERS = [
         'zoomSpeed' => [0.25, 3],
         'panStep' => [10, 600],
         'rotateStep' => [1, 90],
     ];
+
     private const TOUCH = [
         'bools' => ['fingerDraws', 'pinchZoom', 'longPress'],
         'numbers' => ['longPressMs' => [300, 1500]],
         'choices' => [],
     ];
+
     private const PEN = [
         'bools' => ['pressure', 'palmRejection'],
         'numbers' => [],
