@@ -8,6 +8,7 @@ import { usePathname } from "next/navigation";
 import { useTranslation } from "react-i18next";
 import { SiteHeader } from "@/features/account/ui";
 import { useAuth } from "@/features/account/AuthProvider";
+import { Flourish } from "@/components/ui/Flourish";
 
 export function NotFoundView() {
   const { t } = useTranslation(),
@@ -27,7 +28,9 @@ export function NotFoundView() {
           width={150}
           height={150}
         />
-        <h1>{t("sysNotFoundTitle")}</h1>
+        <h1 className="fl-title">
+          <Flourish text={t("sysNotFoundTitle")} />
+        </h1>
         <p className="system-lead">{t("sysNotFoundLead")}</p>
         {path && path !== "/" && (
           <p className="system-address">

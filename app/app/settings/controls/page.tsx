@@ -8,6 +8,7 @@ import { useTranslation } from "react-i18next";
 import { SiteHeader } from "@/features/account/ui";
 import { ControlsSettings } from "@/features/mapmaker/components/ControlsSettings";
 import "../../../features/mapmaker/mapmaker.css";
+import { Flourish } from "@/components/ui/Flourish";
 
 export default function Page() {
   const { t } = useTranslation();
@@ -17,7 +18,9 @@ export default function Page() {
       <main className="mm-ct-page">
         <div className="mm-ct-page-head">
           <div>
-            <h1>{t("ctTitle")}</h1>
+            <h1 className="fl-title">
+              <Flourish text={t("ctPageTitle")} />
+            </h1>
             <p>{t("ctSubtitle")}</p>
           </div>
           <Link className="site-btn quiet" href="/editor">

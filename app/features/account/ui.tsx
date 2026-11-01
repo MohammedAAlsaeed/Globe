@@ -11,6 +11,7 @@ import { useTranslation } from "react-i18next";
 import { useAuth } from "./AuthProvider";
 import { ApiError, NetworkError } from "@/lib/api/client";
 import { rememberLanguage } from "@/lib/language";
+import { Flourish } from "@/components/ui/Flourish";
 
 type T = (key: string, opts?: Record<string, unknown>) => string;
 
@@ -108,7 +109,9 @@ export function SiteHeader() {
     <header className="site-header">
       <Link href="/" className="site-brand">
         <img src="/brand/compass-256.webp" alt="" width={38} height={38} />
-        <span className="site-brand-name">{t("acBrand")}</span>
+        <span className="site-brand-name">
+          <Flourish text={t("acBrandMark")} />
+        </span>
       </Link>
       <nav className="site-nav">
         <Link href="/maps" aria-current={path === "/maps" ? "page" : undefined}>

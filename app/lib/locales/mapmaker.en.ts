@@ -1,6 +1,6 @@
 export const mapmakerEn = {
   mmLandingEyebrow: "A CARTOGRAPHER'S WORKSHOP",
-  mmLandingTitle: "Draw a world. Print a globe.",
+  mmLandingTitle: "Draw a world. Print ==a globe==.",
   mmLandingIntro:
     "Sketch a fantasy map from a blank canvas with layers, biomes and hand-placed landmarks, or bring a finished map straight to the print studio to turn it into gores.",
   mmCreateCardTitle: "Create a Map",

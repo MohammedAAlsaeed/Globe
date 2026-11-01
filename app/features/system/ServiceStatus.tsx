@@ -31,6 +31,7 @@ import {
   type ServiceDetail,
   type ServiceState,
 } from "@/lib/api/client";
+import { Flourish } from "@/components/ui/Flourish";
 
 type Status = {
   state: ServiceState;
@@ -210,7 +211,9 @@ export function MaintenanceScreen() {
           width={150}
           height={150}
         />
-        <h1>{t("sysMaintenanceTitle")}</h1>
+        <h1 className="fl-title">
+          <Flourish text={t("sysMaintenanceTitle")} />
+        </h1>
         <p className="system-lead">{t("sysMaintenanceLead")}</p>
         {minutes && (
           <p className="system-note">{t("sysMaintenanceUntil", { minutes })}</p>

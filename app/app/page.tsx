@@ -10,6 +10,7 @@ import { useSearchParams } from "next/navigation";
 import { useTranslation } from "react-i18next";
 import { CreateMapModal } from "@/features/mapmaker/CreateMapModal";
 import { SiteHeader } from "@/features/account/ui";
+import { Flourish } from "@/components/ui/Flourish";
 
 function VerifiedNotice() {
   const { t } = useTranslation();
@@ -32,7 +33,9 @@ export default function Home() {
       <main>
         <section className="landing-hero">
           <div className="landing-copy">
-            <h1>{t("mmLandingTitle")}</h1>
+            <h1 className="fl-title">
+              <Flourish text={t("mmLandingTitle")} />
+            </h1>
             <p>{t("mmLandingIntro")}</p>
             <div className="landing-ctas">
               <button className="site-btn" onClick={() => setCreating(true)}>

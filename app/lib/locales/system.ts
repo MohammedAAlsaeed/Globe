@@ -57,7 +57,7 @@ export const systemEn = {
 
 export const systemAr: typeof systemEn = {
   sysNotFoundCode: "404",
-  sysNotFoundTitle: "هذا المكان ليس على خريطتنا",
+  sysNotFoundTitle: "هذا المكان ليس على ^خَريطتنا^",
   sysNotFoundLead:
     "الصفحة التي تبحث عنها غير موجودة، أو نُقلت إلى مكان آخر. لكل خريطة أطراف مجهولة، وهذه واحدة من أطرافنا.",
   sysNotFoundAddress: "العنوان",
@@ -66,10 +66,10 @@ export const systemAr: typeof systemEn = {
   sysCreateMap: "ارسم خريطة",
   sysPrintStudio: "استوديو الطباعة",
 
-  sysErrorTitle: "حدث خطأ غير متوقع",
+  sysErrorTitle: "^حَدث^ خطأ غير متوقع",
   sysErrorLead:
     "واجهت هذه الصفحة مشكلة غير متوقعة. أُبلغنا بها، وكثيراً ما تحلّها إعادة المحاولة.",
-  sysEditorErrorTitle: "توقّف المحرّر بشكل غير متوقع",
+  sysEditorErrorTitle: "^تَوقّف^ المحرّر بشكل غير متوقع",
   sysEditorErrorLead:
     "خريطتك تُحفظ على هذا الجهاز أثناء العمل، فلا ينبغي أن يضيع شيء. أعد المحاولة، أو أعد تحميل المحرّر لتكمل من حيث توقفت.",
   sysTryAgain: "أعد المحاولة",
@@ -82,7 +82,7 @@ export const systemAr: typeof systemEn = {
 
   sysLoading: "نرسم الطريق…",
 
-  sysMaintenanceTitle: "الموقع في صيانة",
+  sysMaintenanceTitle: "^المَوقع^ في صيانة",
   sysMaintenanceLead:
     "نعمل على تحسين المرسم. ستعود الحسابات والخرائط السحابية قريباً، وتعود هذه الصفحة وحدها حين تعود.",
   sysMaintenanceUntil: "متوقّع أن نعود خلال {{minutes}} دقيقة تقريباً.",

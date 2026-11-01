@@ -31,6 +31,7 @@ import type { AdminSession, Permission, UserRow } from "./types";
 import { StepUpCancelled, ToastProvider, adminError } from "./ui";
 import { ApiError } from "@/lib/api/client";
 import { rememberLanguage } from "@/lib/language";
+import { Flourish } from "@/components/ui/Flourish";
 
 interface AdminContext {
   session: AdminSession;
@@ -323,7 +324,9 @@ function Shell({ children }: { children: ReactNode }) {
         <Link href="/admin" className="adm-brand">
           <img src="/brand/compass-256.webp" alt="" width={30} height={30} />
           <span>
-            <b>{t("acBrand")}</b>
+            <b>
+              <Flourish text={t("acBrandMark")} />
+            </b>
             <small>{t("adConsole")}</small>
           </span>
         </Link>

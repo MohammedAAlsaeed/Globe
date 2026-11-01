@@ -1,7 +1,7 @@
 import type { mapmakerEn } from "./mapmaker.en";
 export const mapmakerAr: typeof mapmakerEn = {
   mmLandingEyebrow: "مِرسم الخرّاط",
-  mmLandingTitle: "ارسم عالماً. اطبع كرة أرضية.",
+  mmLandingTitle: "ارسم ^3:عالَماً^. اطبع ==كرة أرضية==.",
   mmLandingIntro:
     "ابدأ خريطة خيالية من لوحة فارغة بطبقات وتضاريس ومعالم توضعها بنفسك، أو انقل خريطة جاهزة مباشرة إلى استوديو الطباعة لتحويلها إلى قطع كروية.",
   mmCreateCardTitle: "اصنع خريطة",

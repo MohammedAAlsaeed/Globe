@@ -16,6 +16,7 @@ import type { Asset, AssetPack } from "./types";
 import { CompassLoader, CompassScreen, SiteHeader, errorMessage } from "./ui";
 import { prepareStampImage } from "../mapmaker/stamps/upload";
 import { loadLibrary } from "../mapmaker/stamps/remote";
+import { Flourish } from "@/components/ui/Flourish";
 
 type T = (k: string, o?: Record<string, unknown>) => string;
 const CATEGORIES = [
@@ -96,7 +97,9 @@ export function LibraryPage() {
       <SiteHeader />
       <main className="maps-main">
         <div className="maps-head">
-          <h1>{t("stLibraryTitle")}</h1>
+          <h1 className="fl-title">
+            <Flourish text={t("stLibraryTitle")} />
+          </h1>
           <div className="maps-head-actions">
             <Link className="site-btn quiet" href="/editor">
               {t("stBackToEditor")}

@@ -11,6 +11,8 @@ import { reportError } from "@/lib/reportError";
 import { LANGUAGE_KEY } from "@/lib/language";
 // The site's Arabic fonts (thmanyah): importing adds their @font-face.
 import "@/lib/fonts";
+import { Flourish } from "@/components/ui/Flourish";
+import { plainText } from "@/lib/flourish";
 
 const TEXT = {
   en: {
@@ -22,7 +24,7 @@ const TEXT = {
     reference: "Reference",
   },
   ar: {
-    title: "واجه المرسم مشكلة غير متوقعة",
+    title: "واجه ^المرسَم^ مشكلة غير متوقعة",
     lead: "حدث خطأ أثناء تحميل الموقع، وأُبلغنا به. خرائطك محفوظة على هذا الجهاز وفي حسابك.",
     retry: "أعد المحاولة",
     reload: "أعد التحميل",
@@ -56,6 +58,7 @@ const CSS = `
   button:focus-visible, a:focus-visible { outline: 2px solid #f1d58a; outline-offset: 2px; }
   small { display: block; margin-top: 22px; color: #a9b0cf; }
   code { color: #f3e8cc; }
+  .fl-word { white-space: nowrap; }
 `;
 
 /** The language the person chose (a cookie); English while hydrating. */
@@ -92,7 +95,7 @@ export default function GlobalError({
   return (
     <html lang={lang} dir={lang === "ar" ? "rtl" : "ltr"}>
       <head>
-        <title>{t.title}</title>
+        <title>{plainText(t.title)}</title>
         <meta name="robots" content="noindex" />
         <style
           dangerouslySetInnerHTML={{ __html: `:root{${FONTS[lang]}}${CSS}` }}
@@ -102,7 +105,9 @@ export default function GlobalError({
         <main role="alert">
           {/* eslint-disable-next-line @next/next/no-img-element -- static brand artwork */}
           <img src="/brand/compass-512.webp" alt="" />
-          <h1>{t.title}</h1>
+          <h1>
+            <Flourish text={t.title} />
+          </h1>
           <p>{t.lead}</p>
           <div className="actions">
             <button className="primary" onClick={() => retry()}>

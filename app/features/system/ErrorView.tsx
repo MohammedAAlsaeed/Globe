@@ -10,6 +10,7 @@ import Link from "next/link";
 import { useTranslation } from "react-i18next";
 import { reportError } from "@/lib/reportError";
 import { IS_PRODUCTION } from "@/lib/site";
+import { Flourish } from "@/components/ui/Flourish";
 
 export type ErrorPageProps = {
   error: unknown;
@@ -66,8 +67,12 @@ export function ErrorView({
           width={150}
           height={150}
         />
-        <h1>
-          {variant === "editor" ? t("sysEditorErrorTitle") : t("sysErrorTitle")}
+        <h1 className="fl-title">
+          {variant === "editor" ? (
+            <Flourish text={t("sysEditorErrorTitle")} />
+          ) : (
+            <Flourish text={t("sysErrorTitle")} />
+          )}
         </h1>
         <p className="system-lead">
           {variant === "editor" ? t("sysEditorErrorLead") : t("sysErrorLead")}
