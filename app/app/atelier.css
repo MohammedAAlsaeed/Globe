@@ -950,9 +950,10 @@ dialog p {
 dialog .export-button {
   width: 100%;
 }
+/* Arabic: the site's type, thmanyah (app/fonts.css). */
 [dir="rtl"] {
-  --serif: Georgia, "Times New Roman", serif;
-  --sans: Tahoma, Arial, sans-serif;
+  --serif: var(--ui-display);
+  --sans: var(--ui-sans);
 }
 [dir="rtl"] .astrolabe {
   right: auto;

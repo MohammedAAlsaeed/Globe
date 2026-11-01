@@ -1,0 +1,25 @@
+/*
+ * The site's type, in one place (the fonts themselves: lib/fonts.ts).
+ *
+ *   --ui-sans     everything you read: menus, forms, panels, buttons;
+ *   --ui-display  titles.
+ *
+ * In Arabic, thmanyah draws the whole text (its Latin and numbers too). In
+ * English, IBM Plex Sans Arabic and Amiri draw it, Arabic words included,
+ * so English pages never download thmanyah.
+ *
+ * thmanyah has no tabular figures, so `font-variant-numeric: tabular-nums`
+ * (admin tables) lines numbers up in English only. Arabic keeps thmanyah's
+ * numbers all the same: they come with words there ("١٢ ألف").
+ */
+:root {
+  --ui-sans: "IBM Plex Sans Arabic", "Segoe UI", Tahoma, sans-serif;
+  --ui-display: "Amiri", Georgia, "Times New Roman", serif;
+}
+html[lang="ar"] {
+  --ui-sans:
+    var(--font-thmanyah-sans), "IBM Plex Sans Arabic", "Segoe UI", Tahoma,
+    sans-serif;
+  --ui-display:
+    var(--font-thmanyah-display), "Amiri", Georgia, "Times New Roman", serif;
+}

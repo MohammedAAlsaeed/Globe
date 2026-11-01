@@ -1,6 +1,6 @@
 /*
  * The print studio (/print) in the site's own look: lapis and gold leaf, the
- * site header, Amiri for display. The studio's shared controls (atelier.css,
+ * site header, the site's display face for titles. The studio's shared controls (atelier.css,
  * studio.css) are light by default; here they are re-coloured, scoped to
  * `.pr-page`, so nothing changes anywhere else. Sheets of paper stay white:
  * they are the print.

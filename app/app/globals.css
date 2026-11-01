@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "./fonts.css";
 @import "./atelier.css";
 @import "../features/studio/studio.css";
 @import "../features/account/site.css";
