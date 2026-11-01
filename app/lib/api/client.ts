@@ -36,6 +36,32 @@ export class ApiError extends Error {
 /** The server could not be reached at all (offline, API down). */
 export class NetworkError extends Error {}
 
+/**
+ * The API's state as the last request saw it, for the notices and the
+ * maintenance screen (features/system/ServiceStatus.tsx): fired on changes
+ * only. "maintenance": the API answered 503 `maintenance` (php artisan down);
+ * "unreachable": no answer, or a gateway error.
+ */
+export const SERVICE_EVENT = "idrisi:service";
+export type ServiceState = "ok" | "maintenance" | "unreachable";
+export type ServiceDetail = {
+  state: ServiceState;
+  /** Seconds until the API expects to be back (maintenance only). */
+  retryAfter: number | null;
+};
+
+let serviceState: ServiceState = "ok";
+function setService(state: ServiceState, retryAfter: number | null = null) {
+  if (state === serviceState && state !== "maintenance") return;
+  serviceState = state;
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(
+    new CustomEvent<ServiceDetail>(SERVICE_EVENT, {
+      detail: { state, retryAfter },
+    }),
+  );
+}
+
 function xsrfToken() {
   const match = document.cookie.match(/(?:^|;\s*)XSRF-TOKEN=([^;]+)/);
   return match ? decodeURIComponent(match[1]) : null;
@@ -50,6 +76,7 @@ function ensureCsrf(force = false) {
       .then(() => undefined)
       .catch((e) => {
         csrfReady = null;
+        setService("unreachable");
         throw new NetworkError(String(e));
       });
   }
@@ -86,6 +113,7 @@ async function send(
             : undefined,
     });
   } catch (e) {
+    setService("unreachable");
     throw new NetworkError(String(e));
   }
   // Expired CSRF token: fetch a fresh one and try once more.
@@ -105,8 +133,21 @@ export const SIGNED_OUT_EVENT = "idrisi:signed-out";
 export type SignedOutDetail = { code: string; reason: string | null };
 
 async function parse<T>(res: Response): Promise<T> {
-  if (res.status === 204) return undefined as T;
+  if (res.status === 204) {
+    setService("ok");
+    return undefined as T;
+  }
   const json = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+  if (res.status === 503 && json.code === "maintenance") {
+    setService(
+      "maintenance",
+      typeof json.retry_after === "number" ? json.retry_after : null,
+    );
+  } else if (res.status === 502 || res.status === 503 || res.status === 504) {
+    setService("unreachable");
+  } else {
+    setService("ok");
+  }
   if (!res.ok) {
     if (
       (res.status === 401 && json.code === "session_ended") ||

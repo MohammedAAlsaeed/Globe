@@ -58,6 +58,13 @@ export function errorMessage(t: T, e: unknown): string {
       return t("acNeedTwoFactor");
     if (e.status === 422 && e.message)
       return Object.values(e.errors)[0]?.[0] ?? e.message;
+    if (e.code === "maintenance") return t("sysErrorMaintenance");
+    if (e.status >= 500) {
+      const reference = e.body.reference;
+      return typeof reference === "string"
+        ? t("sysErrorServerRef", { reference })
+        : t("sysErrorServer");
+    }
   }
   return t("acErrorGeneric");
 }

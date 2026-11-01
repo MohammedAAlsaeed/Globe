@@ -136,6 +136,32 @@ So every change reaches `develop` and `master` by a pull request that passed CI,
 
 **Locally**, before pushing: `npm run lint && npm run typecheck && npm test` in `app/`, and `vendor/bin/pint --test && php artisan test` in `api/`.
 
+## Maintenance and errors
+
+**Maintenance.** From the API's console (Laravel Cloud → the environment → Commands → Open console):
+
+```sh
+php artisan down --retry=600   # expected back in about 10 minutes
+php artisan up                 # back
+```
+
+Every API request then answers `503` with the code `maintenance` (and `retry_after`). The web app shows its maintenance screen on the pages that need the server (sign-in, My maps, the library, settings, admin) and a notice elsewhere. The editor and the print studio keep working on the device. It checks again by itself and comes back when the API does. This needs `APP_MAINTENANCE_DRIVER=cache` (in the templates), so `down` reaches every server running the API; `idrisi:check-deploy` warns otherwise.
+
+**Errors people see** (all in English and Arabic):
+
+| | When | Where |
+|---|---|---|
+| Not found (404) | An address that matches no page | `app/not-found.tsx` |
+| Error page | A page fails while rendering: try again, reload, a reference to quote | `app/error.tsx` (the editor's own: `app/editor/error.tsx`, which says the map is safe on the device) |
+| Last-resort page | The site's frame itself fails; its own document and styles | `app/global-error.tsx` |
+| Loading | A page streaming in | `app/loading.tsx` |
+| Notices | Offline, maintenance, server unreachable, then "connected again" | `features/system/ServiceStatus.tsx` |
+
+**Finding an error.** Laravel Cloud → Monitoring → Logs:
+
+- **Server errors:** the API answers `500` with the code `server_error` and a `reference` (e.g. `7K2M9QX4PA`), which the web app shows. The log entry of that error carries the same `reference`.
+- **Errors in visitors' browsers:** those not caught by a page, and pages that failed, are sent to `POST /api/v1/client-errors` and logged as `Web app error: …`. Each entry has the page path (never its query string), the stack and Next's `digest`. They are rate-limited per address, and the same error is sent once per page load.
+
 ## 6. After it is live
 
 - Sign up, verify the email (check it isn't in spam), reset the password, sign in with Google: on both copies.

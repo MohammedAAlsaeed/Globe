@@ -140,6 +140,9 @@ class CheckDeploy extends Command
         if ($live && $db === 'sqlite') {
             $this->add('warn', 'Database', 'SQLite on a live server: its file is lost on every deploy. Attach a MySQL or PostgreSQL database.');
         }
+        if ($live && config('app.maintenance.driver') !== 'cache') {
+            $this->add('warn', 'Maintenance', 'APP_MAINTENANCE_DRIVER is not "cache": `php artisan down` would stop only the server it runs on. Set APP_MAINTENANCE_DRIVER=cache.');
+        }
         $queue = (string) config('queue.default');
         if ($live && $queue === 'sync') {
             $this->add('warn', 'Queue', 'QUEUE_CONNECTION=sync: emails are sent while the visitor waits. Run a queue worker.');

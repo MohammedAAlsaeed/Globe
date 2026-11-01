@@ -1,6 +1,7 @@
 "use client";
 /**
- * App-wide client providers: the interface language and the signed-in user.
+ * App-wide client providers: the interface language, the signed-in user,
+ * and whether the server can be used right now.
  *
  * The language comes from the server (a cookie), so the first render
  * already matches what the browser shows. Each page load gets its own i18n
@@ -17,6 +18,7 @@ import {
 } from "@/lib/language";
 import { AuthProvider } from "@/features/account/AuthProvider";
 import { ControlsSync } from "@/features/mapmaker/controlsSync";
+import { ServiceStatusProvider } from "@/features/system/ServiceStatus";
 
 export function Providers({
   lang,
@@ -52,7 +54,8 @@ export function Providers({
     <I18nextProvider i18n={instance}>
       <AuthProvider>
         <ControlsSync />
-        {children}
+        {/* Offline / maintenance notices and screen (features/system). */}
+        <ServiceStatusProvider>{children}</ServiceStatusProvider>
       </AuthProvider>
     </I18nextProvider>
   );
