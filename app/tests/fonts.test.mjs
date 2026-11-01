@@ -113,9 +113,22 @@ test("other sites can't use the files (no CORS on static assets)", () => {
 test("Arabic pages use thmanyah throughout; English pages never load it", () => {
   const fonts = read("app/fonts.css");
   const base = fonts.match(/:root\s*{([^}]*)}/)[1];
-  const ar = fonts.match(/html\[lang="ar"\]\s*{([^}]*)}/)[1];
-  assert.match(ar, /--ui-sans:\s*var\(--font-thmanyah-sans\),/);
-  assert.match(ar, /--ui-display:\s*var\(--font-thmanyah-display\),/);
+  const ar = fonts.match(/html\[lang="ar"]\s*{([^}]*)}/)[1];
+  // The names lib/fonts.ts gives the families, then their fallbacks.
+  const named = (family) =>
+    new RegExp(`value: "${family}"`).test(source) ? family : null;
+  assert.match(
+    ar,
+    new RegExp(
+      `--ui-sans:\\s*${named("thmanyahSans")}, "thmanyahSans Fallback",`,
+    ),
+  );
+  assert.match(
+    ar,
+    new RegExp(
+      `--ui-display:\\s*${named("thmanyahDisplay")}, "thmanyahDisplay Fallback",`,
+    ),
+  );
   // English: its own fonts, which draw Arabic words too.
   assert.match(base, /--ui-sans:\s*"IBM Plex Sans Arabic"/);
   assert.match(base, /--ui-display:\s*"Amiri"/);
@@ -130,7 +143,7 @@ test("Arabic pages use thmanyah throughout; English pages never load it", () => 
     const css = readFileSync(p, "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
     const rel = relative(root, p);
     if (rel === "app/fonts.css") continue;
-    assert.ok(!/--font-thmanyah/.test(css), `${rel} uses thmanyah directly`);
+    assert.ok(!/thmanyah/i.test(css), `${rel} uses thmanyah directly`);
     // ...and no stylesheet names the English fonts directly either.
     assert.ok(!/IBM Plex|Amiri/.test(css), `${rel} names a font directly`);
   }
@@ -139,13 +152,17 @@ test("Arabic pages use thmanyah throughout; English pages never load it", () => 
   const atelier = read("app/atelier.css");
   assert.match(
     atelier,
-    /\[dir="rtl"\] {\s*--serif: var\(--ui-display\);\s*--sans: var\(--ui-sans\);/,
+    /\[dir="rtl"] {\s*--serif: var\(--ui-display\);\s*--sans: var\(--ui-sans\);/,
   );
 
-  // The variables are defined on <html>, here and on the last-resort page,
-  // with the fonts not preloaded (English pages don't need them).
+  // The fonts are part of every page, the last-resort one included, and
+  // not preloaded (English pages don't need them).
   for (const p of ["app/layout.tsx", "app/global-error.tsx"])
-    assert.match(read(p), /className={fontVariables}/, p);
+    assert.match(read(p), /^import "@\/lib\/fonts";/m, p);
+  assert.match(
+    read("app/global-error.tsx"),
+    /ar: `--sans: thmanyahSans, "thmanyahSans Fallback",/,
+  );
   assert.equal([...source.matchAll(/preload: false/g)].length, 2);
   assert.equal([...source.matchAll(/localFont\(/g)].length, 2);
 });

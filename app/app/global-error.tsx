@@ -9,7 +9,8 @@
 import { useEffect, useSyncExternalStore } from "react";
 import { reportError } from "@/lib/reportError";
 import { LANGUAGE_KEY } from "@/lib/language";
-import { fontVariables } from "@/lib/fonts";
+// The site's Arabic fonts (thmanyah): importing adds their @font-face.
+import "@/lib/fonts";
 
 const TEXT = {
   en: {
@@ -34,8 +35,8 @@ const TEXT = {
 const FONTS = {
   en: `--sans: "IBM Plex Sans Arabic", "Segoe UI", Tahoma, sans-serif;
     --display: Amiri, Georgia, serif;`,
-  ar: `--sans: var(--font-thmanyah-sans), "Segoe UI", Tahoma, sans-serif;
-    --display: var(--font-thmanyah-display), Georgia, serif;`,
+  ar: `--sans: thmanyahSans, "thmanyahSans Fallback", "Segoe UI", Tahoma, sans-serif;
+    --display: thmanyahDisplay, "thmanyahDisplay Fallback", Georgia, serif;`,
 };
 
 const CSS = `
@@ -89,11 +90,7 @@ export default function GlobalError({
 
   const t = TEXT[lang];
   return (
-    <html
-      lang={lang}
-      dir={lang === "ar" ? "rtl" : "ltr"}
-      className={fontVariables}
-    >
+    <html lang={lang} dir={lang === "ar" ? "rtl" : "ltr"}>
       <head>
         <title>{t.title}</title>
         <meta name="robots" content="noindex" />

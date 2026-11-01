@@ -7,7 +7,7 @@
  * Pages in Arabic (`html[lang="ar"]`) are set in it entirely, its Latin
  * and numbers too, so they match the Arabic around them. Pages in English
  * keep their fonts (IBM Plex Sans Arabic, Amiri) and never download these.
- * The CSS reads them as `--ui-sans` and `--ui-display` (app/fonts.css).
+ * The CSS names them in `--ui-sans` and `--ui-display` (app/fonts.css).
  *
  * Licence (assets/fonts/thmanyah/LICENSE.pdf): the files are used exactly as
  * published (no subsetting or other change), built into the site by
@@ -19,6 +19,11 @@
  */
 import localFont from "next/font/local";
 
+// Their names are fixed (`declarations`), so the CSS names them directly:
+// "thmanyahSans" and "thmanyahDisplay", each followed by the
+// metrics-matched fallback next/font names after it ("… Fallback").
+// Importing this module (app/layout.tsx) adds their @font-face rules.
+//
 // Not preloaded: English pages may never need them, and Arabic pages show
 // the (metrics-matched) fallback for the moment they take to arrive.
 
@@ -34,10 +39,10 @@ export const thmanyahSans = localFont({
     },
     { path: "../assets/fonts/thmanyah/thmanyahsans-Bold.woff2", weight: "700" },
   ],
-  variable: "--font-thmanyah-sans",
   display: "swap",
   preload: false,
   adjustFontFallback: "Arial",
+  declarations: [{ prop: "font-family", value: "thmanyahSans" }],
 });
 export const thmanyahDisplay = localFont({
   src: [
@@ -50,13 +55,8 @@ export const thmanyahDisplay = localFont({
       weight: "700",
     },
   ],
-  variable: "--font-thmanyah-display",
   display: "swap",
   preload: false,
   adjustFontFallback: "Times New Roman",
+  declarations: [{ prop: "font-family", value: "thmanyahDisplay" }],
 });
-
-/** The classes that define the two CSS variables (on <html>). */
-export const fontVariables = [thmanyahSans, thmanyahDisplay]
-  .map((f) => f.variable)
-  .join(" ");

@@ -3,7 +3,8 @@ import { cookies } from "next/headers";
 import { preconnect } from "react-dom";
 import "./globals.css";
 import { Providers } from "./providers";
-import { fontVariables } from "@/lib/fonts";
+// The site's Arabic fonts (thmanyah): importing adds their @font-face.
+import "@/lib/fonts";
 import { LANGUAGE_KEY, parseLanguage } from "@/lib/language";
 import { IS_PRODUCTION, SITE_NAME, SITE_URL } from "@/lib/site";
 
@@ -44,8 +45,6 @@ export default async function RootLayout({
     <html
       lang={lang}
       dir={lang === "ar" ? "rtl" : "ltr"}
-      // thmanyah for Arabic (lib/fonts.ts, used through app/fonts.css).
-      className={fontVariables}
       suppressHydrationWarning
     >
       <body>

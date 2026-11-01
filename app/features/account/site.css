@@ -726,7 +726,7 @@ dialog.mm-modal {
   color: #f3e8cc;
   border: 1px solid rgba(217, 169, 59, 0.3);
   border-radius: 12px;
-  font-family: var(--ui-sans);
+  font-family: var(--ui-sans), sans-serif;
   font-size: 14px;
   box-shadow: 0 30px 90px rgba(3, 7, 22, 0.6);
 }
@@ -736,7 +736,7 @@ dialog.mm-modal::backdrop {
 }
 dialog.mm-modal .eyebrow,
 dialog.mm-modal h2 {
-  font-family: var(--ui-display);
+  font-family: var(--ui-display), serif;
   font-size: 26px;
   font-weight: 700;
   color: #f3e8cc;
@@ -907,7 +907,9 @@ dialog.mm-modal .dialog-header button {
   border-bottom: 1px solid transparent;
   background: none;
   color: var(--vellum, #f3e8cc);
-  font: 700 22px/1.2 var(--ui-display);
+  font:
+    700 22px/1.2 var(--ui-display),
+    serif;
 }
 .lib-name:focus {
   outline: none;
@@ -1030,7 +1032,7 @@ dialog.upg-dialog {
     ),
     linear-gradient(180deg, var(--upg-lapis) 0%, var(--upg-night) 100%);
   color: var(--upg-vellum);
-  font-family: var(--ui-sans);
+  font-family: var(--ui-sans), sans-serif;
   box-shadow:
     0 30px 90px rgba(0, 0, 0, 0.55),
     inset 0 1px 0 rgba(241, 213, 138, 0.12);
@@ -1089,7 +1091,7 @@ dialog.upg-dialog .upg-close:focus-visible {
 }
 dialog.upg-dialog h2 {
   margin: 8px 0 10px;
-  font-family: var(--ui-display);
+  font-family: var(--ui-display), serif;
   font-size: 28px;
   font-weight: 700;
   line-height: 1.25;
@@ -1173,7 +1175,7 @@ dialog.upg-dialog p.upg-message {
 }
 .upg-plan h3 {
   margin: 0;
-  font-family: var(--ui-display);
+  font-family: var(--ui-display), serif;
   font-size: 21px;
   color: var(--upg-gold-pale);
 }
@@ -1447,7 +1449,7 @@ dialog.upg-dialog .upg-secondary:focus-visible {
   background: rgba(13, 22, 54, 0.94);
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
   color: #f3e8cc;
-  font-family: var(--ui-sans);
+  font-family: var(--ui-sans), sans-serif;
   font-size: 14px;
   line-height: 1.5;
   backdrop-filter: blur(6px);

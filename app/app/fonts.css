@@ -1,5 +1,6 @@
 /*
- * The site's type, in one place (the fonts themselves: lib/fonts.ts).
+ * The site's type, in one place. thmanyahSans and thmanyahDisplay are
+ * defined by lib/fonts.ts (next/font), with their "… Fallback" faces.
  *
  *   --ui-sans     everything you read: menus, forms, panels, buttons;
  *   --ui-display  titles.
@@ -18,8 +19,9 @@
 }
 html[lang="ar"] {
   --ui-sans:
-    var(--font-thmanyah-sans), "IBM Plex Sans Arabic", "Segoe UI", Tahoma,
-    sans-serif;
+    thmanyahSans, "thmanyahSans Fallback", "IBM Plex Sans Arabic", "Segoe UI",
+    Tahoma, sans-serif;
   --ui-display:
-    var(--font-thmanyah-display), "Amiri", Georgia, "Times New Roman", serif;
+    thmanyahDisplay, "thmanyahDisplay Fallback", "Amiri", Georgia,
+    "Times New Roman", serif;
 }
