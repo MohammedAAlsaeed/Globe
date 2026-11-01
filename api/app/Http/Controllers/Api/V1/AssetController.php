@@ -9,6 +9,7 @@ use App\Models\Asset;
 use App\Models\AssetPack;
 use App\Models\User;
 use App\Services\Entitlements;
+use App\Services\FileUrls;
 use App\Services\Regions;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
@@ -70,7 +71,10 @@ class AssetController extends Controller
             ? config('regions.regions.'.config('regions.default').'.disk')
             : $regions->diskName($user);
         $owner = $pack->owner_id ?? 'library';
-        $path = $file->storeAs("assets/{$owner}/{$pack->id}", Str::ulid().'.'.$file->extension(), $disk);
+        $path = $file->storeAs("assets/{$owner}/{$pack->id}", Str::ulid().'.'.$file->extension(), [
+            'disk' => $disk,
+            'CacheControl' => FileUrls::CACHE_CONTROL,
+        ]);
         [$width, $height] = getimagesize($file->getRealPath()) ?: [null, null];
 
         $asset = $pack->assets()->create([

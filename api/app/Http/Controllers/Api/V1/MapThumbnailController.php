@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\MapResource;
 use App\Models\Map;
+use App\Services\FileUrls;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
@@ -24,7 +25,7 @@ class MapThumbnailController extends Controller
         $path = $request->file('thumbnail')->storeAs(
             "maps/{$map->user_id}/{$map->id}",
             'thumb-'.now()->format('YmdHisv').'.'.$request->file('thumbnail')->extension(),
-            $map->disk,
+            ['disk' => $map->disk, 'CacheControl' => FileUrls::CACHE_CONTROL],
         );
         $map->forceFill(['thumbnail_path' => $path])->save();
         if ($old) {

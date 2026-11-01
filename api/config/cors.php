@@ -28,7 +28,9 @@ return [
 
     'allowed_headers' => ['*'],
 
-    'exposed_headers' => [],
+    // Accept-Encoding: tells the web app it may send gzip request bodies
+    // (RFC 7694), so it never compresses for an API that can't expand them.
+    'exposed_headers' => ['Accept-Encoding'],
 
     'max_age' => 0,
 
