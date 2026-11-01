@@ -30,6 +30,7 @@ class CheckDeployTest extends TestCase
             'filesystems.disks.s3.secret' => 's',
             'filesystems.disks.s3.bucket' => 'idrisi-prod',
             'queue.default' => 'database',
+            'app.maintenance.driver' => 'cache',
         ]);
     }
 
@@ -103,6 +104,13 @@ class CheckDeployTest extends TestCase
             'regions.regions.global.disk' => 'local',
         ]);
         $this->artisan('idrisi:check-deploy')->assertSuccessful();
+    }
+
+    public function test_maintenance_must_reach_every_server(): void
+    {
+        $this->goodProduction();
+        config(['app.maintenance.driver' => 'file']);
+        $this->artisan('idrisi:check-deploy')->expectsOutputToContain('APP_MAINTENANCE_DRIVER')->assertSuccessful();
     }
 
     public function test_an_https_site_builds_https_links(): void

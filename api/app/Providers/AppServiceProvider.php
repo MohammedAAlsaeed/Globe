@@ -81,5 +81,10 @@ class AppServiceProvider extends ServiceProvider
             Limit::perMinute(20)->by('2fa-ip|'.$request->ip()),
         ]);
         RateLimiter::for('register', fn (Request $request) => Limit::perHour(10)->by($request->ip()));
+        // Browser error reports: enough for a bad moment, not enough to flood the log.
+        RateLimiter::for('client-errors', fn (Request $request) => [
+            Limit::perMinute(20)->by('client-errors|'.$request->ip()),
+            Limit::perDay(500)->by('client-errors-day|'.$request->ip()),
+        ]);
     }
 }

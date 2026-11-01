@@ -13,6 +13,7 @@ use App\Http\Controllers\Api\V1\MapThumbnailController;
 use App\Http\Controllers\Api\V1\PlanController;
 use App\Http\Controllers\Api\V1\PreferencesController;
 use App\Http\Controllers\Api\V1\ShapeStyleController;
+use App\Http\Controllers\Api\V1\SystemController;
 use App\Http\Controllers\Api\V1\TextStyleController;
 use Illuminate\Support\Facades\Route;
 
@@ -20,6 +21,12 @@ use Illuminate\Support\Facades\Route;
 | API v1 — served under /api/v1 (see bootstrap/app.php). The web app signs
 | in with Sanctum's cookie-based SPA sessions.
 */
+
+// ---- the service ------------------------------------------------------------
+// Up (200) or in maintenance (503 with code "maintenance", before reaching here).
+Route::get('status', [SystemController::class, 'status']);
+// Errors seen in visitors' browsers, written to the server's log.
+Route::post('client-errors', [SystemController::class, 'clientError'])->middleware('throttle:client-errors');
 
 // ---- accounts ---------------------------------------------------------------
 Route::prefix('auth')->group(function () {
