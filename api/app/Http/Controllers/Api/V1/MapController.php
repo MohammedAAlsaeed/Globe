@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers\Api\V1;
 
-use App\Exceptions\ApiException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreMapRequest;
 use App\Http\Requests\UpdateMapRequest;
@@ -41,12 +40,18 @@ class MapController extends Controller
     public function store(StoreMapRequest $request): JsonResponse
     {
         $user = $request->user();
+        $saveId = $request->validated('save_id');
+        // The same upload sent again (its answer was lost): the map it made.
+        if ($existing = $this->documents->createdBy($user, $saveId)) {
+            return (new MapResource($existing))->response()->setStatusCode(201);
+        }
         $this->entitlements->ensureCanCreateMap($user);
 
         $map = $this->documents->create(
             $user,
             $request->safe()->only(['name', 'width', 'height', 'schema_version']),
             $request->documentJson(),
+            $saveId,
         );
 
         return (new MapResource($map))->response()->setStatusCode(201);
@@ -66,13 +71,13 @@ class MapController extends Controller
     public function update(UpdateMapRequest $request, Map $map): MapResource
     {
         Gate::authorize('update', $map);
-        if ((int) $request->validated('revision') !== $map->revision) {
-            throw ApiException::revisionConflict($map->revision);
-        }
+        // The revision check happens under the row lock (see MapDocuments).
         $map = $this->documents->update(
             $map,
             $request->documentJson(),
             $request->safe()->only(['name', 'width', 'height', 'schema_version']),
+            (int) $request->validated('revision'),
+            $request->validated('save_id'),
         );
 
         return new MapResource($map);

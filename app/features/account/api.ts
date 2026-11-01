@@ -118,8 +118,11 @@ export const maps = {
   /** Uploads a project as a new cloud map; returns it bound to that map. */
   async create(
     project: MMProject,
+    /** This upload's id: sent again (its answer lost), it makes no second map. */
+    saveId?: string,
   ): Promise<{ map: CloudMap; project: MMProject }> {
     const { data } = await api.post<One<CloudMap>>("maps", {
+      save_id: saveId,
       name: project.name.trim() || "Untitled map",
       width: project.width,
       height: project.height,
@@ -136,11 +139,14 @@ export const maps = {
   },
 
   /** Saves a new revision. `revision` is the one the edits were based on;
-   * the server answers 409 (`revision_conflict`) if it has a newer one. */
-  save: (id: string, project: MMProject, revision: number) =>
+   * the server answers 409 (`revision_conflict`) if it has a newer one.
+   * `saveId` names this save: sent again because its answer was lost, the
+   * server answers with what it already saved instead of a conflict. */
+  save: (id: string, project: MMProject, revision: number, saveId?: string) =>
     api
       .put<One<CloudMap>>(`maps/${id}`, {
         revision,
+        save_id: saveId,
         name: project.name.trim() || "Untitled map",
         width: project.width,
         height: project.height,

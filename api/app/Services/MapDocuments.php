@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Exceptions\ApiException;
 use App\Models\Map;
 use App\Models\MapVersion;
 use App\Models\User;
@@ -20,13 +21,26 @@ class MapDocuments
 {
     public function __construct(private Regions $regions) {}
 
+    /**
+     * A map this person already created with this save id: the same upload
+     * sent again because its answer was lost.
+     */
+    public function createdBy(User $user, ?string $saveId): ?Map
+    {
+        return $saveId === null ? null : Map::query()
+            ->where('user_id', $user->id)
+            ->where('last_save_id', $saveId)
+            ->first();
+    }
+
     /** Creates a map with its first revision. */
-    public function create(User $user, array $attributes, string $json): Map
+    public function create(User $user, array $attributes, string $json, ?string $saveId = null): Map
     {
         $map = new Map($attributes);
         $map->user()->associate($user);
         $map->disk = $this->regions->diskName($user);
         $map->revision = 1;
+        $map->last_save_id = $saveId;
         // The id is needed for the path before the row exists.
         $map->id = $map->newUniqueId();
         $this->write($map, $json);
@@ -37,13 +51,24 @@ class MapDocuments
     }
 
     /**
-     * Saves a new revision. The caller has already checked that the client
-     * edited the current revision; the row lock closes the remaining race.
+     * Saves a new revision on top of `$basedOn`, the revision the editor
+     * started from. Checked under the row lock, so two saves arriving
+     * together can't both pass: the second gets a conflict (409) instead of
+     * silently replacing the first.
+     *
+     * The save that already made the current revision (same `$saveId`, sent
+     * again because its answer was lost) gets that revision back unchanged.
      */
-    public function update(Map $map, string $json, array $attributes = []): Map
+    public function update(Map $map, string $json, array $attributes, int $basedOn, ?string $saveId = null): Map
     {
-        return DB::transaction(function () use ($map, $json, $attributes) {
+        return DB::transaction(function () use ($map, $json, $attributes, $basedOn, $saveId) {
             $locked = Map::query()->lockForUpdate()->findOrFail($map->id);
+            if ($saveId !== null && $locked->last_save_id === $saveId && $locked->revision === $basedOn + 1) {
+                return $locked;
+            }
+            if ($locked->revision !== $basedOn) {
+                throw ApiException::revisionConflict($locked->revision, $locked->last_save_id);
+            }
 
             $locked->versions()->create([
                 'revision' => $locked->revision,
@@ -54,6 +79,7 @@ class MapDocuments
 
             $locked->fill($attributes);
             $locked->revision++;
+            $locked->last_save_id = $saveId;
             $this->write($locked, $json);
             $locked->save();
 
