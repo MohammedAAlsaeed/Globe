@@ -85,10 +85,80 @@ function ensureCsrf(force = false) {
 
 type Body = Record<string, unknown> | FormData | undefined;
 
+/** How a JSON body is sent (map saves: large, so made smaller). */
+export type SendOptions = {
+  /** Gzip the body (`Content-Encoding: gzip`) when the API accepts that. */
+  compress?: boolean;
+  /** Round fractional numbers to this many decimals (see `roundNumbers`). */
+  decimals?: number;
+};
+
+/**
+ * Whether the API expands gzip request bodies: it says so on every
+ * response (`Accept-Encoding: gzip`, RFC 7694). Until a response has said
+ * so, nothing is compressed, so a web app deployed ahead of its API still
+ * saves.
+ */
+let gzipAccepted = false;
+const GZIP_FROM = 4 * 1024; // smaller bodies gain too little to bother
+
+/**
+ * A JSON replacer that rounds fractional numbers to `decimals` places.
+ * Map documents are mostly normalized coordinates printed with 17 digits;
+ * six decimals of a 20 000 px map is a hundredth of a pixel. Whole numbers
+ * and tiny values (under 0.001, where six decimals would lose precision)
+ * are kept as they are.
+ */
+export const roundNumbers = (decimals: number) => {
+  const f = 10 ** decimals;
+  return (_key: string, v: unknown) =>
+    typeof v === "number" &&
+    Number.isFinite(v) &&
+    !Number.isInteger(v) &&
+    Math.abs(v) >= 1e-3
+      ? Math.round(v * f) / f
+      : v;
+};
+
+/** Gzips text with the browser's own CompressionStream. */
+export async function gzip(text: string): Promise<Uint8Array> {
+  const stream = new Blob([text])
+    .stream()
+    .pipeThrough(new CompressionStream("gzip"));
+  return new Uint8Array(await new Response(stream).arrayBuffer());
+}
+
+/** The JSON (or form) as sent, and whether it went gzipped. */
+async function encode(
+  body: Body,
+  options: SendOptions,
+): Promise<{ payload: BodyInit | undefined; gzipped: boolean }> {
+  if (!body) return { payload: undefined, gzipped: false };
+  if (body instanceof FormData) return { payload: body, gzipped: false };
+  const json = JSON.stringify(
+    body,
+    options.decimals !== undefined ? roundNumbers(options.decimals) : undefined,
+  );
+  if (
+    options.compress &&
+    gzipAccepted &&
+    json.length >= GZIP_FROM &&
+    typeof CompressionStream !== "undefined"
+  ) {
+    try {
+      return { payload: (await gzip(json)) as BodyInit, gzipped: true };
+    } catch {
+      // Compression failed (rare): send it as it is.
+    }
+  }
+  return { payload: json, gzipped: false };
+}
+
 async function send(
   method: string,
   path: string,
   body: Body,
+  options: SendOptions = {},
   retried = false,
 ): Promise<Response> {
   const mutating = method !== "GET";
@@ -98,6 +168,8 @@ async function send(
   if (mutating && token) headers["X-XSRF-TOKEN"] = token;
   if (body && !(body instanceof FormData))
     headers["Content-Type"] = "application/json";
+  const { payload, gzipped } = await encode(body, options);
+  if (gzipped) headers["Content-Encoding"] = "gzip";
 
   let res: Response;
   try {
@@ -105,21 +177,31 @@ async function send(
       method,
       credentials: "include",
       headers,
-      body:
-        body instanceof FormData
-          ? body
-          : body
-            ? JSON.stringify(body)
-            : undefined,
+      body: payload,
     });
   } catch (e) {
     setService("unreachable");
     throw new NetworkError(String(e));
   }
+  if (/\bgzip\b/i.test(res.headers.get("Accept-Encoding") ?? ""))
+    gzipAccepted = true;
+  // The API refused the compressed body after all (a proxy on the way, or
+  // an older API): stop compressing and send this one again as it is.
+  if (gzipped && (res.status === 415 || res.status === 400)) {
+    const code = await res
+      .clone()
+      .json()
+      .then((j: { code?: unknown }) => j.code)
+      .catch(() => null);
+    if (res.status === 415 || code === "bad_encoding") {
+      gzipAccepted = false;
+      return send(method, path, body, { ...options, compress: false }, retried);
+    }
+  }
   // Expired CSRF token: fetch a fresh one and try once more.
   if (res.status === 419 && mutating && !retried) {
     await ensureCsrf(true);
-    return send(method, path, body, true);
+    return send(method, path, body, options, true);
   }
   return res;
 }
@@ -175,9 +257,10 @@ async function parse<T>(res: Response): Promise<T> {
 
 export const api = {
   get: <T>(path: string) => send("GET", path, undefined).then(parse<T>),
-  post: <T>(path: string, body?: Body) =>
-    send("POST", path, body).then(parse<T>),
-  put: <T>(path: string, body?: Body) => send("PUT", path, body).then(parse<T>),
+  post: <T>(path: string, body?: Body, options?: SendOptions) =>
+    send("POST", path, body, options).then(parse<T>),
+  put: <T>(path: string, body?: Body, options?: SendOptions) =>
+    send("PUT", path, body, options).then(parse<T>),
   patch: <T>(path: string, body?: Body) =>
     send("PATCH", path, body).then(parse<T>),
   delete: <T>(path: string) => send("DELETE", path, undefined).then(parse<T>),

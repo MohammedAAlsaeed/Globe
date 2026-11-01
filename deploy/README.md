@@ -162,6 +162,31 @@ Every API request then answers `503` with the code `maintenance` (and `retry_aft
 - **Server errors:** the API answers `500` with the code `server_error` and a `reference` (e.g. `7K2M9QX4PA`), which the web app shows. The log entry of that error carries the same `reference`.
 - **Errors in visitors' browsers:** those not caught by a page, and pages that failed, are sent to `POST /api/v1/client-errors` and logged as `Web app error: …`. Each entry has the page path (never its query string), the stack and Next's `digest`. They are rate-limited per address, and the same error is sent once per page load.
 
+## Performance and cost
+
+**Saving maps.** A save uploads the whole map. The editor makes it smaller on the way:
+
+- coordinates are sent to six decimals (a hundredth of a pixel on a 20 000 px map) instead of 17 digits;
+- the body is gzipped in the browser (`Content-Encoding: gzip`) once the API has said it accepts that: every API response carries `Accept-Encoding: gzip` (RFC 7694), so a web app deployed ahead of its API never sends what the API can't read. If the API refuses a compressed body anyway (`415`, or `400 bad_encoding`), the web app sends it again uncompressed and stops compressing.
+
+A drawn map of about 1.7 MB goes up as about 0.27 MB. The API expands it in `App\Http\Middleware\DecompressRequest`, with a ceiling (`MAP_MAX_DOCUMENT_BYTES` + 1 MiB) so a small upload can't expand into a huge one. Documents are still stored gzipped in R2. Sending only the changes (deltas) is a later step, and only worth doing if saves of very large maps become a problem.
+
+**Thumbnails and uploaded stamps.** They are private files in R2, shown through signed URLs. URLs are signed **once per 12-hour window** (a fixed start time), so the same file has the same URL all window long and the browser keeps it in its cache instead of downloading it on every page. Each URL stays valid for at least 12 hours and at most 24 (`FILE_URL_WINDOW_MINUTES`, `FILE_URL_GRACE_MINUTES`). A stored path never changes content (a new thumbnail or stamp gets a new path), so a cached copy is never stale. Files are stored with `Cache-Control: private, max-age=86400, immutable`, and the URL asks R2 for the same header for files uploaded before that. The official stamps are part of the site (`app/public`) and are served by Cloudflare's CDN.
+
+**Servers that sleep.** On develop, sleeping keeps the cost near zero. On production, people would wait:
+
+| | develop | production |
+|---|---|---|
+| Compute | Flex 512 MiB, scales to zero after 5 min (the first request after that waits a few seconds) | At least 1 replica always on (no scale to zero); 1 GiB if large maps are slow to save |
+| Database | Dev size, sleeps when idle | A size that doesn't sleep, with longer backups |
+| HTTP timeout | 60 s (a large first save after waking can take more than 20 s) | 60 s |
+
+**Region and data protection (PDPL).** The API, its database and R2 (`idrisi-dev`, Eastern Europe) are in Europe today; the web app runs on Cloudflare's edge. Saudi Arabia's PDPL doesn't require general personal data to stay in the Kingdom, but sending it abroad needs a permitted purpose and either an adequate destination or safeguards such as SDAIA's standard contractual clauses, with a risk assessment. Before production on the `.sa` domain:
+
+- choose the region with legal advice: Laravel Cloud offers `me-central-1` (UAE) besides Frankfurt; R2 can use a location hint, or a jurisdiction where one fits;
+- the API already supports one storage disk per data region (`config/regions.php`), so new accounts can be kept in the chosen region without changing code;
+- say where data is kept and processed in the privacy policy.
+
 ## 6. After it is live
 
 - Sign up, verify the email (check it isn't in spam), reset the password, sign in with Google: on both copies.

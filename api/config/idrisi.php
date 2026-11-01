@@ -38,8 +38,13 @@ return [
 
     'assets' => [
         'max_upload_kb' => 10240,
-        // Minutes a signed asset URL stays valid.
+        // Minutes a signed asset URL stays valid (local disks).
         'url_ttl' => 60,
+        // S3 / R2: URLs are signed once per window (the same URL all
+        // window long, so browsers cache the file) and stay valid for the
+        // grace after it. Together at most 7 days (S3's limit).
+        'url_window_minutes' => (int) env('FILE_URL_WINDOW_MINUTES', 720),
+        'url_grace_minutes' => (int) env('FILE_URL_GRACE_MINUTES', 720),
     ],
 
 ];

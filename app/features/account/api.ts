@@ -93,6 +93,9 @@ function toDocument(project: MMProject) {
   return doc;
 }
 
+/** Map uploads: gzipped, coordinates to six decimals (a few times smaller). */
+const MAP_BODY = { compress: true, decimals: 6 } as const;
+
 export const maps = {
   list: () =>
     api.get<{
@@ -121,13 +124,17 @@ export const maps = {
     /** This upload's id: sent again (its answer lost), it makes no second map. */
     saveId?: string,
   ): Promise<{ map: CloudMap; project: MMProject }> {
-    const { data } = await api.post<One<CloudMap>>("maps", {
-      save_id: saveId,
-      name: project.name.trim() || "Untitled map",
-      width: project.width,
-      height: project.height,
-      document: toDocument(project),
-    });
+    const { data } = await api.post<One<CloudMap>>(
+      "maps",
+      {
+        save_id: saveId,
+        name: project.name.trim() || "Untitled map",
+        width: project.width,
+        height: project.height,
+        document: toDocument(project),
+      },
+      MAP_BODY,
+    );
     return {
       map: data,
       project: {
@@ -144,14 +151,18 @@ export const maps = {
    * server answers with what it already saved instead of a conflict. */
   save: (id: string, project: MMProject, revision: number, saveId?: string) =>
     api
-      .put<One<CloudMap>>(`maps/${id}`, {
-        revision,
-        save_id: saveId,
-        name: project.name.trim() || "Untitled map",
-        width: project.width,
-        height: project.height,
-        document: toDocument(project),
-      })
+      .put<One<CloudMap>>(
+        `maps/${id}`,
+        {
+          revision,
+          save_id: saveId,
+          name: project.name.trim() || "Untitled map",
+          width: project.width,
+          height: project.height,
+          document: toDocument(project),
+        },
+        MAP_BODY,
+      )
       .then((r) => r.data),
 
   rename: (id: string, name: string) =>

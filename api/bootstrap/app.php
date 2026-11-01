@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Middleware\AccountGuard;
+use App\Http\Middleware\DecompressRequest;
 use App\Http\Middleware\EnsureAdminTwoFactor;
 use App\Http\Middleware\EnsureStaff;
 use App\Http\Middleware\RequirePermission;
@@ -23,6 +24,9 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         // Sanctum SPA: requests from the web app's origin get session cookies.
         $middleware->statefulApi();
+        // The editor sends maps gzip-compressed (Content-Encoding: gzip).
+        // After CORS and the size check, so errors still carry CORS headers.
+        $middleware->append(DecompressRequest::class);
         // Suspended accounts and ended sessions are signed out at once.
         $middleware->api(append: [AccountGuard::class]);
         $middleware->alias([
