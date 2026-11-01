@@ -3,11 +3,14 @@
  * The last line: the site's own frame (the root layout or its providers)
  * failed. It replaces the whole document, so it brings its own <html>, its
  * own few styles and both languages, and depends on nothing that may be
- * what broke (no translations, no account, no stylesheet).
+ * what broke (no translations, no account, no stylesheet). Its fonts are
+ * the site's own (lib/fonts.ts), built in, so they need nothing either.
  */
 import { useEffect, useSyncExternalStore } from "react";
 import { reportError } from "@/lib/reportError";
 import { LANGUAGE_KEY } from "@/lib/language";
+// The site's Arabic fonts (thmanyah): importing adds their @font-face.
+import "@/lib/fonts";
 
 const TEXT = {
   en: {
@@ -28,14 +31,22 @@ const TEXT = {
   },
 };
 
+/** The site's type (app/fonts.css), written out: this page has no stylesheet. */
+const FONTS = {
+  en: `--sans: "IBM Plex Sans Arabic", "Segoe UI", Tahoma, sans-serif;
+    --display: Amiri, Georgia, serif;`,
+  ar: `--sans: thmanyahSans, "thmanyahSans Fallback", "Segoe UI", Tahoma, sans-serif;
+    --display: thmanyahDisplay, "thmanyahDisplay Fallback", Georgia, serif;`,
+};
+
 const CSS = `
   body { margin: 0; min-height: 100vh; display: grid; place-items: center;
     background: radial-gradient(circle at 50% 40%, #1a2a66 0%, #0d1636 65%);
-    color: #f3e8cc; font-family: "IBM Plex Sans Arabic", "Segoe UI", Tahoma, sans-serif; }
+    color: #f3e8cc; font-family: var(--sans); }
   main { max-width: 34rem; padding: 32px 20px; text-align: center; }
   img { width: 120px; height: 120px; transform: rotate(-24deg); opacity: .9;
     filter: drop-shadow(0 10px 28px rgba(0,0,0,.45)); }
-  h1 { font-family: Amiri, Georgia, serif; font-size: 2rem; color: #f1d58a; margin: 18px 0 8px; }
+  h1 { font-family: var(--display); font-size: 2rem; color: #f1d58a; margin: 18px 0 8px; }
   p { line-height: 1.7; color: #a9b0cf; margin: 0 0 22px; }
   .actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
   button, a { font: inherit; font-size: 15px; padding: 10px 18px; border-radius: 999px;
@@ -83,7 +94,9 @@ export default function GlobalError({
       <head>
         <title>{t.title}</title>
         <meta name="robots" content="noindex" />
-        <style dangerouslySetInnerHTML={{ __html: CSS }} />
+        <style
+          dangerouslySetInnerHTML={{ __html: `:root{${FONTS[lang]}}${CSS}` }}
+        />
       </head>
       <body>
         <main role="alert">

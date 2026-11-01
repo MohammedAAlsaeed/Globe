@@ -3,6 +3,8 @@ import { cookies } from "next/headers";
 import { preconnect } from "react-dom";
 import "./globals.css";
 import { Providers } from "./providers";
+// The site's Arabic fonts (thmanyah): importing adds their @font-face.
+import "@/lib/fonts";
 import { LANGUAGE_KEY, parseLanguage } from "@/lib/language";
 import { IS_PRODUCTION, SITE_NAME, SITE_URL } from "@/lib/site";
 
@@ -46,9 +48,10 @@ export default async function RootLayout({
       suppressHydrationWarning
     >
       <body>
-        {/* One shared stylesheet for every page. React puts it (and the
-        preconnects above) in the document head: the page's <head> is
-        Next's own, built from `metadata`. */}
+        {/* The English fonts (Amiri, IBM Plex): one shared stylesheet for
+        every page. React puts it (and the preconnects above) in the
+        document head: the page's <head> is Next's own, built from
+        `metadata`. Arabic is thmanyah's, built into the site. */}
         {/* eslint-disable-next-line @next/next/no-page-custom-font -- one shared stylesheet for every page */}
         <link
           rel="stylesheet"
