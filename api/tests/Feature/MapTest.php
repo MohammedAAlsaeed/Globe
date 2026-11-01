@@ -2,8 +2,10 @@
 
 namespace Tests\Feature;
 
+use App\Exceptions\ApiException;
 use App\Models\Map;
 use App\Models\User;
+use App\Services\MapDocuments;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
@@ -114,6 +116,68 @@ class MapTest extends TestCase
         $this->assertSame(2, json_decode($this->getJson("/api/v1/maps/{$map['id']}")->getContent())->document->v);
         // The earlier revision is kept for restore.
         $this->assertDatabaseHas('map_versions', ['map_id' => $map['id'], 'revision' => 1]);
+    }
+
+    public function test_a_save_sent_again_gets_its_own_result_not_a_conflict(): void
+    {
+        $user = User::factory()->create();
+        $map = $this->createMap($user);
+        $save = ['revision' => 1, 'save_id' => 'save-A', 'document' => $this->document(['v' => 2])];
+
+        $this->actingAs($user)->putJson("/api/v1/maps/{$map['id']}", $save)
+            ->assertOk()->assertJsonPath('data.revision', 2);
+        // Its answer was lost; the editor sends the very same save again.
+        $this->putJson("/api/v1/maps/{$map['id']}", $save)
+            ->assertOk()->assertJsonPath('data.revision', 2);
+        $this->assertSame(2, Map::find($map['id'])->revision);
+        $this->assertSame(1, Map::find($map['id'])->versions()->count());
+
+        // A different save based on the old revision is a conflict, which
+        // names the save that made the current revision.
+        $this->putJson("/api/v1/maps/{$map['id']}", ['save_id' => 'save-B'] + $save)
+            ->assertStatus(409)->assertJsonPath('code', 'revision_conflict')
+            ->assertJsonPath('current_revision', 2)->assertJsonPath('current_save_id', 'save-A');
+        // So is the old save once a newer one has followed it.
+        $this->putJson("/api/v1/maps/{$map['id']}", ['revision' => 2, 'save_id' => 'save-C', 'document' => $this->document()])
+            ->assertOk()->assertJsonPath('data.revision', 3);
+        $this->putJson("/api/v1/maps/{$map['id']}", $save)->assertStatus(409);
+    }
+
+    public function test_an_upload_sent_again_makes_no_second_map(): void
+    {
+        $user = User::factory()->create();
+        $upload = ['name' => 'World', 'width' => 2048, 'height' => 1536, 'save_id' => 'new-1', 'document' => $this->document()];
+        $first = $this->actingAs($user)->postJson('/api/v1/maps', $upload)->assertCreated()->json('data.id');
+        $again = $this->postJson('/api/v1/maps', $upload)->assertCreated()->json('data.id');
+        $this->assertSame($first, $again);
+        $this->assertSame(1, Map::query()->where('user_id', $user->id)->count());
+
+        // Even at the plan's limit, the same upload is still answered.
+        foreach (range(1, 2) as $_) {
+            $this->createMap($user);
+        }
+        $this->postJson('/api/v1/maps', $upload)->assertCreated()->assertJsonPath('data.id', $first);
+        $this->postJson('/api/v1/maps', ['save_id' => 'new-2'] + $upload)->assertForbidden();
+        // Another person's save ids are theirs alone.
+        $this->actingAs(User::factory()->create())->postJson('/api/v1/maps', $upload)
+            ->assertCreated()->assertJsonMissing(['id' => $first]);
+    }
+
+    public function test_the_revision_is_checked_under_the_lock(): void
+    {
+        // Two saves based on the same revision, the second arriving after the
+        // first was written: the second must not replace the first.
+        $user = User::factory()->create();
+        $map = Map::find($this->createMap($user)['id']);
+        $documents = app(MapDocuments::class);
+        $documents->update($map, json_encode($this->document(['v' => 'first'])), [], 1, 'a');
+        try {
+            $documents->update($map, json_encode($this->document(['v' => 'second'])), [], 1, 'b');
+            $this->fail('The second save should conflict.');
+        } catch (ApiException $e) {
+            $this->assertSame('revision_conflict', $e->errorCode);
+        }
+        $this->assertStringContainsString('"first"', $documents->read(Map::find($map->id)));
     }
 
     public function test_old_revisions_are_pruned(): void

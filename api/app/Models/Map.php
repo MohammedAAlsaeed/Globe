@@ -19,8 +19,8 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property string $document_path
  * @property int $revision
  */
-#[Fillable(['name', 'width', 'height', 'schema_version', 'revision', 'disk', 'document_path', 'document_bytes', 'thumbnail_path'])]
-#[Hidden(['disk', 'document_path', 'thumbnail_path'])]
+#[Fillable(['name', 'width', 'height', 'schema_version', 'revision', 'last_save_id', 'disk', 'document_path', 'document_bytes', 'thumbnail_path'])]
+#[Hidden(['disk', 'document_path', 'thumbnail_path', 'last_save_id'])]
 class Map extends Model
 {
     use HasFactory, HasUlids, SoftDeletes;

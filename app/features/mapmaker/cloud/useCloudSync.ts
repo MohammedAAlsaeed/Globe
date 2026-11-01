@@ -13,6 +13,12 @@
  *
  * Failed saves retry on their own; the work is always kept on this device
  * meanwhile (the editor's local autosave), so nothing is lost offline.
+ *
+ * One save at a time, each based on the revision the previous one returned
+ * (kept in a ref at once, not waiting for React to re-render), and each
+ * with an id of its own: a save resent because its answer was lost (a slow
+ * or dropped connection) is recognised by the server, not taken for a
+ * conflict.
  */
 import {
   useCallback,
@@ -38,6 +44,43 @@ export type CloudStatus =
   | "conflict"; // a newer version exists: the person chooses
 
 export type ConflictChoice = "load" | "copy" | "replace";
+
+/** An id for one save (the same for its retries). */
+const newSaveId = () =>
+  typeof crypto !== "undefined" && "randomUUID" in crypto
+    ? crypto.randomUUID()
+    : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
+
+/**
+ * The saves this tab has sent, per map (the last few). Kept in
+ * sessionStorage: the tab's own, surviving a reload of it, never shared with
+ * another tab (whose saves stay "someone else's"). A save whose answer was
+ * lost (a gateway timeout, a reload) may still have been made: when the
+ * server's current revision turns out to be one of these, it isn't a
+ * conflict.
+ */
+const OWN_SAVES = (mapId: string) => `idrisi-saves:${mapId}`;
+function rememberSave(mapId: string, saveId: string) {
+  try {
+    const list = JSON.parse(
+      sessionStorage.getItem(OWN_SAVES(mapId)) ?? "[]",
+    ) as string[];
+    sessionStorage.setItem(
+      OWN_SAVES(mapId),
+      JSON.stringify([...list.filter((x) => x !== saveId), saveId].slice(-20)),
+    );
+  } catch {}
+}
+function isOwnSave(mapId: string, saveId: unknown) {
+  if (typeof saveId !== "string") return false;
+  try {
+    return (
+      JSON.parse(sessionStorage.getItem(OWN_SAVES(mapId)) ?? "[]") as string[]
+    ).includes(saveId);
+  } catch {
+    return false;
+  }
+}
 
 const SAVE_DELAY = 2000,
   RETRY_OFFLINE = 10_000,
@@ -88,7 +131,26 @@ export function useCloudSync(o: Options) {
       async () => {},
     ),
     // The save routine, read by timers (always the latest version).
-    runRef = useRef<() => Promise<void>>(async () => {});
+    runRef = useRef<() => Promise<void>>(async () => {}),
+    // The cloud map and the revision the server last answered with: set the
+    // moment a save returns, so the next save never starts from an older one
+    // (the binding prop only catches up on the next render).
+    server = useRef<{ id: string; revision: number } | null>(
+      o.binding ? { id: o.binding.id, revision: o.binding.revision } : null,
+    ),
+    // The id of the save of a given version of the project: its retries
+    // reuse it, the next version gets a new one.
+    pendingSave = useRef<{ project: MMProject; id: string } | null>(null);
+
+  /** The binding to save against: the newest revision known. */
+  const current = useCallback(() => {
+    const b = latest.current.binding,
+      s = server.current;
+    if (!b) return undefined;
+    return s && s.id === b.id && s.revision > b.revision
+      ? { ...b, revision: s.revision }
+      : b;
+  }, []);
 
   const schedule = useCallback((delay: number) => {
     if (timer.current) clearTimeout(timer.current);
@@ -129,6 +191,21 @@ export function useCloudSync(o: Options) {
       } else if (e instanceof ApiError && e.status === 401) {
         setStatus("signin");
         latest.current.onSignedOut();
+      } else if (
+        e instanceof ApiError &&
+        e.code === "revision_conflict" &&
+        server.current &&
+        Number(e.body.current_revision) > server.current.revision &&
+        isOwnSave(server.current.id, e.body.current_save_id)
+      ) {
+        // Our own save made it after all (its answer was lost): carry on
+        // from the revision it made, with everything drawn since.
+        server.current = {
+          id: server.current.id,
+          revision: Number(e.body.current_revision),
+        };
+        setStatus("pending");
+        schedule(0);
       } else if (e instanceof ApiError && e.code === "revision_conflict") {
         blocked.current = true;
         setConflictRevision(Number(e.body.current_revision));
@@ -146,6 +223,7 @@ export function useCloudSync(o: Options) {
   );
 
   const bind = useCallback((id: string, revision: number) => {
+    server.current = { id, revision };
     latest.current.setBinding({ id, revision, savedAt: Date.now() });
     // Show the cloud map's own address, without reloading the editor.
     const url = new URL(window.location.href);
@@ -157,7 +235,8 @@ export function useCloudSync(o: Options) {
 
   /** One save (or the first upload) of the current project. */
   const run = useCallback(async () => {
-    const { user, binding } = latest.current;
+    const { user } = latest.current,
+      binding = current();
     if (!user || blocked.current) return;
     if (inFlight.current) {
       again.current = true;
@@ -170,13 +249,24 @@ export function useCloudSync(o: Options) {
     }
     inFlight.current = true;
     setStatus("saving");
+    if (pendingSave.current?.project !== project)
+      pendingSave.current = { project, id: newSaveId() };
+    const saveId = pendingSave.current.id;
+    // Remembered before it is sent: its answer may never arrive.
+    if (binding) rememberSave(binding.id, saveId);
     try {
       if (!binding) {
-        const { map } = await maps.create(project);
+        const { map } = await maps.create(project, saveId);
+        rememberSave(map.id, saveId);
         bind(map.id, map.revision);
         void uploadThumbnail(map.id, true);
       } else {
-        const map = await maps.save(binding.id, project, binding.revision);
+        const map = await maps.save(
+          binding.id,
+          project,
+          binding.revision,
+          saveId,
+        );
         bind(map.id, map.revision);
         void uploadThumbnail(map.id);
       }
@@ -193,7 +283,7 @@ export function useCloudSync(o: Options) {
         schedule(0);
       }
     }
-  }, [bind, fail, schedule, uploadThumbnail]);
+  }, [bind, current, fail, schedule, uploadThumbnail]);
   useLayoutEffect(() => {
     runRef.current = run;
   }, [run]);
@@ -244,7 +334,8 @@ export function useCloudSync(o: Options) {
 
   const resolveConflict = useCallback(
     async (choice: ConflictChoice) => {
-      const { binding, project } = latest.current;
+      const { project } = latest.current,
+        binding = current();
       if (!binding || conflictRevision === null) return;
       setResolving(true);
       setResolveError(null);
@@ -259,12 +350,19 @@ export function useCloudSync(o: Options) {
         }
         if (choice === "copy") {
           const name = `${project.name || "Map"} ${latest.current.copySuffix}`;
-          const { map } = await maps.create({ ...project, name });
+          const { map } = await maps.create({ ...project, name }, newSaveId());
           latest.current.onRename(name);
           bind(map.id, map.revision);
           void uploadThumbnail(map.id, true);
         } else {
-          const map = await maps.save(binding.id, project, conflictRevision);
+          const saveId = newSaveId();
+          rememberSave(binding.id, saveId);
+          const map = await maps.save(
+            binding.id,
+            project,
+            conflictRevision,
+            saveId,
+          );
           bind(map.id, map.revision);
         }
         saved.current = project;
@@ -277,7 +375,7 @@ export function useCloudSync(o: Options) {
         setResolving(false);
       }
     },
-    [bind, conflictRevision, uploadThumbnail],
+    [bind, conflictRevision, current, uploadThumbnail],
   );
 
   return {

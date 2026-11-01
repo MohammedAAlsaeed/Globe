@@ -35,10 +35,16 @@ class ApiException extends RuntimeException
         ], fn ($v, $k) => $k === 'max' || $v !== null, ARRAY_FILTER_USE_BOTH));
     }
 
-    public static function revisionConflict(int $current): self
+    /**
+     * `current_save_id` names the save that made the current revision, so an
+     * editor can tell its own save (one whose answer it never got) from
+     * someone else's.
+     */
+    public static function revisionConflict(int $current, ?string $currentSaveId = null): self
     {
         return new self('revision_conflict', 'The map was changed elsewhere; reload it before saving.', 409, [
             'current_revision' => $current,
+            'current_save_id' => $currentSaveId,
         ]);
     }
 
