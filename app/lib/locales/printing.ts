@@ -49,8 +49,8 @@ export const printingEn = {
   exLimitGuest:
     "Without an account, maps export up to {{px}} px on the long side. Sign in and choose a plan to save and print larger maps.",
   // ---- print studio (/print) ----
-  prHeroGlobe: "Your map, as a globe.",
-  prHeroPoster: "Your map, on the wall.",
+  prHeroGlobe: "Your map, ==as a globe==.",
+  prHeroPoster: "Your map, ==on the wall==.",
   prIntroGlobe:
     "Cut and glue gores into a sphere. Set its size, check every sheet, and print at exactly 100%.",
   prIntroPoster:
@@ -179,8 +179,8 @@ export const printingAr: typeof printingEn = {
   exLimitGuest:
     "بدون حساب، تُصدَّر الخرائط حتى {{px}} بكسل للضلع الأطول. سجّل الدخول واختر خطة لحفظ وطباعة خرائط أكبر.",
   // ---- print studio (/print) ----
-  prHeroGlobe: "خريطتك، ككرة أرضية.",
-  prHeroPoster: "خريطتك، على الجدار.",
+  prHeroGlobe: "^خَريطتك^، ==ككرة أرضية==.",
+  prHeroPoster: "^خَريطتك^، ==على الجدار==.",
   prIntroGlobe:
     "قصّ الشرائح وألصقها لتصبح كرة. حدّد مقاسها، وراجع كل ورقة، واطبع بمقاس 100% تمامًا.",
   prIntroPoster:

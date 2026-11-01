@@ -4,6 +4,8 @@
  */
 export const controlsEn = {
   ctTitle: "Controls & shortcuts",
+  /** The settings page's title (with its flourish, lib/flourish.ts). */
+  ctPageTitle: "Controls & shortcuts",
   ctSubtitle:
     "How the editor answers your mouse, trackpad, touchscreen, pen and keyboard.",
   ctOpenControls: "Controls & shortcuts",
@@ -158,6 +160,7 @@ export const controlsEn = {
 
 export const controlsAr: typeof controlsEn = {
   ctTitle: "التحكم والاختصارات",
+  ctPageTitle: "^التحَكم^ والاختصارات",
   ctSubtitle:
     "كيف يستجيب المحرر للفأرة ولوحة اللمس والشاشة اللمسية والقلم ولوحة المفاتيح.",
   ctOpenControls: "التحكم والاختصارات",

@@ -7,6 +7,7 @@ import { auth } from "./api";
 import { AuthShell } from "./AuthShell";
 import { errorMessage } from "./ui";
 import { ApiError } from "@/lib/api/client";
+import { plainText } from "@/lib/flourish";
 
 export function ForgotPasswordForm() {
   const { t } = useTranslation();
@@ -145,7 +146,7 @@ export function ResetPasswordForm() {
         </form>
       )}
       <p className="auth-switch">
-        <Link href="/forgot-password">{t("acForgotTitle")}</Link>
+        <Link href="/forgot-password">{plainText(t("acForgotTitle"))}</Link>
       </p>
     </AuthShell>
   );

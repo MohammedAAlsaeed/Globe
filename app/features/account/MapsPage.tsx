@@ -31,6 +31,7 @@ import { useAuth } from "./AuthProvider";
 import type { CloudMap, User } from "./types";
 import { CompassLoader, CompassScreen, SiteHeader, errorMessage } from "./ui";
 import { ApiError } from "@/lib/api/client";
+import { Flourish } from "@/components/ui/Flourish";
 
 function formatDate(value: string | number, locale: string) {
   try {
@@ -173,7 +174,9 @@ export function MapsPage() {
       <main className="maps-main">
         <div className="maps-head">
           <div>
-            <h1>{t("acMapsTitle")}</h1>
+            <h1 className="fl-title">
+              <Flourish text={t("acMapsTitle")} />
+            </h1>
           </div>
           <div className="maps-head-actions">
             <button

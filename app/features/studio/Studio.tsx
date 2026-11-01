@@ -38,6 +38,7 @@ import {
 } from "./storage/projects";
 import type { GlobeSettings, PrintSettings } from "./domain/types";
 import { Icon } from "@/components/ui/ornaments";
+import { Flourish } from "@/components/ui/Flourish";
 
 const DEFAULT_FILL = "#2c5678";
 
@@ -143,7 +144,13 @@ export default function Studio({
         <section className="pr-hero">
           <div className="pr-hero-copy">
             <span className="pr-eyebrow">{t("acPrintStudio")}</span>
-            <h1>{t(mode === "globe" ? "prHeroGlobe" : "prHeroPoster")}</h1>
+            <h1 className="fl-title" key={mode}>
+              {mode === "globe" ? (
+                <Flourish text={t("prHeroGlobe")} />
+              ) : (
+                <Flourish text={t("prHeroPoster")} />
+              )}
+            </h1>
             <p>{t(mode === "globe" ? "prIntroGlobe" : "prIntroPoster")}</p>
           </div>
           <SourceCard

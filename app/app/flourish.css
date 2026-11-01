@@ -1,0 +1,82 @@
+/*
+ * Title flourishes (lib/flourish.ts, components/ui/Flourish.tsx): thmanyah's
+ * extended fatha, a gold highlight, and the titles' entrance.
+ */
+
+/* A word with an extended fatha never breaks across lines. */
+.fl-word {
+  white-space: nowrap;
+}
+/* A stroke of gold leaf under the words, drawn like a marker. */
+.fl-mark {
+  --fl-ink: rgba(217, 169, 59, 0.42);
+  color: inherit;
+  background: linear-gradient(var(--fl-ink), var(--fl-ink)) no-repeat;
+  background-size: 100% 0.36em;
+  background-position: 0 88%;
+  padding-inline: 0.08em;
+  margin-inline: -0.08em;
+  border-radius: 0.06em;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+[dir="rtl"] .fl-mark {
+  background-position: 100% 88%;
+}
+
+/* No letter spacing in Arabic: it breaks the joins (and the kashidas). */
+[dir="rtl"] .fl-title,
+[dir="rtl"] .site-brand {
+  letter-spacing: 0;
+}
+
+/* Entrance: inked in reading direction, then the highlight. Padding gives
+ * marks above and below the line room inside the mask; the negative margin
+ * keeps the layout as it was. */
+@media (prefers-reduced-motion: no-preference) {
+  .fl-title {
+    padding-block: 0.2em;
+    margin-block: -0.2em;
+    animation: fl-ink 1s cubic-bezier(0.3, 0.7, 0.2, 1) both;
+    -webkit-mask-image: linear-gradient(to left, #000 40%, transparent 60%);
+    mask-image: linear-gradient(to left, #000 40%, transparent 60%);
+    -webkit-mask-size: 260% 100%;
+    mask-size: 260% 100%;
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+  }
+  [dir="ltr"] .fl-title {
+    -webkit-mask-image: linear-gradient(to right, #000 40%, transparent 60%);
+    mask-image: linear-gradient(to right, #000 40%, transparent 60%);
+    animation-name: fl-ink-ltr;
+  }
+  .fl-title .fl-mark {
+    animation: fl-mark 0.7s 0.55s cubic-bezier(0.4, 0, 0.2, 1) both;
+  }
+}
+/* RTL: the visible part starts at the right edge and spreads left. */
+@keyframes fl-ink {
+  from {
+    -webkit-mask-position: 0 0;
+    mask-position: 0 0;
+  }
+  to {
+    -webkit-mask-position: 100% 0;
+    mask-position: 100% 0;
+  }
+}
+@keyframes fl-ink-ltr {
+  from {
+    -webkit-mask-position: 100% 0;
+    mask-position: 100% 0;
+  }
+  to {
+    -webkit-mask-position: 0 0;
+    mask-position: 0 0;
+  }
+}
+@keyframes fl-mark {
+  from {
+    background-size: 0 0.36em;
+  }
+}

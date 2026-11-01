@@ -195,7 +195,7 @@ export const stampsAr: Record<keyof typeof stampsEn, string> &
     "امتلأت مساحة الأختام في خطتك ({{quota}}). احذف بعضها من «أختامي» أو رقِّ خطتك.",
   stQuota: "استُخدم {{used}} من {{quota}}",
   stManage: "إدارة أختامي",
-  stLibraryTitle: "أختامي",
+  stLibraryTitle: "^3:أختَامي^",
   stLibraryLead:
     "أختامك الخاصة، جاهزة في أداة الأختام من أي جهاز. الصور في المجموعة الواحدة أشكال لختم واحد تُوضع عشوائياً.",
   stBackToEditor: "افتح المحرر",

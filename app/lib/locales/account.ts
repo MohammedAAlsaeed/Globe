@@ -1,6 +1,8 @@
 /** Strings for accounts, My maps and cloud saving (English and Arabic). */
 export const accountEn = {
   acBrand: "Al-Idrisi Atelier",
+  /** The name in the site header (with its flourish, lib/flourish.ts). */
+  acBrandMark: "Al-Idrisi Atelier",
   acMyMaps: "My maps",
   acPrintStudio: "Print studio",
   acSignIn: "Sign in",
@@ -146,6 +148,7 @@ export const accountEn = {
 
 export const accountAr: typeof accountEn = {
   acBrand: "مرسم الإدريسي",
+  acBrandMark: "^مرسَم^ الإدريسي",
   acMyMaps: "خرائطي",
   acPrintStudio: "استوديو الطباعة",
   acSignIn: "تسجيل الدخول",
@@ -157,7 +160,7 @@ export const accountAr: typeof accountEn = {
   acPlan_atlas: "أطلس",
   acPlanLine: "خطة {{plan}}",
 
-  acLoginTitle: "أهلاً بعودتك",
+  acLoginTitle: "أهلاً ^بعَودتك^",
   acLoginLead: "سجّل دخولك لتفتح خرائطك من أي جهاز.",
   acEmail: "البريد الإلكتروني",
   acPassword: "كلمة المرور",
@@ -168,19 +171,19 @@ export const accountAr: typeof accountEn = {
   acNoAccount: "جديد هنا؟",
   acHaveAccount: "لديك حساب؟",
 
-  acRegisterTitle: "أنشئ حسابك",
+  acRegisterTitle: "أنشئ ^حسَابك^",
   acRegisterLead: "مجاناً: احفظ حتى 3 خرائط في السحابة وافتحها من أي مكان.",
   acName: "الاسم",
   acPasswordConfirm: "تأكيد كلمة المرور",
   acPasswordHint: "8 أحرف على الأقل، فيها حروف وأرقام.",
   acPasswordsDiffer: "كلمتا المرور غير متطابقتين.",
 
-  acForgotTitle: "استعادة كلمة المرور",
+  acForgotTitle: "استعادة ^كَلمة^ المرور",
   acForgotLead: "اكتب بريدك وسنرسل لك رابطاً لاختيار كلمة مرور جديدة.",
   acSendLink: "إرسال الرابط",
   acLinkSent: "إن كان هناك حساب بهذا البريد، فرابط الاستعادة في طريقه إليك.",
   acBackToSignIn: "العودة لتسجيل الدخول",
-  acResetTitle: "اختر كلمة مرور جديدة",
+  acResetTitle: "اختر كلمة مرور ^جَديدة^",
   acNewPassword: "كلمة المرور الجديدة",
   acResetButton: "حفظ كلمة المرور",
   acResetDone: "تم تغيير كلمة المرور. سجّل دخولك بها.",
@@ -207,7 +210,7 @@ export const accountAr: typeof accountEn = {
   acResent: "أُرسل.",
   acVerified: "تم تأكيد بريدك.",
 
-  acMapsTitle: "خرائطي",
+  acMapsTitle: "^3:خَرائطي^",
   acNewMap: "خريطة جديدة",
   acImportMap: "استيراد ملف",
   acPlanUsage: "{{used}} من {{max}} خرائط",
