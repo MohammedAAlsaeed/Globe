@@ -475,7 +475,14 @@ function PackEditor({
               <div className="lib-assets">
                 {list.map((a) => (
                   <div className="lib-asset" key={a.id}>
-                    <img src={a.url} alt="" loading="lazy" />
+                    {/* CORS like the editor's canvas, which loads the same
+                    URL: a plain copy in the cache would break it there. */}
+                    <img
+                      src={a.url}
+                      alt=""
+                      loading="lazy"
+                      crossOrigin="anonymous"
+                    />
                     <input
                       defaultValue={a.name}
                       maxLength={80}

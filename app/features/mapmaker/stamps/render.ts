@@ -19,6 +19,7 @@ import type { MMLayer, MMStamp, ShadowSettings } from "../types";
 import type { ArtPart, VectorArt } from "./art";
 import { setOfAsset, stampAsset, type StampAsset } from "./catalog";
 import { stampCenter, stampExtent } from "./geometry";
+import { loadCorsImage } from "@/lib/corsImage";
 
 /** What decides a stamp's pixels (not where or how big it is placed). */
 export type StampColors = Pick<
@@ -98,19 +99,21 @@ function imageOf(
   if (!e) {
     const entry: ImageEntry = { img: null, failed: false, waiters: new Set() };
     images.set(a.key, (e = entry));
-    const img = new Image();
-    img.crossOrigin = "anonymous";
-    img.onload = () => {
-      entry.img = img;
+    const settle = () => {
       entry.waiters.forEach((w) => w());
       entry.waiters.clear();
     };
-    img.onerror = () => {
-      entry.failed = true;
-      entry.waiters.forEach((w) => w());
-      entry.waiters.clear();
-    };
-    img.src = a.url;
+    // CORS, with a retry past a cached non-CORS copy (lib/corsImage.ts).
+    loadCorsImage(a.url).then(
+      (img) => {
+        entry.img = img;
+        settle();
+      },
+      () => {
+        entry.failed = true;
+        settle();
+      },
+    );
   }
   if (!e.img && !e.failed && onLoad) e.waiters.add(onLoad);
   return e.img;
