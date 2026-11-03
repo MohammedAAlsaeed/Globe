@@ -88,12 +88,12 @@ test("uploaded images are loaded the same way everywhere (CORS)", () => {
     .flatMap((d) => walk(join(root, d)))
     .filter((p) => p.endsWith(".tsx"))) {
     const src = readFileSync(p, "utf8");
-    for (const m of src.matchAll(/<img\b[^>]*?src=\{(\w+)\.url\}[^>]*?\/>/gs)) {
+    for (const m of src.matchAll(/<img\b[^>]*?src=\{(\w+)\.url}[^>]*?\/>/gs)) {
       if (!["a", "asset", "s", "stamp"].includes(m[1])) continue;
       assert.match(
         m[0],
         /crossOrigin="anonymous"/,
-        `${relative(root, p)}: <img src={${m[1]}.url}> without crossOrigin`,
+        `${relative(root, p)}: an image of ${m[1]}.url without crossOrigin`,
       );
     }
   }
