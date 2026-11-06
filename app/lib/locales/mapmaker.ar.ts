@@ -80,6 +80,9 @@ export const mapmakerAr: typeof mapmakerEn = {
   mmToolLabel: "نص",
 
   mmBrushSize: "حجم الفرشاة",
+  mmSizePreview: "{{px}} بكسل · {{pct}}٪ من عرض الخريطة",
+  mmStepDown: "تقليل {{label}}",
+  mmStepUp: "زيادة {{label}}",
   mmBrushOpacity: "الشفافية",
   mmBrushSoftness: "النعومة",
   mmColor: "اللون",
