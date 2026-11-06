@@ -417,7 +417,7 @@
   touch-action: none; /* a hold-to-repeat press shouldn't scroll */
 }
 .mm-step:hover:not(:disabled) {
-  background: var(--mm-hover);
+  background: var(--mm-panel-2);
   border-color: var(--mm-accent);
 }
 .mm-step:active:not(:disabled) {
