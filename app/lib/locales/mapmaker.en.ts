@@ -82,6 +82,8 @@ export const mapmakerEn = {
 
   mmBrushSize: "Brush size",
   mmSizePreview: "{{px}} px · {{pct}}% of map width",
+  mmStepDown: "Decrease {{label}}",
+  mmStepUp: "Increase {{label}}",
   mmBrushOpacity: "Opacity",
   mmBrushSoftness: "Softness",
   mmColor: "Color",

@@ -5,6 +5,7 @@
  * they're only ever used from MapCreatorEditor.tsx — mirrors how the print
  * studio keeps its own editor UI self-contained (features/studio/components). */
 import { useEffect, useId, useRef, type ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 import { ResetButton, ValueEditor } from "@/components/ui/ValueEditor";
 import { Glyph } from "../glyphs";
 import { shortcutLabel } from "../shortcuts";
@@ -83,6 +84,7 @@ export function Slider({
   defaultValue?: number;
 }) {
   const id = useId();
+  const { t } = useTranslation();
   // Dragging the range fires input events faster than the screen refreshes,
   // and each one re-renders the whole editor. Coalesce them to one commit per
   // animation frame: the native thumb still moves at full speed, the editor
@@ -100,15 +102,64 @@ export function Slider({
       if (next != null) onChange(next);
     });
   };
+  // Step one notch at a time with the −/+ buttons (and hold to keep going),
+  // for fine changes without dragging. `valueRef` holds the latest value so a
+  // hold keeps stepping from where it is now.
+  const valueRef = useRef(value);
+  useEffect(() => {
+    valueRef.current = value;
+  });
+  const held = useRef(false);
+  const holdTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const clamp = (v: number) => Math.min(max, Math.max(min, v));
+  const stepBy = (dir: 1 | -1) => emit(clamp(valueRef.current + dir * step));
+  const stopHold = () => {
+    held.current = false;
+    holdTimers.current.forEach(clearInterval);
+    holdTimers.current.forEach(clearTimeout);
+    holdTimers.current = [];
+  };
+  const startHold = (dir: 1 | -1) => {
+    held.current = true;
+    stepBy(dir);
+    holdTimers.current.push(
+      setTimeout(() => {
+        holdTimers.current.push(setInterval(() => stepBy(dir), 80));
+      }, 300),
+    );
+  };
   useEffect(
     () => () => {
       if (raf.current != null) cancelAnimationFrame(raf.current);
+      stopHold();
     },
     [],
+  );
+  const stepButton = (dir: 1 | -1) => (
+    <button
+      type="button"
+      className="mm-step"
+      aria-label={t(dir < 0 ? "mmStepDown" : "mmStepUp", { label })}
+      disabled={dir < 0 ? value <= min : value >= max}
+      onPointerDown={(e) => {
+        if (e.button === 0) startHold(dir);
+      }}
+      onPointerUp={stopHold}
+      onPointerLeave={stopHold}
+      onPointerCancel={stopHold}
+      onClick={() => {
+        // Keyboard (Enter/Space) fires click without a pointer press.
+        if (held.current) held.current = false;
+        else stepBy(dir);
+      }}
+    >
+      {dir < 0 ? "−" : "+"}
+    </button>
   );
   const slider = (
     <div className="mm-slider">
       <label htmlFor={id}>{label}</label>
+      {stepButton(-1)}
       <input
         id={id}
         type="range"
@@ -118,6 +169,7 @@ export function Slider({
         value={value}
         onChange={(e) => emit(+e.target.value)}
       />
+      {stepButton(1)}
       <b>
         <ValueEditor
           value={value}
