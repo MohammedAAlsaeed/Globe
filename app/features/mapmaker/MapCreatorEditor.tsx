@@ -223,6 +223,7 @@ import type {
   TextLook,
 } from "./types";
 import { ApiError } from "@/lib/api/client";
+import { clampToMap, sizeReadout } from "./sizePreview";
 import { setOfAsset, stampSet } from "./stamps/catalog";
 import { clearLibrary, loadLibrary, resolvePlaced } from "./stamps/remote";
 import { uploadStamps } from "./stamps/upload";
@@ -679,6 +680,13 @@ export function MapCreatorEditor({
     paintImageRef = useRef<Konva.Image>(null),
     paintFrameRef = useRef(0),
     brushCursorRef = useRef<Konva.Circle>(null),
+    /** The size-preview readout (updated imperatively, so a slider drag adds
+     * no React renders). */
+    sizeReadoutRef = useRef<HTMLDivElement>(null),
+    pointerOverCanvasRef = useRef(false),
+    sizeFlashRafRef = useRef<number | null>(null),
+    sizePreviewTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null),
+    prevToolSizeRef = useRef<{ tool: string; size: number } | null>(null),
     layerMenuRef = useRef<HTMLDivElement>(null),
     polySeedRef = useRef(0),
     coastPanelRef = useRef<HTMLDivElement>(null),
@@ -3729,6 +3737,11 @@ export function MapCreatorEditor({
   function handleStageHover(e: Konva.KonvaEventObject<PointerEvent>) {
     moveStampGhost(e.target.getStage()?.getPointerPosition() ?? null);
     const pos = e.target.getStage()?.getPointerPosition();
+    if (pos) {
+      pointerOverCanvasRef.current = true;
+      // The hover preview takes over; drop any lingering size readout.
+      if (sizeReadoutRef.current) sizeReadoutRef.current.style.display = "none";
+    }
     // Pen: rubber band from the last node to where the next one would go.
     if (
       (tool === "line" || tool === "shape") &&
@@ -3769,6 +3782,7 @@ export function MapCreatorEditor({
     g.getLayer()?.batchDraw();
   }
   function hideBrushCursor() {
+    pointerOverCanvasRef.current = false;
     moveStampGhost(null);
     const c = brushCursorRef.current;
     if (c?.visible()) {
@@ -3776,6 +3790,126 @@ export function MapCreatorEditor({
       c.getLayer()?.batchDraw();
     }
   }
+
+  /** The centre of the visible part of the map, in stage px (the map box is
+   * sized 1:1 in CSS px, so client px are stage px). Used when the size
+   * preview has no recent pointer spot to sit at. */
+  function visibleMapCentre(): { x: number; y: number } {
+    const box = stageBoxRef.current;
+    if (!box) return { x: W / 2, y: H / 2 };
+    const r = box.getBoundingClientRect();
+    let sc: HTMLElement | null = box.parentElement;
+    while (
+      sc &&
+      sc.scrollWidth <= sc.clientWidth &&
+      sc.scrollHeight <= sc.clientHeight
+    )
+      sc = sc.parentElement;
+    const v = sc
+      ? sc.getBoundingClientRect()
+      : ({
+          left: 0,
+          top: 0,
+          right: window.innerWidth,
+          bottom: window.innerHeight,
+        } as DOMRect);
+    return {
+      x: (Math.max(r.left, v.left) + Math.min(r.right, v.right)) / 2 - r.left,
+      y: (Math.max(r.top, v.top) + Math.min(r.bottom, v.bottom)) / 2 - r.top,
+    };
+  }
+
+  /** The active tool's size as a fraction of the map width, or null when the
+   * tool has no on-map size ring/ghost to preview right now. */
+  function activeToolSize(): number | null {
+    if (tool === "stamp") return nextStamp ? stampTool.look.size : null;
+    if (tool === "land") return drawMode === "free" ? landTool.size : null;
+    if (tool === "brush")
+      return drawMode === "free" ? brushState.brush.size : null;
+    if (tool === "line" && lineTool.draw !== "edit")
+      return lineTool.look.mode === "stamp"
+        ? lineTool.look.stamp.size
+        : lineTool.look.stroke.width + 2 * lineTool.look.stroke.casing;
+    return null;
+  }
+
+  /** Shows the brush ring or stamp ghost at the current size at the centre of
+   * the visible map, with a readout, while the size is changed from off the
+   * map (panel, wheel, keys) — then fades after a moment. When the pointer is
+   * on the map the hover preview already shows it, so this stays out of the
+   * way. Everything here is imperative and coalesced to one animation frame,
+   * so dragging the size slider adds no React renders. */
+  function flashSizePreview() {
+    if (pointerOverCanvasRef.current || sizeFlashRafRef.current != null) return;
+    sizeFlashRafRef.current = requestAnimationFrame(() => {
+      sizeFlashRafRef.current = null;
+      if (pointerOverCanvasRef.current) return;
+      const sizeNorm = activeToolSize();
+      if (sizeNorm == null) return;
+      const at = clampToMap(visibleMapCentre(), { w: W, h: H });
+      const node: Konva.Node | null =
+        tool === "stamp" ? stampGhostRef.current : brushCursorRef.current;
+      if (node) {
+        node.setAttrs({ x: at.x, y: at.y, visible: true });
+        node.getLayer()?.batchDraw();
+      }
+      const el = sizeReadoutRef.current;
+      if (el) {
+        const r = sizeReadout(sizeNorm, project.width);
+        el.textContent = t("mmSizePreview", { px: r.px, pct: r.pct });
+        el.style.left = `${at.x + 16}px`;
+        el.style.top = `${at.y + 16}px`;
+        el.style.display = "";
+      }
+      if (sizePreviewTimerRef.current)
+        clearTimeout(sizePreviewTimerRef.current);
+      sizePreviewTimerRef.current = setTimeout(() => {
+        sizePreviewTimerRef.current = null;
+        if (pointerOverCanvasRef.current) return; // the hover owns it now
+        for (const n of [stampGhostRef.current, brushCursorRef.current])
+          if (n?.visible()) {
+            n.visible(false);
+            n.getLayer()?.batchDraw();
+          }
+        if (sizeReadoutRef.current)
+          sizeReadoutRef.current.style.display = "none";
+      }, 900);
+    });
+  }
+
+  // While the size changes from off the map (panel slider, wheel, keys),
+  // show it on the map so its size against the map is clear; changes made
+  // over the map are already shown by the hover preview.
+  useEffect(() => {
+    const size = activeToolSize();
+    if (size == null) {
+      prevToolSizeRef.current = null;
+      return;
+    }
+    const prev = prevToolSizeRef.current;
+    prevToolSizeRef.current = { tool, size };
+    if (prev && prev.tool === tool && prev.size !== size) flashSizePreview();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    tool,
+    stampTool.look.size,
+    landTool.size,
+    brushState.brush.size,
+    lineTool,
+    drawMode,
+    nextStamp,
+  ]);
+
+  // Drop the size preview's frame and fade timer on unmount.
+  useEffect(
+    () => () => {
+      if (sizeFlashRafRef.current != null)
+        cancelAnimationFrame(sizeFlashRafRef.current);
+      if (sizePreviewTimerRef.current)
+        clearTimeout(sizePreviewTimerRef.current);
+    },
+    [],
+  );
 
   /** Rubber-band selection, drawn imperatively like strokes. */
   function startMarquee(
@@ -7383,6 +7517,14 @@ export function MapCreatorEditor({
                     {gestureInfo.text}
                   </div>
                 )}
+                {/* The size preview's readout, shown/placed imperatively
+                (flashSizePreview) so a slider drag adds no renders. */}
+                <div
+                  ref={sizeReadoutRef}
+                  className="mm-gesture-info"
+                  style={{ display: "none" }}
+                  aria-hidden
+                />
               </div>
             </div>
           </div>

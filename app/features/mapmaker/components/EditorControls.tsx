@@ -4,7 +4,7 @@
  * file (rather than one file per widget) since each is only a few lines and
  * they're only ever used from MapCreatorEditor.tsx — mirrors how the print
  * studio keeps its own editor UI self-contained (features/studio/components). */
-import { useId, type ReactNode } from "react";
+import { useEffect, useId, useRef, type ReactNode } from "react";
 import { ResetButton, ValueEditor } from "@/components/ui/ValueEditor";
 import { Glyph } from "../glyphs";
 import { shortcutLabel } from "../shortcuts";
@@ -83,6 +83,29 @@ export function Slider({
   defaultValue?: number;
 }) {
   const id = useId();
+  // Dragging the range fires input events faster than the screen refreshes,
+  // and each one re-renders the whole editor. Coalesce them to one commit per
+  // animation frame: the native thumb still moves at full speed, the editor
+  // re-renders at most once a frame. (Typing a number in the field commits
+  // straight away, below.)
+  const pending = useRef<number | null>(null);
+  const raf = useRef<number | null>(null);
+  const emit = (v: number) => {
+    pending.current = v;
+    if (raf.current != null) return;
+    raf.current = requestAnimationFrame(() => {
+      raf.current = null;
+      const next = pending.current;
+      pending.current = null;
+      if (next != null) onChange(next);
+    });
+  };
+  useEffect(
+    () => () => {
+      if (raf.current != null) cancelAnimationFrame(raf.current);
+    },
+    [],
+  );
   const slider = (
     <div className="mm-slider">
       <label htmlFor={id}>{label}</label>
@@ -93,7 +116,7 @@ export function Slider({
         max={max}
         step={step}
         value={value}
-        onChange={(e) => onChange(+e.target.value)}
+        onChange={(e) => emit(+e.target.value)}
       />
       <b>
         <ValueEditor
