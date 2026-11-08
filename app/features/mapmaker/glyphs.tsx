@@ -2,16 +2,19 @@ import type React from "react";
 /** Small glyph set for the standalone map creator's dark UI: tool rail, panel tabs and status bar. Kept separate from components/ui/ornaments.tsx, whose set targets the print studio's own icon language. */
 const PATHS: Record<string, React.ReactNode> = {
   select: <path d="M5 3l3.5 17 2.2-6.8L17.5 12 5 3Z" />,
+  // Lucide "brush" (MIT) — an artist's brush for the paint tool.
   brush: (
     <>
-      <path d="M4 20c0-3 1.5-4.5 4-4.5S12 17 12 20" />
-      <path d="M9.5 14.5 17 7a2.1 2.1 0 0 0 0-3 2.1 2.1 0 0 0-3 0l-7.5 7.5" />
+      <path d="m11 10 3 3" />
+      <path d="M6.5 21A3.5 3.5 0 1 0 3 17.5a2.62 2.62 0 0 1-.708 1.792A1 1 0 0 0 3 21z" />
+      <path d="M9.969 17.031 21.378 5.624a1 1 0 0 0-3.002-3.002L6.967 14.031" />
     </>
   ),
+  // Lucide "tree-pine" (MIT) — a tree for the stamp tool.
   stamp: (
     <>
-      <path d="M12 2C8.7 2 6 4.7 6 8c0 4.5 6 12 6 12s6-7.5 6-12c0-3.3-2.7-6-6-6Z" />
-      <circle cx="12" cy="8" r="2.2" />
+      <path d="m17 14 3 3.3a1 1 0 0 1-.7 1.7H4.7a1 1 0 0 1-.7-1.7L7 14h-.3a1 1 0 0 1-.7-1.7L9 9h-.2A1 1 0 0 1 8 7.3L12 3l4 4.3a1 1 0 0 1-.8 1.7H15l3 3.3a1 1 0 0 1-.7 1.7H17Z" />
+      <path d="M12 22v-3" />
     </>
   ),
   scatter: (
@@ -404,7 +407,15 @@ const PATHS: Record<string, React.ReactNode> = {
   ),
   chevronDown: <path d="m6 9 6 6 6-6" />,
   close: <path d="M6 6l12 12M18 6 6 18" />,
-  land: <path d="M3 18 9 8l3.5 5.5L15 10l6 8Z" />,
+  // Lucide "pickaxe" (MIT) — a pick for the land tool (كريك).
+  land: (
+    <>
+      <path d="m14 13-8.381 8.38a1 1 0 0 1-3.001-3L11 9.999" />
+      <path d="M15.973 4.027A13 13 0 0 0 5.902 2.373c-1.398.342-1.092 2.158.277 2.601a19.9 19.9 0 0 1 5.822 3.024" />
+      <path d="M16.001 11.999a19.9 19.9 0 0 1 3.024 5.824c.444 1.369 2.26 1.676 2.603.278A13 13 0 0 0 20 8.069" />
+      <path d="M18.352 3.352a1.205 1.205 0 0 0-1.704 0l-5.296 5.296a1.205 1.205 0 0 0 0 1.704l2.296 2.296a1.205 1.205 0 0 0 1.704 0l5.296-5.296a1.205 1.205 0 0 0 0-1.704z" />
+    </>
+  ),
   water: (
     <>
       <path d="M3 9c2-1.5 4-1.5 6 0s4 1.5 6 0 4-1.5 6 0" />
