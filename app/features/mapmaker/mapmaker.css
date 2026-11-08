@@ -107,6 +107,9 @@
   --mm-text: #e7e9ec;
   --mm-muted: #8c94a0;
   --mm-accent: #e0a458;
+  --mm-scroll-thumb: #3a424c;
+  --mm-scroll-thumb-hover: #4b5661;
+  --mm-scroll-track: transparent;
   position: fixed;
   inset: 0;
   display: flex;
@@ -119,6 +122,44 @@
 .mm-shell button {
   font: inherit;
   color: inherit;
+}
+
+/* ---------- Scrollbars: keep them dark like the rest of the shell ---------- */
+/* Firefox + the standard property. */
+.mm-shell,
+.mm-shell * {
+  scrollbar-color: var(--mm-scroll-thumb) var(--mm-scroll-track);
+}
+/* WebKit (Chrome / Edge / Safari), which otherwise paints a light scrollbar. */
+.mm-shell ::-webkit-scrollbar,
+.mm-shell::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+.mm-shell ::-webkit-scrollbar-track,
+.mm-shell::-webkit-scrollbar-track {
+  background: var(--mm-scroll-track);
+}
+.mm-shell ::-webkit-scrollbar-thumb,
+.mm-shell::-webkit-scrollbar-thumb {
+  background: var(--mm-scroll-thumb);
+  border: 2px solid transparent;
+  border-radius: 8px;
+  background-clip: content-box;
+}
+.mm-shell ::-webkit-scrollbar-thumb:hover,
+.mm-shell::-webkit-scrollbar-thumb:hover {
+  background: var(--mm-scroll-thumb-hover);
+  background-clip: content-box;
+}
+.mm-shell ::-webkit-scrollbar-corner,
+.mm-shell::-webkit-scrollbar-corner {
+  background: var(--mm-scroll-track);
+}
+/* Bars that are hidden on purpose stay hidden on WebKit too. */
+.mm-top-toolbar::-webkit-scrollbar,
+.mm-bp-chips::-webkit-scrollbar {
+  display: none;
 }
 .mm-shell input,
 .mm-shell select {
@@ -849,7 +890,7 @@
   border-inline-end: 1px solid var(--mm-border);
   font-size: 11px;
   scrollbar-width: thin;
-  scrollbar-color: var(--mm-border) transparent;
+  scrollbar-color: var(--mm-scroll-thumb) var(--mm-scroll-track);
 }
 .mm-brush-panel img {
   display: block;
