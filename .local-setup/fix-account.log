@@ -1,0 +1,9 @@
+==== Fri 11/13/2026 14:18:27.23 
+connection: pgsql / idrisi
+users: 1
+NOTHING CHANGED: mmoo1983@hotmail.com already exists
+fix exit 0 
+mmoo1983@hotmail.com is now owner.
+They set up two-factor sign-in the first time they open /admin.
+make-admin exit 0 
+DONE 
