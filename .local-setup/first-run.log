@@ -1,0 +1,72 @@
+﻿**********************
+Windows PowerShell transcript start
+Start time: 20261112182735
+Username: MSI\mmoo1
+RunAs User: MSI\mmoo1
+Configuration Name: 
+Machine: MSI (Microsoft Windows NT 10.0.26200.0)
+Host Application: powershell -NoProfile -ExecutionPolicy Bypass -File C:\Users\mmoo1\PhpstormProjects\Globe\.local-setup\first-run.ps1
+Process ID: 25716
+PSVersion: 5.1.26100.9444
+PSEdition: Desktop
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.26100.9444
+BuildVersion: 10.0.26100.9444
+CLRVersion: 4.0.30319.42000
+WSManStackVersion: 3.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+**********************
+
+== 1/7 Node.js
+Downloading Node.js 24 LTS ...
+node v24.22.3, npm 11.19.1
+
+== 2/7 PHP 8.4
+Downloading PHP ...
+PHP 8.4.27 (cli) (built: Oct 26 2026 09:50:21) (NTS Visual C++ 2022 x64)
+Copyright (c) The PHP Group
+Built by The PHP Group
+Zend Engine v4.4.27, Copyright (c) Zend Technologies
+
+== 3/7 Composer
+
+== 4/7 API packages (composer install)
+> Illuminate\Foundation\ComposerScripts::postAutoloadDump
+> @php artisan package:discover --ansi
+
+   INFO  Discovering packages.
+
+  laravel/sanctum ............................................................................................... DONE
+  laravel/socialite ............................................................................................. DONE
+  laravel/tinker ................................................................................................ DONE
+  nesbot/carbon ................................................................................................. DONE
+  nunomaduro/collision .......................................................................................... DONE
+  nunomaduro/termwind ........................................................................................... DONE
+
+81 packages you are using are looking for funding.
+Use the `composer fund` command to find out more!
+
+
+== 5/7 Database
+No PostgreSQL server is running on this computer.
+Using a local SQLite file instead (api\database\database.sqlite).
+To use PostgreSQL later: set DB_* in api\.env and run .local-setup\db.bat
+
+
+== 6/7 App packages (npm install)
+
+
+== 7/7 Starting
+PS>TerminatingError(Invoke-WebRequest): "Unable to connect to the remote server"
+PS>TerminatingError(Invoke-WebRequest): "Unable to connect to the remote server"
+PS>TerminatingError(Invoke-WebRequest): "Unable to connect to the remote server"
+PS>TerminatingError(Invoke-WebRequest): "Unable to connect to the remote server"
+PS>TerminatingError(Invoke-WebRequest): "Unable to connect to the remote server"
+PS>TerminatingError(Invoke-WebRequest): "Unable to connect to the remote server"
+API  http://localhost:8000 -> 204 (expected 204)
+App  http://localhost:3000 -> 200 (expected 200)
+READY
+**********************
+Windows PowerShell transcript end
+End time: 20261112183815
+**********************

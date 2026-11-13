@@ -1,0 +1,54 @@
+﻿**********************
+Windows PowerShell transcript start
+Start time: 20261112184853
+Username: MSI\mmoo1
+RunAs User: MSI\mmoo1
+Configuration Name: 
+Machine: MSI (Microsoft Windows NT 10.0.26200.0)
+Host Application: powershell -NoProfile -ExecutionPolicy Bypass -File C:\Users\mmoo1\PhpstormProjects\Globe\.local-setup\setup-postgres.ps1
+Process ID: 25632
+PSVersion: 5.1.26100.9444
+PSEdition: Desktop
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.26100.9444
+BuildVersion: 10.0.26100.9444
+CLRVersion: 4.0.30319.42000
+WSManStackVersion: 3.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+**********************
+
+== 1/5 Download PostgreSQL 18 (official EDB binaries, about 330 MB)
+trying https://get.enterprisedb.com/postgresql/postgresql-18.7-1-windows-x64-binaries.zip
+  % Total    % Received % Xferd  Average Speed  Time    Time    Time   Current
+                                 Dload  Upload  Total   Spent   Left   Speed
+100 371.4M 100 371.4M   0      0 16.47M      0   00:22   00:22         13.71M
+downloaded 18.7-1, extracting ...
+
+postgres (PostgreSQL) 18.7
+
+== 2/5 Create the data folder
+The files belonging to this database system will be owned by user "mmoo1".
+This user must also own the server process.
+
+The database cluster will be initialized with locale "C".
+The default text search configuration will be set to "english".
+
+Data page checksums are enabled.
+
+creating directory C:/Users/mmoo1/tools/pgdata ... ok
+creating subdirectories ... ok
+selecting dynamic shared memory implementation ... windows
+selecting default "max_connections" ... 100
+selecting default "shared_buffers" ... 128MB
+selecting default time zone ... Asia/Riyadh
+creating configuration files ... ok
+running bootstrap script ... ok
+performing post-bootstrap initialization ... ok
+syncing data to disk ... ok
+
+Success. You can now start the database server using:
+
+    ^"C^:^\Users^\mmoo1^\tools^\pgsql^\bin^\pg^_ctl^" -D ^"C^:^\Users^\mmoo1^\tools^\pgdata^" -l logfile start
+
+
+== 3/5 Start the server (127.0.0.1:5432)
