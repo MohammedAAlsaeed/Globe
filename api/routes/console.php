@@ -3,3 +3,4 @@
 use Illuminate\Support\Facades\Schedule;
 
 Schedule::command('maps:purge-trashed')->daily();
+Schedule::command('content:purge-trashed')->daily();

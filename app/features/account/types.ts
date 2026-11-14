@@ -42,6 +42,19 @@ export interface User {
   created_at: string;
 }
 
+/** An official starting map (see /admin/content); its document is fetched
+ * when it is chosen. `locked`: above the person's plan. */
+export interface MapTemplateInfo {
+  id: string;
+  name: string;
+  name_ar: string | null;
+  width: number;
+  height: number;
+  tier: number;
+  locked: boolean;
+  thumbnail_url: string | null;
+}
+
 /** A cloud map's metadata (the document is fetched separately). */
 export interface CloudMap {
   id: string;

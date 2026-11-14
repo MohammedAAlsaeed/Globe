@@ -109,7 +109,8 @@ class LineStyleController extends Controller
     public function destroy(LineStyle $lineStyle): Response
     {
         Gate::authorize('manage', $lineStyle);
-        $lineStyle->delete();
+        // For good: the trash is only for what staff remove (Admin\ContentModerationController).
+        $lineStyle->forceDelete();
 
         return response()->noContent();
     }

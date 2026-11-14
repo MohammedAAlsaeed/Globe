@@ -106,7 +106,8 @@ class ShapeStyleController extends Controller
     public function destroy(ShapeStyle $shapeStyle): Response
     {
         Gate::authorize('manage', $shapeStyle);
-        $shapeStyle->delete();
+        // For good: the trash is only for what staff remove (Admin\ContentModerationController).
+        $shapeStyle->forceDelete();
 
         return response()->noContent();
     }

@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 /**
  * A Text Tool style: a person's own (owner set) or official (no owner,
@@ -17,7 +18,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 #[Fillable(['name', 'look', 'tier', 'published', 'sort'])]
 class TextStyle extends Model
 {
-    use HasUlids;
+    use HasUlids, SoftDeletes;
 
     protected function casts(): array
     {

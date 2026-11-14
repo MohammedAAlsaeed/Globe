@@ -18,6 +18,7 @@
  * Changes apply live: to the next shape drawn when nothing is selected, or
  * to the selected shapes only (see ./state for the three kinds of values).
  */
+import { isHidden, useContentControls } from "../contentControls";
 import { useReducer, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { Glyph } from "../glyphs";
@@ -249,6 +250,7 @@ export function ShapePanel({
   target: ReactNode;
   floating?: boolean;
 }) {
+  useContentControls();
   const keys = useShortcuts();
   const [styleName, setStyleName] = useState(""),
     [savingStyle, setSavingStyle] = useState(false);
@@ -692,7 +694,9 @@ export function ShapePanel({
       {/* ---- styles ---- */}
       <Section title={t("lnStyles")} open>
         <div className="mm-ln-styles mm-sh-styles">
-          {builtinShapeStyles().map(styleButton)}
+          {builtinShapeStyles()
+            .filter((s) => !isHidden("shape_style", s.id))
+            .map(styleButton)}
         </div>
         {library.official.length > 0 && (
           <>

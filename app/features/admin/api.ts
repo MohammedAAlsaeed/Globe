@@ -3,11 +3,15 @@
  * through these, so each endpoint has one place that knows its shape.
  */
 import { api } from "@/lib/api/client";
+import type { HiddenContent } from "../mapmaker/contentControls";
 import type {
   AdminMapRow,
   AdminPlan,
   AdminSession,
+  AdminTemplate,
   AuditEntry,
+  ContentItemRow,
+  ContentItemType,
   Page,
   Role,
   Stats,
@@ -145,6 +149,69 @@ export const admin = {
       api.post<Record<string, unknown>>(`admin/maps/${id}/document`, {
         reason,
       }),
+  },
+
+  content: {
+    /** Built-in art hidden from the editor, by kind. */
+    hidden: () =>
+      api
+        .get<One<{ hidden: HiddenContent }>>("admin/content/controls")
+        .then((r) => r.data.hidden),
+    setHidden: (kind: keyof HiddenContent, keys: string[], hidden: boolean) =>
+      api
+        .put<One<{ hidden: HiddenContent }>>("admin/content/controls", {
+          kind,
+          keys,
+          hidden,
+        })
+        .then((r) => r.data.hidden),
+
+    /** Uploaded pictures and saved styles, official or people's own. */
+    items: (q: Query) =>
+      api.get<Page<ContentItemRow>>(`admin/content/items${qs(q)}`),
+    /** To the trash (restorable for 30 days). People's own need a reason. */
+    trash: (type: ContentItemType, id: string, reason?: string) =>
+      api.deleteWith<void>(`admin/content/items/${type}/${id}`, {
+        reason: reason || null,
+      }),
+    restore: (type: ContentItemType, id: string) =>
+      api.post<void>(`admin/content/items/${type}/${id}/restore`),
+
+    templates: {
+      list: () =>
+        api
+          .get<{ data: AdminTemplate[] }>("admin/content/templates")
+          .then((r) => r.data),
+      /** A draft template, copied from one of your own maps. */
+      create: (input: {
+        map_id: string;
+        name: string;
+        name_ar?: string | null;
+        tier?: number;
+      }) =>
+        api
+          .post<One<AdminTemplate>>("admin/content/templates", input)
+          .then((r) => r.data),
+      /** With `map_id`: replaces the template with a fresh copy of that map. */
+      update: (
+        id: string,
+        patch: {
+          name?: string;
+          name_ar?: string | null;
+          tier?: number;
+          published?: boolean;
+          sort?: number;
+          map_id?: string;
+        },
+      ) =>
+        api
+          .patch<One<AdminTemplate>>(`admin/content/templates/${id}`, patch)
+          .then((r) => r.data),
+      trash: (id: string) =>
+        api.deleteWith<void>(`admin/content/templates/${id}`, {}),
+      restore: (id: string) =>
+        api.post<void>(`admin/content/templates/${id}/restore`),
+    },
   },
 
   audit: (q: Query) => api.get<Page<AuditEntry>>(`admin/audit-log${qs(q)}`),

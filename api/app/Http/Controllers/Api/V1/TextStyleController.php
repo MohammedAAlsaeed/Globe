@@ -106,7 +106,8 @@ class TextStyleController extends Controller
     public function destroy(TextStyle $textStyle): Response
     {
         Gate::authorize('manage', $textStyle);
-        $textStyle->delete();
+        // For good: the trash is only for what staff remove (Admin\ContentModerationController).
+        $textStyle->forceDelete();
 
         return response()->noContent();
     }

@@ -49,6 +49,11 @@ export const mapmakerEn = {
   mmTplBlankNote: "Your own world, from nothing",
   mmTplEarth: "Planet Earth",
   mmTplEarthNote: "Real coasts, rivers and borders — all editable",
+  mmTplSize: "{{w}} × {{h}} px",
+  mmTplSizeNote:
+    "Opens as your own copy, at the template's size: {{w}} × {{h}} px",
+  mmTplLoadFailed:
+    "The template could not be loaded. Check your connection and try again.",
   mmEarthShape:
     "A 2:1 world map: it prints straight onto a globe. Every coast, lake, river, border and name is an ordinary object you can change, erase or build on.",
   mmEarthNames: "Names in",

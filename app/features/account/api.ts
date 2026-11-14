@@ -13,6 +13,7 @@ import type {
   AssetPack,
   CloudMap,
   LineStyleRecord,
+  MapTemplateInfo,
   Plan,
   ShapeStyleRecord,
   TextStyleRecord,
@@ -82,6 +83,14 @@ export const preferences = {
 export const plans = {
   /** Every plan and its limits (public), cheapest first. */
   list: () => api.get<{ data: Plan[] }>("plans").then((r) => r.data),
+};
+
+// ---- official templates (public: guests start from them too) ------------------
+export const templates = {
+  list: () =>
+    api.get<{ data: MapTemplateInfo[] }>("templates").then((r) => r.data),
+  /** The template's map document, as staff saved it. */
+  document: (id: string) => api.get<MMProject>(`templates/${id}/document`),
 };
 
 // ---- maps -----------------------------------------------------------------------

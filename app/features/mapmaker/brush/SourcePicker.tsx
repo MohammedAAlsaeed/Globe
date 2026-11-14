@@ -13,6 +13,7 @@ import {
   textureThumb,
   type TextureCategory,
 } from "./textures";
+import { isHidden, useContentControls } from "../contentControls";
 import type { PaintSource } from "../types";
 import { DEFAULT_SOURCE } from "./presets";
 
@@ -37,10 +38,13 @@ export function SourcePicker({
   const [texCategory, setTexCategory] = useState<TextureCategory | "all">(
     "all",
   );
-  const textures =
-    texCategory === "all"
-      ? TEXTURES
-      : TEXTURES.filter((x) => x.category === texCategory);
+  useContentControls();
+  // Textures staff have hidden are not offered; the one in use stays listed.
+  const textures = TEXTURES.filter(
+    (x) =>
+      (texCategory === "all" || x.category === texCategory) &&
+      (!isHidden("texture", x.id) || x.id === source.texture),
+  );
   return (
     <>
       {showType && (

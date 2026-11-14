@@ -15,6 +15,7 @@
  */
 import { BUILTIN_SETS, CLASSIC_SETS, type BuiltinSet } from "./builtin";
 import type { VectorArt } from "./art";
+import { isHidden, subscribeContentControls } from "../contentControls";
 
 /** `library`: official server packs not filed elsewhere (and locked packs);
  * `custom`: the person's own uploads. */
@@ -160,10 +161,21 @@ export function subscribeCatalog(l: () => void) {
   return () => listeners.delete(l);
 }
 export const catalogVersion = () => version;
+// Staff hid or showed a built-in set: the catalogs list a different set of sets.
+subscribeContentControls(() => {
+  version++;
+  listeners.forEach((l) => l());
+});
 
 export const stampSet = (id: string) => sets.get(id);
 export const stampAsset = (key: string) => assets.get(key);
-export const allSets = () => [...sets.values()].filter((s) => !s.hidden);
+/** The sets offered in the catalogs: not the ones loaded only to draw a map,
+ * nor built-in sets staff have hidden (maps that use those still draw them). */
+export const allSets = () =>
+  [...sets.values()].filter(
+    (s) =>
+      !s.hidden && !(BUILTIN_PACKS.has(s.pack) && isHidden("stamp_set", s.id)),
+  );
 /** The set an asset belongs to (missing for assets no longer available). */
 export const setOfAsset = (key: string) => {
   const a = assets.get(key);

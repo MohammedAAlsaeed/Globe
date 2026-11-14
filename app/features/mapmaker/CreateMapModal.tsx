@@ -23,16 +23,20 @@ import {
 import { loadEarth, povName } from "./templates/load";
 import { EARTH_PREVIEW_LAND } from "./templates/earthPreview.generated";
 import type { AspectPreset, MMProject, ResolutionTier } from "./types";
-import { maps } from "../account/api";
+import { isHidden, useContentControls } from "./contentControls";
+import { maps, templates as templatesApi } from "../account/api";
 import { useAuth } from "../account/AuthProvider";
-import { GUEST_LIMITS } from "../account/types";
+import { GUEST_LIMITS, type MapTemplateInfo } from "../account/types";
 import { errorMessage } from "../account/ui";
 import { ApiError } from "@/lib/api/client";
 
-type Template = "blank" | "earth";
+/** Blank, the built-in Earth, or an official template's id. */
+type Template = "blank" | "earth" | (string & {});
 
 /**
- * "Create a map", blank or from a template (the Earth, ./templates). Signed in, the map is created in the cloud straight away
+ * "Create a map", blank or from a template: the Earth (./templates) or one
+ * staff published (/admin/content), which opens as a copy at its own size.
+ * Staff can hide the Earth from here too. Signed in, the map is created in the cloud straight away
  * (so it counts toward the plan and opens at its own address); signed out,
  * it starts on this device. Resolutions above what the plan exports are
  * shown but locked.
@@ -52,6 +56,19 @@ export function CreateMapModal({ onClose }: { onClose: () => void }) {
     [rows, setRows] = useState(30),
     [nameError, setNameError] = useState(false);
   const uiLang = i18n.language?.startsWith("ar") ? "ar" : "en";
+  useContentControls();
+  const earthHidden = isHidden("template", "earth");
+  const [official, setOfficial] = useState<MapTemplateInfo[]>([]);
+  useEffect(() => {
+    let live = true;
+    templatesApi.list().then(
+      (list) => live && setOfficial(list),
+      () => {}, // offline: blank and the Earth are still there
+    );
+    return () => {
+      live = false;
+    };
+  }, []);
   const [template, setTemplate] = useState<Template>("blank"),
     [earthLang, setEarthLang] = useState<"ar" | "en">(uiLang),
     [shown, setShown] =
@@ -61,7 +78,8 @@ export function CreateMapModal({ onClose }: { onClose: () => void }) {
   useEffect(() => {
     dialog.current?.showModal();
   }, []);
-  const earthMode = template === "earth",
+  const earthMode = template === "earth" && !earthHidden,
+    chosen = official.find((x) => x.id === template && !x.locked) ?? null,
     detail = earthDetail(resolution);
   // Fetch the Earth as soon as it is picked (its points of view fill the list).
   useEffect(() => {
@@ -91,6 +109,8 @@ export function CreateMapModal({ onClose }: { onClose: () => void }) {
     return computeCanvasSize(res.longEdge, effectiveCols, effectiveRows);
   }, [resolution, effectiveCols, effectiveRows]);
   const tile = Math.round(size.width / Math.max(1, effectiveCols));
+  const tplName = (x: MapTemplateInfo) =>
+    (uiLang === "ar" && x.name_ar) || x.name;
   function close() {
     dialog.current?.close();
     onClose();
@@ -101,7 +121,27 @@ export function CreateMapModal({ onClose }: { onClose: () => void }) {
       return;
     }
     let project: MMProject;
-    if (earthMode) {
+    if (chosen) {
+      setBusy(true);
+      setError(null);
+      try {
+        const doc = await templatesApi.document(chosen.id);
+        if (!doc || typeof doc !== "object" || !Array.isArray(doc.layers))
+          throw new Error("template");
+        // A copy of the template: a new map of the person's own.
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { cloud, ...copy } = doc;
+        project = { ...copy, id: crypto.randomUUID(), name: name.trim() };
+      } catch (e) {
+        setError(
+          e instanceof ApiError && e.code === "plan_limit_reached"
+            ? t("mmPlanLocked")
+            : t("mmTplLoadFailed"),
+        );
+        setBusy(false);
+        return;
+      }
+    } else if (earthMode) {
       setBusy(true);
       setError(null);
       try {
@@ -204,39 +244,70 @@ export function CreateMapModal({ onClose }: { onClose: () => void }) {
             <b>{t("mmTplBlank")}</b>
             <small>{t("mmTplBlankNote")}</small>
           </button>
-          <button
-            type="button"
-            className={`mm-option-card mm-template-card ${earthMode ? "selected" : ""}`}
-            onClick={() => setTemplate("earth")}
-          >
-            <EarthThumb />
-            <b>{t("mmTplEarth")}</b>
-            <small>{t("mmTplEarthNote")}</small>
-          </button>
+          {!earthHidden && (
+            <button
+              type="button"
+              className={`mm-option-card mm-template-card ${earthMode ? "selected" : ""}`}
+              onClick={() => setTemplate("earth")}
+            >
+              <EarthThumb />
+              <b>{t("mmTplEarth")}</b>
+              <small>{t("mmTplEarthNote")}</small>
+            </button>
+          )}
+          {official.map((x) => (
+            <button
+              key={x.id}
+              type="button"
+              disabled={x.locked}
+              className={`mm-option-card mm-template-card ${chosen?.id === x.id ? "selected" : ""}`}
+              onClick={() => setTemplate(x.id)}
+            >
+              {x.thumbnail_url ? (
+                // eslint-disable-next-line @next/next/no-img-element -- a signed URL from the API
+                <img
+                  className="mm-template-thumb"
+                  src={x.thumbnail_url}
+                  alt=""
+                  loading="lazy"
+                />
+              ) : (
+                <span className="mm-template-thumb mm-template-blank" />
+              )}
+              <b dir="auto">{tplName(x)}</b>
+              <small>
+                {x.locked
+                  ? t("mmPlanLocked")
+                  : t("mmTplSize", { w: x.width, h: x.height })}
+              </small>
+            </button>
+          ))}
         </div>
       </div>
-      <div className="mm-modal-section">
-        <span className="mm-modal-label">{t("mmFieldResolution")}</span>
-        <div className="mm-option-grid mm-option-grid-4">
-          {RESOLUTIONS.map((r) => {
-            const locked = r.longEdge > maxPx;
-            return (
-              <button
-                key={r.key}
-                type="button"
-                disabled={locked}
-                className={`mm-option-card ${resolution === r.key ? "selected" : ""}`}
-                onClick={() => setResolution(r.key)}
-              >
-                <b>{t(r.labelKey)}</b>
-                <small>
-                  {locked ? t("mmPlanLocked") : t(`${r.labelKey}Note`)}
-                </small>
-              </button>
-            );
-          })}
+      {!chosen && (
+        <div className="mm-modal-section">
+          <span className="mm-modal-label">{t("mmFieldResolution")}</span>
+          <div className="mm-option-grid mm-option-grid-4">
+            {RESOLUTIONS.map((r) => {
+              const locked = r.longEdge > maxPx;
+              return (
+                <button
+                  key={r.key}
+                  type="button"
+                  disabled={locked}
+                  className={`mm-option-card ${resolution === r.key ? "selected" : ""}`}
+                  onClick={() => setResolution(r.key)}
+                >
+                  <b>{t(r.labelKey)}</b>
+                  <small>
+                    {locked ? t("mmPlanLocked") : t(`${r.labelKey}Note`)}
+                  </small>
+                </button>
+              );
+            })}
+          </div>
         </div>
-      </div>
+      )}
       {earthMode && (
         <>
           <p className="mm-template-note">{t("mmEarthShape")}</p>
@@ -290,7 +361,7 @@ export function CreateMapModal({ onClose }: { onClose: () => void }) {
           <small className="mm-template-hint">{t("mmEarthCredit")}</small>
         </>
       )}
-      {!earthMode && (
+      {!earthMode && !chosen && (
         <div className="mm-modal-section">
           <span className="mm-modal-label">{t("mmFieldAspect")}</span>
           <div className="mm-option-grid mm-option-grid-4">
@@ -342,7 +413,9 @@ export function CreateMapModal({ onClose }: { onClose: () => void }) {
         </div>
       )}
       <p className="mm-dimensions-preview">
-        {t("mmDimensionsPreview", { w: size.width, h: size.height, tile })}
+        {chosen
+          ? t("mmTplSizeNote", { w: chosen.width, h: chosen.height })
+          : t("mmDimensionsPreview", { w: size.width, h: size.height, tile })}
       </p>
       {error && (
         <p className="mm-field-error" role="alert">
@@ -362,7 +435,7 @@ export function CreateMapModal({ onClose }: { onClose: () => void }) {
 }
 
 /** The Earth template's card picture: the land on a 30° grid. */
-function EarthThumb() {
+export function EarthThumb() {
   const grid: string[] = [];
   for (let x = 30; x < 360; x += 30) grid.push(`M${x} 0V180`);
   for (let y = 30; y < 180; y += 30) grid.push(`M0 ${y}H360`);

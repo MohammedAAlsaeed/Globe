@@ -44,6 +44,7 @@ import {
   type StampSet,
 } from "./catalog";
 import { DEFAULT_SHADOW, stampThumb } from "./render";
+import { useContentControls } from "../contentControls";
 import {
   STAMP_TOOL_DEFAULTS,
   factoryLook,
@@ -251,6 +252,7 @@ export function StampPanel({
   /** The layer blends as a whole: stamps' own blend modes don't apply. */
   layerBlends: boolean;
 }) {
+  useContentControls();
   // Server packs can arrive while the panel is open.
   const version = useSyncExternalStore(
     subscribeCatalog,

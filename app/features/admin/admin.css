@@ -1775,3 +1775,140 @@ html:has(.adm[data-theme="light"]) body {
   font-family: ui-monospace, Menlo, Consolas, monospace;
   font-size: 14px;
 }
+
+/* ---- content: built-in art, uploads, templates ---------------------------------- */
+.adm-bi {
+  margin-bottom: 28px;
+}
+.adm-bi .adm-toolbar .adm-subhead {
+  margin: 0;
+  font-size: 15px;
+  color: inherit;
+}
+.adm-bi-note {
+  margin: 0 0 16px;
+  color: var(--muted);
+  max-width: 70ch;
+}
+.adm-bi-title {
+  margin: 14px 0 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.adm-bi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.adm-bi-grid.texture {
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+}
+.adm-bi-grid.template {
+  grid-template-columns: repeat(auto-fill, minmax(240px, 300px));
+}
+.adm-bi-grid li {
+  display: grid;
+  gap: 6px;
+  align-content: start;
+  padding: 10px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  min-width: 0;
+}
+.adm-bi-grid li b {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+.adm-bi-grid li small {
+  color: var(--muted);
+  font-size: 12px;
+}
+/* Drawn on parchment, as on a map, whatever the panel's theme. */
+.adm-bi-preview {
+  display: grid;
+  place-items: center;
+  min-height: 64px;
+  padding: 6px;
+  border-radius: 6px;
+  background: #efe4c8;
+  overflow: hidden;
+}
+.adm-bi-preview img,
+.adm-bi-preview canvas {
+  max-width: 100%;
+  max-height: 72px;
+}
+.adm-bi-preview canvas {
+  width: 100%;
+}
+.adm-bi-preview img.fill {
+  width: 100%;
+  height: 64px;
+  max-height: none;
+  object-fit: cover;
+  border-radius: 4px;
+}
+.adm-bi-grid.texture .adm-bi-preview,
+.adm-bi-grid.template .adm-bi-preview {
+  padding: 0;
+}
+.adm-bi-grid.template .adm-bi-preview svg {
+  margin: 0;
+  border-radius: 0;
+}
+.adm-bi-stamps {
+  display: flex;
+  gap: 4px;
+  align-items: end;
+  justify-content: center;
+  min-width: 0;
+}
+.adm-bi-stamps img {
+  height: 52px;
+  min-width: 0;
+  object-fit: contain;
+}
+.adm-bi-grid li.off .adm-bi-preview {
+  opacity: 0.35;
+  filter: grayscale(1);
+}
+.adm-bi-grid li.off b {
+  color: var(--muted);
+}
+.adm-thumb.contain {
+  background: #efe4c8;
+}
+.adm-thumb.contain img {
+  object-fit: contain;
+  padding: 8px;
+}
+.adm-item-meta {
+  display: grid;
+  gap: 2px;
+  color: var(--muted);
+  font-size: 12px;
+  min-width: 0;
+}
+.adm-item-meta q {
+  quotes: none;
+  overflow-wrap: anywhere;
+}
+.adm-official-head {
+  margin-top: 8px;
+  padding-top: 20px;
+  border-top: 1px solid var(--line);
+}
+.adm-official-head .adm-subhead {
+  margin: 0;
+  font-size: 15px;
+  color: inherit;
+}

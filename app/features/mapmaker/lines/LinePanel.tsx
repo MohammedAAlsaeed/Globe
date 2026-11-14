@@ -17,6 +17,7 @@
  * ./state for the three kinds of values. Every slider can be reset on its
  * own to the line's style; "Reset all" resets the whole look.
  */
+import { isHidden, useContentControls } from "../contentControls";
 import { useReducer, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { Glyph } from "../glyphs";
@@ -176,6 +177,7 @@ export function LinePanel({
   target: ReactNode;
   floating?: boolean;
 }) {
+  useContentControls();
   const keys = useShortcuts();
   const [styleName, setStyleName] = useState(""),
     [savingStyle, setSavingStyle] = useState(false);
@@ -335,7 +337,9 @@ export function LinePanel({
       {/* ---- styles ---- */}
       <Section title={t("lnStyles")} open>
         <div className="mm-ln-styles">
-          {builtinLineStyles().map(styleButton)}
+          {builtinLineStyles()
+            .filter((s) => !isHidden("line_style", s.id))
+            .map(styleButton)}
         </div>
         {library.official.length > 0 && (
           <>

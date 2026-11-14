@@ -18,6 +18,7 @@ final class Permission
         'plans.view',
         'plans.manage',
         'content.manage',
+        'content.moderate',
         'maps.view',
         'maps.manage',
         'maps.read',

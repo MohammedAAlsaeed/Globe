@@ -105,7 +105,7 @@ class AssetPackController extends Controller
     public function destroy(AssetPack $pack): Response
     {
         Gate::authorize('manage', $pack);
-        foreach ($pack->assets as $asset) {
+        foreach ($pack->assets()->withTrashed()->get() as $asset) {
             $asset->deleteWithFile();
         }
         $pack->delete();

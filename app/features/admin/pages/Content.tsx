@@ -1,10 +1,18 @@
 "use client";
 /**
- * The official library: stamp and line-art packs, and the line, text and
- * shape styles everyone gets. Here staff decide which plan each item needs
- * and when it goes live; the art itself is made in the editor (styles) or
- * uploaded in the library (stamps). Every change is audited.
+ * Everything the editor offers, in one place:
+ *
+ * - what is built into the app (stamps, line art, styles, textures, the
+ *   Earth template): shown or hidden — it is code, so never deleted;
+ * - the official library, stored as data: stamp and line-art packs, line /
+ *   text / shape styles, templates — which plan each needs, when it goes
+ *   live, and removing it;
+ * - what people uploaded or saved themselves, to review and remove.
+ *
+ * The art itself is made in the editor (styles, templates) or uploaded in
+ * the library (stamps). Every change is audited.
  */
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -17,6 +25,8 @@ import {
 import type { AssetPack } from "../../account/types";
 import { RequirePermission, useAdmin } from "../AdminApp";
 import { Icon } from "../icons";
+import { ContentModeration } from "./ContentModeration";
+import { ContentTemplates } from "./ContentTemplates";
 import {
   Badge,
   Button,
@@ -36,8 +46,22 @@ import {
 } from "../ui";
 
 const TIERS = ["explorer", "cartographer", "atlas"];
-const TABS = ["packs", "lines", "texts", "shapes"] as const;
+const TABS = [
+  "stamps",
+  "lines",
+  "texts",
+  "shapes",
+  "textures",
+  "templates",
+  "uploads",
+] as const;
 type Tab = (typeof TABS)[number];
+
+// The built-in art is drawn by the editor's canvas engines: browser only.
+const BuiltinContent = dynamic(() => import("./ContentBuiltin"), {
+  ssr: false,
+  loading: () => <Skeleton rows={4} />,
+});
 
 export function Content() {
   return (
@@ -52,7 +76,7 @@ function Inner() {
     { values, set } = useUrlQuery(["tab"] as const),
     tab = (TABS as readonly string[]).includes(values.tab)
       ? (values.tab as Tab)
-      : "packs";
+      : "stamps";
   return (
     <>
       <PageHead title={t("adNavContent")} lead={t("adContentLead")} />
@@ -62,18 +86,72 @@ function Inner() {
             key={k}
             role="tab"
             aria-selected={tab === k}
-            onClick={() => set({ tab: k === "packs" ? null : k })}
+            onClick={() => set({ tab: k === "stamps" ? null : k })}
           >
             {t(`adTab_${k}`)}
           </button>
         ))}
       </div>
-      {tab === "packs" ? <Packs /> : <Styles kind={tab} />}
+      {tab === "stamps" && (
+        <>
+          <p className="adm-bi-note">{t("adBuiltinLead")}</p>
+          <BuiltinContent kind="stamp_set" />
+          <OfficialHead title={t("adOfficialPacks")} />
+          <Packs />
+        </>
+      )}
+      {tab === "lines" && (
+        <>
+          <p className="adm-bi-note">{t("adBuiltinLead")}</p>
+          <BuiltinContent kind="line_style" />
+          <BuiltinContent kind="line_art" />
+          <OfficialHead title={t("adOfficialStyles")} />
+          <Styles kind="lines" />
+        </>
+      )}
+      {tab === "texts" && (
+        <>
+          <p className="adm-bi-note">{t("adBuiltinLead")}</p>
+          <BuiltinContent kind="text_style" />
+          <OfficialHead title={t("adOfficialStyles")} />
+          <Styles kind="texts" />
+        </>
+      )}
+      {tab === "shapes" && (
+        <>
+          <p className="adm-bi-note">{t("adBuiltinLead")}</p>
+          <BuiltinContent kind="shape_style" />
+          <OfficialHead title={t("adOfficialStyles")} />
+          <Styles kind="shapes" />
+        </>
+      )}
+      {tab === "textures" && (
+        <>
+          <p className="adm-bi-note">{t("adBuiltinLead")}</p>
+          <BuiltinContent kind="texture" />
+        </>
+      )}
+      {tab === "templates" && (
+        <>
+          <BuiltinContent kind="template" />
+          <ContentTemplates />
+        </>
+      )}
+      {tab === "uploads" && <ContentModeration />}
     </>
   );
 }
 
-function TierSelect({
+/** Heading of the part of a tab that is stored as data (the official library). */
+function OfficialHead({ title }: { title: string }) {
+  return (
+    <div className="adm-toolbar adm-official-head">
+      <h2 className="adm-subhead">{title}</h2>
+    </div>
+  );
+}
+
+export function TierSelect({
   value,
   onChange,
   disabled,
@@ -100,7 +178,7 @@ function TierSelect({
   );
 }
 
-function PublishToggle({
+export function PublishToggle({
   value,
   onChange,
   disabled,
@@ -338,7 +416,7 @@ function NewPackDialog({
 }
 
 // ---- styles ---------------------------------------------------------------------------
-type StyleKind = Exclude<Tab, "packs">;
+type StyleKind = "lines" | "texts" | "shapes";
 interface StyleRow {
   id: string;
   name: string;

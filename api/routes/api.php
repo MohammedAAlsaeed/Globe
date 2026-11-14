@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\V1\Admin;
 use App\Http\Controllers\Api\V1\AssetController;
 use App\Http\Controllers\Api\V1\AssetPackController;
+use App\Http\Controllers\Api\V1\ContentController;
 use App\Http\Controllers\Api\V1\Auth\EmailVerificationController;
 use App\Http\Controllers\Api\V1\Auth\PasswordController;
 use App\Http\Controllers\Api\V1\Auth\SessionController;
@@ -14,6 +15,7 @@ use App\Http\Controllers\Api\V1\PlanController;
 use App\Http\Controllers\Api\V1\PreferencesController;
 use App\Http\Controllers\Api\V1\ShapeStyleController;
 use App\Http\Controllers\Api\V1\SystemController;
+use App\Http\Controllers\Api\V1\TemplateController;
 use App\Http\Controllers\Api\V1\TextStyleController;
 use Illuminate\Support\Facades\Route;
 
@@ -54,6 +56,14 @@ Route::prefix('auth')->group(function () {
 
 // ---- plans (public: compared wherever a limit is reached) -------------------
 Route::get('plans', [PlanController::class, 'index'])->middleware('throttle:api');
+
+// ---- what the editor offers (public: guests draw too) -----------------------
+// Built-in art staff have hidden, and the official starting maps.
+Route::middleware('throttle:api')->group(function () {
+    Route::get('content/controls', [ContentController::class, 'controls']);
+    Route::get('templates', [TemplateController::class, 'index']);
+    Route::get('templates/{template}/document', [TemplateController::class, 'document']);
+});
 
 // ---- maps & assets ------------------------------------------------------------
 Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
@@ -149,6 +159,23 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'staff', 'throttle:admin'])-
         });
         Route::post('maps/{id}/document', [Admin\MapController::class, 'document'])
             ->middleware(['permission:maps.read', 'admin.2fa:recent']);
+
+        // Content: built-in art shown or hidden, the trash for uploads and
+        // styles (people's own need `content.moderate`), official templates.
+        Route::middleware('permission:content.manage')->prefix('content')->group(function () {
+            Route::get('controls', [Admin\ContentControlController::class, 'index']);
+            Route::put('controls', [Admin\ContentControlController::class, 'update']);
+
+            Route::get('items', [Admin\ContentModerationController::class, 'index']);
+            Route::delete('items/{type}/{id}', [Admin\ContentModerationController::class, 'destroy']);
+            Route::post('items/{type}/{id}/restore', [Admin\ContentModerationController::class, 'restore']);
+
+            Route::get('templates', [Admin\TemplateController::class, 'index']);
+            Route::post('templates', [Admin\TemplateController::class, 'store']);
+            Route::patch('templates/{id}', [Admin\TemplateController::class, 'update']);
+            Route::delete('templates/{id}', [Admin\TemplateController::class, 'destroy']);
+            Route::post('templates/{id}/restore', [Admin\TemplateController::class, 'restore']);
+        });
 
         Route::get('audit-log', [Admin\AuditLogController::class, 'index'])->middleware('permission:audit.view');
     });

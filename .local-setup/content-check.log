@@ -1,0 +1,32 @@
+==== Fri 11/13/2026 20:28:10.30 
+--- new tests 
+PHPUnit 12.5.38 by Sebastian Bergmann and contributors.
+
+Runtime:       PHP 8.4.27
+Configuration: C:\Users\mmoo1\PhpstormProjects\Globe\api\phpunit.xml
+
+.......                                                             7 / 7 (100%)
+
+Time: 00:01.109, Memory: 66.00 MB
+
+OK (7 tests, 137 assertions)
+content exit 0 
+--- all api tests 
+PHPUnit 12.5.38 by Sebastian Bergmann and contributors.
+
+Runtime:       PHP 8.4.27
+Configuration: C:\Users\mmoo1\PhpstormProjects\Globe\api\phpunit.xml
+
+...............................................................  63 / 109 ( 57%)
+..............................................                  109 / 109 (100%)
+
+Time: 00:09.687, Memory: 96.00 MB
+
+OK (109 tests, 1163 assertions)
+phpunit exit 0 
+--- migrate 
+
+   INFO  Nothing to migrate.  
+
+migrate exit 0 
+DONE 

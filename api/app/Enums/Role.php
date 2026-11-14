@@ -33,7 +33,7 @@ enum Role: string
             self::Admin => [
                 'stats.view', 'users.view', 'users.manage', 'users.suspend', 'users.delete',
                 'subscriptions.view', 'subscriptions.grant', 'subscriptions.manage',
-                'plans.view', 'content.manage', 'maps.view', 'maps.manage', 'audit.view',
+                'plans.view', 'content.manage', 'content.moderate', 'maps.view', 'maps.manage', 'audit.view',
             ],
             self::Owner => Permission::ALL,
         };

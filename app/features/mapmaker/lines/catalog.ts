@@ -13,6 +13,7 @@
  * (../stamps/render). A line stores the keys themselves (MMLine.stamp.parts),
  * so it still draws even when its set isn't listed any more.
  */
+import { isHidden, subscribeContentControls } from "../contentControls";
 import {
   builtinKey,
   registerHiddenArt,
@@ -292,6 +293,11 @@ export function subscribeLineCatalog(l: () => void) {
   return () => listeners.delete(l);
 }
 export const lineCatalogVersion = () => version;
+// Staff hid or showed built-in line art: the catalog lists different sets.
+subscribeContentControls(() => {
+  version++;
+  listeners.forEach((l) => l());
+});
 
 // ---- stamps as line art --------------------------------------------------------------------
 /** A Stamp Tool set used as line art: its variants stand in a row. */
@@ -331,8 +337,11 @@ export function allLineSets(): LineArtSet[] {
   const stamps = allSets()
     .filter((s) => !s.locked && s.assets.length > 0 && s.pack !== "classic")
     .map(stampLineSet);
-  return [...builtinLineSets(), ...remote, ...stamps];
+  return [...shownLineSets(), ...remote, ...stamps];
 }
+/** The built-in line art staff have not hidden (hidden art still draws). */
+export const shownLineSets = () =>
+  builtinLineSets().filter((s) => !isHidden("line_art", s.id));
 export function lineSet(id: string): LineArtSet | undefined {
   if (id.startsWith("ls:")) {
     const s = stampSet(id.slice(3));

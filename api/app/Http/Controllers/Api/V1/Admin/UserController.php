@@ -254,8 +254,8 @@ class UserController extends AdminController
                 $documents->purge($map);
                 $map->forceDelete();
             }
-            foreach ($user->assetPacks()->with('assets')->get() as $pack) {
-                foreach ($pack->assets as $asset) {
+            foreach ($user->assetPacks()->get() as $pack) {
+                foreach ($pack->assets()->withTrashed()->get() as $asset) {
                     $asset->deleteWithFile();
                 }
                 $pack->delete();

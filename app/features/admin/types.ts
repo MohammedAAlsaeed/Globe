@@ -17,6 +17,7 @@ export type Permission =
   | "plans.view"
   | "plans.manage"
   | "content.manage"
+  | "content.moderate"
   | "maps.view"
   | "maps.manage"
   | "maps.read"
@@ -155,6 +156,54 @@ export interface AdminPlan {
 export interface AdminMapRow extends UserMapRow {
   user: PersonRef | null;
   created_at: string;
+}
+
+/** What the content trash holds (see Admin\ContentModerationController). */
+export type ContentItemType =
+  "assets" | "line_styles" | "text_styles" | "shape_styles";
+
+/** An uploaded picture or a saved style: the official library's or a person's own. */
+export interface ContentItemRow {
+  id: string;
+  type: ContentItemType;
+  name: string;
+  official: boolean;
+  owner: PersonRef | null;
+  /** Uploaded pictures only. */
+  kind?: "stamps" | "lines" | "textures" | null;
+  pack?: { id: string; name: string } | null;
+  url?: string | null;
+  width?: number | null;
+  height?: number | null;
+  bytes?: number;
+  /** Styles only. */
+  look?: unknown;
+  tier?: number;
+  published?: boolean;
+  created_at: string;
+  deleted_at: string | null;
+  /** When the trash deletes it for good. */
+  purge_at: string | null;
+  removed_reason: string | null;
+}
+
+/** An official starting map, as staff manage it. */
+export interface AdminTemplate {
+  id: string;
+  name: string;
+  name_ar: string | null;
+  width: number;
+  height: number;
+  bytes: number;
+  tier: number;
+  published: boolean;
+  sort: number;
+  thumbnail_url: string | null;
+  created_at: string;
+  updated_at: string;
+  deleted_at: string | null;
+  purge_at: string | null;
+  removed_reason: string | null;
 }
 
 export interface AuditEntry {

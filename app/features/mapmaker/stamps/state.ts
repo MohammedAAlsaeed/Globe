@@ -16,6 +16,7 @@
  *   placed     every stamp on the map keeps its own values.
  * Placement, scatter and variety settings are shared by all sets.
  */
+import { isHidden } from "../contentControls";
 import { mulberry32 } from "../brush/noise";
 import { DEFAULT_SOURCE } from "../brush/presets";
 import type {
@@ -201,7 +202,8 @@ export function loadStampState(): StampToolState {
       look: { ...base.look, ...saved.look },
       memory: saved.memory ?? {},
     };
-    return stampSet(merged.set)
+    // …and a built-in set staff have hidden since is not offered again.
+    return stampSet(merged.set) && !isHidden("stamp_set", merged.set)
       ? merged
       : { ...merged, set: base.set, variant: 0 };
   } catch {

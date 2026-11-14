@@ -18,6 +18,7 @@
  * selected texts only (see ./state). Every setting resets on its own to the
  * text's style; "Reset all" resets the look but keeps the words and place.
  */
+import { isHidden, useContentControls } from "../contentControls";
 import { useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { Glyph } from "../glyphs";
@@ -414,6 +415,7 @@ export function TextPanel({
   target: ReactNode;
   floating?: boolean;
 }) {
+  useContentControls();
   const look = editing ? editing.look : state.look,
     styleId = editing ? editing.styleId : state.styleId,
     single = editing?.single ?? null;
@@ -606,7 +608,9 @@ export function TextPanel({
       {/* ---- styles ---- */}
       <Section title={t("txStyles")} open={!editing}>
         <div className="mm-ln-styles mm-tx-styles">
-          {BUILTIN_TEXT_STYLES.map(styleButton)}
+          {BUILTIN_TEXT_STYLES.filter((s) => !isHidden("text_style", s.id)).map(
+            styleButton,
+          )}
         </div>
         {library.official.length > 0 && (
           <>

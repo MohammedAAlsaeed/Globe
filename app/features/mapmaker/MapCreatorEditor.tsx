@@ -25,6 +25,7 @@ import {
   Transformer,
 } from "react-konva";
 import "../../lib/i18n";
+import { isHidden, useContentControls } from "./contentControls";
 import { Glyph } from "./glyphs";
 import { BrushPanel, PAINT_MODES } from "./brush/BrushPanel";
 import { LandPanel } from "./brush/LandPanel";
@@ -514,6 +515,8 @@ export function MapCreatorEditor({
   const { t, i18n } = useTranslation(),
     router = useRouter(),
     { user, refresh: refreshUser } = useAuth();
+  // What staff hid from the catalogs (fetched once; redraws the panels).
+  useContentControls();
 
   // ---- Project state (undo/redo history) ----------------------------------
   // Maps saved before the Stamp Tool open with their icons as stamps.
@@ -6817,7 +6820,14 @@ export function MapCreatorEditor({
                     }}
                   >
                     <option value="">{t("txStyleCustom")}</option>
-                    {BUILTIN_TEXT_STYLES.map((s) => (
+                    {BUILTIN_TEXT_STYLES.filter(
+                      (s) =>
+                        !isHidden("text_style", s.id) ||
+                        s.id ===
+                          (textEditing
+                            ? textEditing.styleId
+                            : textTool.styleId),
+                    ).map((s) => (
                       <option key={s.id} value={s.id}>
                         {t(s.labelKey ?? "")}
                       </option>
