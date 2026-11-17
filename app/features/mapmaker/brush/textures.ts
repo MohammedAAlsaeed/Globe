@@ -1,6 +1,14 @@
 /**
- * The brush texture catalog — 29 original, procedurally generated, seamless
- * terrain textures (no image assets, nothing licensed).
+ * Textures: the 29 built into the editor — original, procedurally generated,
+ * seamless terrain textures (no image assets, nothing licensed) — and
+ * uploaded ones ("u:<asset id>", from the texture library: official packs
+ * and people's own), which arrive as pictures.
+ *
+ * Everything that paints with a texture asks `textureTile` for a tile and
+ * repeats it, anchored to the map. A built-in tile is generated on the spot;
+ * an uploaded one is downloaded on first use (`ensureTextures` does it
+ * ahead of time). Until it arrives a flat tile of its average colour stands
+ * in, and `subscribeTextures` tells the renderers to draw again.
  *
  * Every texture is a pure function of tile coordinates (u, v ∈ [0, 1)), built
  * from periodic noise, so it tiles perfectly and can be generated at *any*
@@ -538,9 +546,19 @@ export const TEXTURE_CATEGORIES: { key: TextureCategory; labelKey: string }[] =
     { key: "special", labelKey: "mmTexCatSpecial" },
   ];
 const BY_ID = new Map(TEXTURE_DEFS.map((t) => [t.id, t]));
+/** A built-in texture (the first one for anything else). */
 export function textureDef(id: string) {
   return BY_ID.get(id) ?? TEXTURE_DEFS[0];
 }
+export const isBuiltinTexture = (id: string) => BY_ID.has(id);
+
+/** An uploaded texture's key in a map: "u:" and the asset's id. */
+export const uploadedTextureId = (assetId: string) => `u:${assetId}`;
+const UPLOADED = /^u:[0-9A-Za-z]{26}$/;
+export const isUploadedTexture = (id: string) => UPLOADED.test(id);
+/** Whether a map may name this texture (see validation.ts). */
+export const isTextureId = (id: unknown): id is string =>
+  typeof id === "string" && (BY_ID.has(id) || UPLOADED.test(id));
 
 // ---- color filters --------------------------------------------------------------
 type Filters = Pick<
@@ -631,6 +649,134 @@ export function filterHex(hex: string, f: Filters) {
   return rgbToHex(filterRgb(r, g, b, f));
 }
 
+// ---- uploaded textures ----------------------------------------------------------------
+/** What the editor needs to draw an uploaded texture (from the library). */
+export interface ImageTextureInfo {
+  /** "u:<asset id>". */
+  id: string;
+  name: string;
+  /** The full picture (signed URL); null while locked or unknown. */
+  url: string | null;
+  /** A small preview. */
+  thumbUrl: string | null;
+  /** Average colour: shown until the picture arrives. */
+  color: string | null;
+}
+
+type Loaded = { canvas: HTMLCanvasElement } | { failed: true };
+const infos = new Map<string, ImageTextureInfo>();
+const loaded = new Map<string, Loaded>();
+const loading = new Map<string, Promise<void>>();
+const listeners = new Set<() => void>();
+let version = 0,
+  misses = 0;
+let resolver: ((ids: string[]) => Promise<ImageTextureInfo[]>) | null = null;
+
+/** Tells the textures what the library knows (names, pictures, previews). */
+export function registerImageTextures(list: ImageTextureInfo[]) {
+  for (const info of list) {
+    const old = infos.get(info.id);
+    infos.set(info.id, info);
+    // A picture that failed (locked then, say) may load now.
+    if (old && !old.url && info.url && "failed" in (loaded.get(info.id) ?? {}))
+      loaded.delete(info.id);
+  }
+}
+export const imageTextureInfo = (id: string) => infos.get(id);
+/** Where to ask about uploaded textures the library hasn't listed. */
+export function setTextureResolver(
+  fn: ((ids: string[]) => Promise<ImageTextureInfo[]>) | null,
+) {
+  resolver = fn;
+}
+
+/** Re-render when an uploaded texture arrives. */
+export function subscribeTextures(l: () => void) {
+  listeners.add(l);
+  return () => {
+    listeners.delete(l);
+  };
+}
+export const texturesVersion = () => version;
+/** Grows each time a stand-in was drawn instead of a texture that is still on its way. */
+export const textureMisses = () => misses;
+function changed() {
+  version++;
+  listeners.forEach((l) => l());
+}
+
+/** The longest side an uploaded texture is kept at (prints use the largest tile level). */
+const MAX_IMAGE = 2048;
+
+async function fetchPicture(info: ImageTextureInfo) {
+  // CORS, so the canvas it's drawn on can still be read and exported.
+  const { loadCorsImage } = await import("@/lib/corsImage");
+  const img = await loadCorsImage(info.url!);
+  const k = Math.min(
+      1,
+      MAX_IMAGE / Math.max(img.naturalWidth, img.naturalHeight),
+    ),
+    c = document.createElement("canvas");
+  c.width = Math.max(1, Math.round(img.naturalWidth * k));
+  c.height = Math.max(1, Math.round(img.naturalHeight * k));
+  const ctx = c.getContext("2d")!;
+  ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(img, 0, 0, c.width, c.height);
+  return c;
+}
+
+/** Downloads uploaded textures (those not already here); never rejects. */
+export function ensureTextures(ids: Iterable<string>): Promise<void> {
+  const wanted = [...new Set(ids)].filter(
+    (id) => isUploadedTexture(id) && !loaded.has(id),
+  );
+  if (!wanted.length || typeof document === "undefined")
+    return Promise.resolve();
+  const unknown = wanted.filter(
+    (id) => !infos.get(id)?.url && !loading.has(id),
+  );
+  const asked =
+    unknown.length && resolver
+      ? resolver(unknown).then(registerImageTextures, () => {})
+      : Promise.resolve();
+  return Promise.all(
+    wanted.map((id) => {
+      let p = loading.get(id);
+      if (!p) {
+        p = asked
+          .then(async () => {
+            const info = infos.get(id);
+            if (!info?.url) {
+              loaded.set(id, { failed: true });
+              return;
+            }
+            try {
+              loaded.set(id, { canvas: await fetchPicture(info) });
+            } catch {
+              loaded.set(id, { failed: true });
+            }
+          })
+          .finally(() => {
+            loading.delete(id);
+            changed();
+          });
+        loading.set(id, p);
+      }
+      return p;
+    }),
+  ).then(() => undefined);
+}
+/** Whether a texture can be drawn as itself right now. */
+export function textureReady(id: string) {
+  if (!isUploadedTexture(id)) return true;
+  const l = loaded.get(id);
+  return !!l && "canvas" in l;
+}
+/** Waits for every texture still downloading (before an export, say). */
+export async function texturesSettled() {
+  while (loading.size) await Promise.all([...loading.values()]);
+}
+
 // ---- tiles ------------------------------------------------------------------------
 const tileCache = new Map<string, HTMLCanvasElement>();
 
@@ -663,29 +809,45 @@ function generateTile(def: TextureDef, size: number) {
   return canvas;
 }
 
-/** A seamless tile of `id` at `level` resolution, color-filtered if asked. */
-export function textureTile(
-  id: string,
-  level: number,
-  filters: Filters = NO_FILTERS,
-) {
-  const def = textureDef(id),
-    size = (TEXTURE_BASE_PX << level) as number,
-    filtered = hasFilters(filters),
-    key = filtered
-      ? `${def.id}@${level}|${filters.hue}|${filters.saturation}|${filters.brightness}|${filters.contrast}`
-      : `${def.id}@${level}`;
-  const hit = tileCache.get(key);
-  if (hit) return hit;
-  let tile: HTMLCanvasElement;
-  if (!filtered) tile = generateTile(def, size);
-  else {
-    const base = textureTile(id, level);
-    tile = document.createElement("canvas");
-    tile.width = tile.height = size;
-    const ctx = tile.getContext("2d")!;
-    ctx.drawImage(base, 0, 0);
-    const img = ctx.getImageData(0, 0, size, size),
+/** An uploaded picture at `size` px wide (its proportions kept). */
+function pictureTile(picture: HTMLCanvasElement, size: number) {
+  const w = Math.min(size, picture.width),
+    h = Math.max(1, Math.round((w * picture.height) / picture.width));
+  if (w === picture.width) return picture;
+  const c = document.createElement("canvas");
+  c.width = w;
+  c.height = h;
+  const ctx = c.getContext("2d")!;
+  ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(picture, 0, 0, w, h);
+  return c;
+}
+
+/** A flat tile in the texture's colour, while its picture is on its way. */
+function standIn(id: string) {
+  const color = infos.get(id)?.color ?? "#b9ad8e",
+    key = `standin|${color}`;
+  let c = tileCache.get(key);
+  if (!c) {
+    c = document.createElement("canvas");
+    c.width = c.height = TEXTURE_BASE_PX;
+    const ctx = c.getContext("2d")!;
+    ctx.fillStyle = color;
+    ctx.fillRect(0, 0, c.width, c.height);
+    tileCache.set(key, c);
+  }
+  return c;
+}
+
+/** Applies colour filters to a copy of `base` (transparency kept). */
+function filtered(base: HTMLCanvasElement, filters: Filters) {
+  const tile = document.createElement("canvas");
+  tile.width = base.width;
+  tile.height = base.height;
+  const ctx = tile.getContext("2d")!;
+  ctx.drawImage(base, 0, 0);
+  try {
+    const img = ctx.getImageData(0, 0, tile.width, tile.height),
       d = img.data;
     for (let k = 0; k < d.length; k += 4) {
       const [r, g, b] = filterRgb(d[k], d[k + 1], d[k + 2], filters);
@@ -694,50 +856,143 @@ export function textureTile(
       d[k + 2] = b;
     }
     ctx.putImageData(img, 0, 0);
-    // Keep the cache bounded: filtered variants are cheap to rebuild.
-    if (tileCache.size > 160) {
-      for (const k of tileCache.keys())
-        if (k.includes("|")) {
-          tileCache.delete(k);
-          break;
-        }
+  } catch {
+    // A picture that can't be read (no CORS): drawn unfiltered.
+  }
+  return tile;
+}
+
+/**
+ * A tile of texture `id` at `level` resolution (256 · 2^level px wide),
+ * colour-filtered if asked. Built-in tiles are square; an uploaded texture
+ * keeps its proportions. An uploaded texture that hasn't arrived yet gives
+ * a flat stand-in and starts downloading (see `subscribeTextures`).
+ */
+export function textureTile(
+  id: string,
+  level: number,
+  filters: Filters = NO_FILTERS,
+) {
+  const uploaded = isUploadedTexture(id),
+    base = uploaded ? id : textureDef(id).id,
+    size = (TEXTURE_BASE_PX << level) as number,
+    isFiltered = hasFilters(filters),
+    key = isFiltered
+      ? `${base}@${level}|${filters.hue}|${filters.saturation}|${filters.brightness}|${filters.contrast}`
+      : `${base}@${level}`;
+  const hit = tileCache.get(key);
+  if (hit) return hit;
+  let tile: HTMLCanvasElement;
+  if (uploaded) {
+    const l = loaded.get(id);
+    if (!l || !("canvas" in l)) {
+      if (!l) void ensureTextures([id]);
+      misses++;
+      return standIn(id);
     }
+    tile = isFiltered
+      ? filtered(textureTile(id, level), filters)
+      : pictureTile(l.canvas, size);
+  } else
+    tile = isFiltered
+      ? filtered(textureTile(id, level), filters)
+      : generateTile(textureDef(id), size);
+  if (isFiltered && tileCache.size > 160) {
+    // Keep the cache bounded: filtered variants are cheap to rebuild.
+    for (const k of tileCache.keys())
+      if (k.includes("|") && !k.startsWith("standin")) {
+        tileCache.delete(k);
+        break;
+      }
   }
   tileCache.set(key, tile);
   return tile;
 }
 
+/**
+ * A pattern transform for a tile: anchored at stage px (ox, oy), turned,
+ * `pxPerTile` wide, shifted by the source's offsets (fractions of a tile).
+ */
+export function textureMatrix(
+  source: Pick<
+    PaintSource,
+    "textureRotation" | "textureOffsetX" | "textureOffsetY"
+  >,
+  tile: { width: number; height: number },
+  pxPerTile: number,
+  ox = 0,
+  oy = 0,
+) {
+  return new DOMMatrix()
+    .translate(-ox, -oy)
+    .rotate(source.textureRotation)
+    .scale(pxPerTile / tile.width)
+    .translate(
+      (source.textureOffsetX ?? 0) * tile.width,
+      (source.textureOffsetY ?? 0) * tile.height,
+    );
+}
+
+// ---- previews --------------------------------------------------------------------------
 const thumbCache = new Map<string, string>();
-const THUMB = 72;
+const THUMB = 96;
 /** Small data-URL swatch for the catalog grid — generated directly at swatch
  * size (a ~1/3-tile window, so grain stays visible), which is ~20× cheaper
- * than building the full tile just to show a preview. */
+ * than building the full tile just to show a preview. Uploaded textures
+ * give their preview picture (filtered once the picture is here). */
 export function textureThumb(id: string, filters: Filters = NO_FILTERS) {
   const key = `${id}|${filters.hue}|${filters.saturation}|${filters.brightness}|${filters.contrast}`;
   let url = thumbCache.get(key);
-  if (!url) {
-    const def = textureDef(id),
-      c = document.createElement("canvas");
-    c.width = c.height = THUMB;
-    const ctx = c.getContext("2d")!,
-      img = ctx.createImageData(THUMB, THUMB),
-      d = img.data,
-      filtered = hasFilters(filters);
-    for (let j = 0, k = 0; j < THUMB; j++)
-      for (let i = 0; i < THUMB; i++, k += 4) {
-        let [r, g, b] = def.gen(
-          ((i + 0.5) / THUMB) * 0.36,
-          ((j + 0.5) / THUMB) * 0.36,
-        );
-        if (filtered) [r, g, b] = filterRgb(r, g, b, filters);
-        d[k] = r;
-        d[k + 1] = g;
-        d[k + 2] = b;
-        d[k + 3] = 255;
-      }
-    ctx.putImageData(img, 0, 0);
-    url = c.toDataURL("image/png");
+  if (url) return url;
+  if (isUploadedTexture(id)) {
+    const info = infos.get(id),
+      l = loaded.get(id);
+    if (!hasFilters(filters) || !l || !("canvas" in l))
+      return info?.thumbUrl ?? colorSwatch(info?.color ?? "#b9ad8e");
+    const small = document.createElement("canvas"),
+      k = THUMB / Math.max(l.canvas.width, l.canvas.height);
+    small.width = Math.max(1, Math.round(l.canvas.width * k));
+    small.height = Math.max(1, Math.round(l.canvas.height * k));
+    small
+      .getContext("2d")!
+      .drawImage(l.canvas, 0, 0, small.width, small.height);
+    url = filtered(small, filters).toDataURL("image/png");
     thumbCache.set(key, url);
+    return url;
   }
+  const def = textureDef(id),
+    c = document.createElement("canvas");
+  c.width = c.height = THUMB;
+  const ctx = c.getContext("2d")!,
+    img = ctx.createImageData(THUMB, THUMB),
+    d = img.data,
+    isFiltered = hasFilters(filters);
+  for (let j = 0, k = 0; j < THUMB; j++)
+    for (let i = 0; i < THUMB; i++, k += 4) {
+      let [r, g, b] = def.gen(
+        ((i + 0.5) / THUMB) * 0.36,
+        ((j + 0.5) / THUMB) * 0.36,
+      );
+      if (isFiltered) [r, g, b] = filterRgb(r, g, b, filters);
+      d[k] = r;
+      d[k + 1] = g;
+      d[k + 2] = b;
+      d[k + 3] = 255;
+    }
+  ctx.putImageData(img, 0, 0);
+  url = c.toDataURL("image/png");
+  thumbCache.set(key, url);
   return url;
+}
+
+function colorSwatch(color: string) {
+  return `data:image/svg+xml,${encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="8" height="8"><rect width="8" height="8" fill="${color}"/></svg>`,
+  )}`;
+}
+
+/** A texture's name: built-in ones translated, uploaded ones as named. */
+export function textureLabel(id: string, t: (key: string) => string) {
+  if (isUploadedTexture(id)) return infos.get(id)?.name ?? t("mmTexMissing");
+  return t(textureDef(id).labelKey);
 }

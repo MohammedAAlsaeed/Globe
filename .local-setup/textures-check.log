@@ -1,0 +1,41 @@
+==== Wed 11/18/2026  1:29:39.84 
+--- new tests 
+PHPUnit 12.5.38 by Sebastian Bergmann and contributors.
+
+Runtime:       PHP 8.4.26
+Configuration: C:\Users\mmoo1\PhpstormProjects\Globe\api\phpunit.xml
+
+....                                                                4 / 4 (100%)
+
+Time: 00:00.465, Memory: 66.00 MB
+
+OK (4 tests, 46 assertions)
+textures exit 0 
+--- all api tests 
+PHPUnit 12.5.38 by Sebastian Bergmann and contributors.
+
+Runtime:       PHP 8.4.26
+Configuration: C:\Users\mmoo1\PhpstormProjects\Globe\api\phpunit.xml
+
+...............................................................  63 / 113 ( 55%)
+..................................................              113 / 113 (100%)
+
+Time: 00:05.643, Memory: 100.00 MB
+
+OK (113 tests, 1209 assertions)
+phpunit exit 0 
+--- pint 
+
+  ....................................................................................................................
+  .................................
+
+  ──────────────────────────────────────────────────────────────────────────────────────────────────────────── Laravel  
+    PASS   ................................................................................................. 149 files  
+
+pint exit 0 
+--- migrate 
+
+   INFO  Nothing to migrate.  
+
+migrate exit 0 
+DONE 

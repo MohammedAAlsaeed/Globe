@@ -129,6 +129,8 @@ function Inner() {
         <>
           <p className="adm-bi-note">{t("adBuiltinLead")}</p>
           <BuiltinContent kind="texture" />
+          <OfficialHead title={t("adOfficialPacks")} />
+          <Packs kind="textures" />
         </>
       )}
       {tab === "templates" && (
@@ -204,16 +206,17 @@ export function PublishToggle({
 }
 
 // ---- packs ---------------------------------------------------------------------------
-function Packs() {
+/** Official packs: stamps and line art, or textures. */
+function Packs({ kind = "stamps" }: { kind?: "stamps" | "textures" }) {
   const { t, i18n } = useTranslation(),
     toast = useToast(),
     { data, error, reload, setData } = useLoad(async () => {
-      const [stamps, lines] = await Promise.all([
-        library.packs(),
-        library.linePacks(),
-      ]);
-      return [...stamps, ...lines].filter((p) => p.official);
-    }, []),
+      const lists =
+        kind === "textures"
+          ? [await library.packs("textures")]
+          : await Promise.all([library.packs(), library.linePacks()]);
+      return lists.flat().filter((p) => p.official);
+    }, [kind]),
     [busy, setBusy] = useState<string | null>(null),
     [confirm, setConfirm] = useState<ConfirmSpec | null>(null),
     [creating, setCreating] = useState(false);
@@ -242,9 +245,12 @@ function Packs() {
         <Button variant="primary" size="sm" onClick={() => setCreating(true)}>
           {t("adNewPack")}
         </Button>
-        <Link className="adm-btn ghost sm" href="/library">
+        <Link
+          className="adm-btn ghost sm"
+          href={kind === "textures" ? "/library/textures" : "/library"}
+        >
           <Icon name="external" size={14} />
-          {t("adManageStamps")}
+          {t(kind === "textures" ? "adManageTextures" : "adManageStamps")}
         </Link>
       </div>
       {data.length === 0 ? (
@@ -319,6 +325,7 @@ function Packs() {
       <ConfirmDialog spec={confirm} onClose={() => setConfirm(null)} />
       {creating && (
         <NewPackDialog
+          kinds={kind === "textures" ? ["textures"] : ["stamps", "lines"]}
           onClose={() => setCreating(false)}
           onDone={(p) => {
             setData([...(data ?? []), p]);
@@ -330,16 +337,20 @@ function Packs() {
   );
 }
 
+type PackKind = "stamps" | "lines" | "textures";
 function NewPackDialog({
+  kinds,
   onClose,
   onDone,
 }: {
+  kinds: PackKind[];
   onClose: () => void;
   onDone: (p: AssetPack) => void;
 }) {
   const { t } = useTranslation(),
     [name, setName] = useState(""),
-    [kind, setKind] = useState<"stamps" | "lines">("stamps"),
+    [style, setStyle] = useState(""),
+    [kind, setKind] = useState<PackKind>(kinds[0]),
     [tier, setTier] = useState(0),
     [busy, setBusy] = useState(false),
     [error, setError] = useState<string | null>(null);
@@ -351,6 +362,7 @@ function NewPackDialog({
         await library.createPack({
           name: name.trim(),
           kind,
+          style: kind === "textures" ? style.trim() || null : null,
           official: true,
           tier,
           published: false,
@@ -392,7 +404,7 @@ function NewPackDialog({
         </Field>
         <Field label={t("adColKind")}>
           <div className="adm-seg" role="radiogroup">
-            {(["stamps", "lines"] as const).map((k) => (
+            {kinds.map((k) => (
               <button
                 key={k}
                 type="button"
@@ -405,6 +417,16 @@ function NewPackDialog({
             ))}
           </div>
         </Field>
+        {kind === "textures" && (
+          <Field label={t("tlStyle")}>
+            <input
+              value={style}
+              maxLength={40}
+              placeholder={t("tlStyleHint")}
+              onChange={(e) => setStyle(e.target.value)}
+            />
+          </Field>
+        )}
         <Field label={t("adTier")}>
           <TierSelect value={tier} onChange={setTier} />
         </Field>

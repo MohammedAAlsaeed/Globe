@@ -11,6 +11,7 @@ use App\Models\User;
 use App\Services\Entitlements;
 use App\Services\FileUrls;
 use App\Services\Regions;
+use App\Support\Textures;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -58,12 +59,16 @@ class AssetController extends Controller
         Gate::authorize('manage', $pack);
         $data = $request->validate([
             'file' => ['required', 'image', 'mimes:png,webp,jpeg', 'max:'.config('idrisi.assets.max_upload_kb')],
+            // A small preview made in the browser (catalogs list these, not the pictures).
+            'thumbnail' => ['sometimes', 'image', 'mimes:png,webp,jpeg', 'max:512', 'dimensions:max_width=512,max_height=512'],
+            'color' => ['sometimes', 'nullable', 'regex:/^#[0-9a-fA-F]{6}$/'],
             ...$this->detailRules($pack),
         ]);
         $file = $request->file('file');
+        $thumb = $request->file('thumbnail');
         $user = $request->user();
         if (! $pack->isOfficial()) {
-            $entitlements->ensureCanUpload($user, $file->getSize());
+            $entitlements->ensureCanUpload($user, $file->getSize() + ($thumb?->getSize() ?? 0));
         }
 
         // Official assets live on the default region's disk; user uploads on the owner's.
@@ -71,10 +76,10 @@ class AssetController extends Controller
             ? config('regions.regions.'.config('regions.default').'.disk')
             : $regions->diskName($user);
         $owner = $pack->owner_id ?? 'library';
-        $path = $file->storeAs("assets/{$owner}/{$pack->id}", Str::ulid().'.'.$file->extension(), [
-            'disk' => $disk,
-            'CacheControl' => FileUrls::CACHE_CONTROL,
-        ]);
+        $name = (string) Str::ulid();
+        $options = ['disk' => $disk, 'CacheControl' => FileUrls::CACHE_CONTROL];
+        $path = $file->storeAs("assets/{$owner}/{$pack->id}", "{$name}.{$file->extension()}", $options);
+        $thumbPath = $thumb?->storeAs("assets/{$owner}/{$pack->id}", "{$name}.thumb.{$thumb->extension()}", $options);
         [$width, $height] = getimagesize($file->getRealPath()) ?: [null, null];
 
         $asset = $pack->assets()->create([
@@ -84,6 +89,9 @@ class AssetController extends Controller
             'tags' => $data['tags'] ?? [],
             'disk' => $disk,
             'path' => $path,
+            'thumb_path' => $thumbPath ?: null,
+            'color' => $data['color'] ?? null,
+            'meta' => self::meta($data['meta'] ?? null),
             'mime' => $file->getMimeType(),
             'bytes' => $file->getSize(),
             'width' => $width,
@@ -97,7 +105,11 @@ class AssetController extends Controller
     public function update(Request $request, Asset $asset): AssetResource
     {
         Gate::authorize('manage', $asset->pack);
-        $asset->update($request->validate($this->detailRules($asset->pack)));
+        $data = $request->validate($this->detailRules($asset->pack));
+        if (array_key_exists('meta', $data)) {
+            $data['meta'] = self::meta($data['meta']);
+        }
+        $asset->update($data);
 
         return new AssetResource($asset);
     }
@@ -112,12 +124,22 @@ class AssetController extends Controller
 
     /**
      * Name, set, tags — and the category: for line art (any pack) the piece's
-     * role; for stamps, the catalog category (official packs only).
+     * role; for textures (any pack) the catalog category, with how the
+     * texture is drawn (`meta`); for stamps, the catalog category (official
+     * packs only).
      */
     private function detailRules(AssetPack $pack): array
     {
         $category = match (true) {
             $pack->kind === AssetKind::Lines => ['category' => ['sometimes', 'nullable', Rule::in(self::LINE_ROLES)]],
+            $pack->kind === AssetKind::Textures => [
+                'category' => ['sometimes', 'nullable', Rule::in(Textures::CATEGORIES)],
+                'meta' => ['sometimes', 'nullable', 'array:tile,scale'],
+                // Whether it repeats without seams (false: a single picture, such as a paper sheet).
+                'meta.tile' => ['sometimes', 'boolean'],
+                // The scale it is drawn at by default (1 = the catalog's standard size).
+                'meta.scale' => ['sometimes', 'numeric', 'between:0.1,8'],
+            ],
             $pack->isOfficial() => ['category' => ['sometimes', 'nullable', Rule::in(self::CATEGORIES)]],
             default => [],
         };
@@ -129,6 +151,23 @@ class AssetController extends Controller
             'tags.*' => ['string', 'max:32'],
             ...$category,
         ];
+    }
+
+    /** A texture's drawing settings with proper types (forms send strings). */
+    private static function meta(?array $meta): ?array
+    {
+        if ($meta === null) {
+            return null;
+        }
+        $out = [];
+        if (array_key_exists('tile', $meta)) {
+            $out['tile'] = filter_var($meta['tile'], FILTER_VALIDATE_BOOLEAN);
+        }
+        if (array_key_exists('scale', $meta)) {
+            $out['scale'] = round((float) $meta['scale'], 3);
+        }
+
+        return $out ?: null;
     }
 
     /** Packs whose assets the user may draw (see AssetPackPolicy::view). */

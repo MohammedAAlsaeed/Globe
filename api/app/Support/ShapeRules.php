@@ -38,13 +38,6 @@ final class ShapeRules
 
     private const BLENDS = ['normal', 'multiply', 'screen', 'overlay', 'darken', 'lighten', 'color-dodge', 'color-burn', 'soft-light', 'hard-light', 'hue', 'saturation', 'color', 'luminosity'];
 
-    /** The brush texture catalog (app/features/mapmaker/brush/textures.ts). */
-    private const TEXTURES = [
-        'grass', 'meadow', 'savanna', 'forest', 'pine', 'jungle', 'swamp', 'farmland',
-        'sand', 'dunes', 'desert', 'dirt', 'mud', 'rock', 'mountains', 'cliffs', 'snow', 'ice', 'tundra', 'ash',
-        'shallows', 'ocean', 'deep', 'lava', 'parchment', 'cobblestone', 'planks', 'flagstone', 'inkwash',
-    ];
-
     /** Why a look is invalid, or null when it's fine. */
     public static function lookError(mixed $look): ?string
     {
@@ -91,16 +84,8 @@ final class ShapeRules
             return 'The fill must be an object.';
         }
         $src = $f['source'] ?? null;
-        $sourceOk = self::isMap($src)
-            && in_array($src['type'] ?? null, ['color', 'texture'], true)
-            && self::hex($src['color'] ?? null)
-            && in_array($src['texture'] ?? null, self::TEXTURES, true)
-            && self::num($src['textureScale'] ?? null, 0.05, 20)
-            && self::num($src['textureRotation'] ?? null, -3600, 3600)
-            && self::num($src['hue'] ?? null, -360, 360)
-            && self::num($src['saturation'] ?? null, -1, 1)
-            && self::num($src['brightness'] ?? null, -1, 1)
-            && self::num($src['contrast'] ?? null, -1, 1);
+        // Built-in or uploaded texture (see Textures).
+        $sourceOk = self::isMap($src) && Textures::sourceError($src) === null;
         $ok = in_array($f['type'] ?? null, self::FILLS, true)
             && $sourceOk
             && in_array($f['pattern'] ?? null, self::PATTERNS, true)

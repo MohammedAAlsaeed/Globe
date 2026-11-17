@@ -33,6 +33,7 @@ import { mulberry32 } from "./noise";
 import {
   TEXTURE_BASE_PX,
   filterHex,
+  textureMatrix,
   textureTile,
   tileLevelFor,
 } from "./textures";
@@ -226,10 +227,7 @@ export function fillSource(
     tile = textureTile(source.texture, level, source),
     pattern = ctx.createPattern(tile, "repeat");
   if (!pattern) return;
-  const k = pxPerTile / tile.width;
-  pattern.setTransform(
-    new DOMMatrix().translate(-ox, -oy).rotate(source.textureRotation).scale(k),
-  );
+  pattern.setTransform(textureMatrix(source, tile, pxPerTile, ox, oy));
   ctx.fillStyle = pattern;
   ctx.fillRect(0, 0, w, h);
 }

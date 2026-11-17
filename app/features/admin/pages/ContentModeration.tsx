@@ -40,6 +40,7 @@ import {
 const KINDS: { value: string; type: ContentItemType; kind?: string }[] = [
   { value: "", type: "assets", kind: "stamps" },
   { value: "lines", type: "assets", kind: "lines" },
+  { value: "textures", type: "assets", kind: "textures" },
   { value: "line_styles", type: "line_styles" },
   { value: "text_styles", type: "text_styles" },
   { value: "shape_styles", type: "shape_styles" },

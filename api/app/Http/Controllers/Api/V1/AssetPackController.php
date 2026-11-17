@@ -66,6 +66,7 @@ class AssetPackController extends Controller
         $data = $request->validate([
             'name' => ['required', 'string', 'max:80'],
             'kind' => ['required', Rule::enum(AssetKind::class)],
+            'style' => ['sometimes', 'nullable', 'string', 'max:40'],
             'official' => ['sometimes', 'boolean'],
             'tier' => ['sometimes', 'integer', 'between:0,9'],
             'published' => ['sometimes', 'boolean'],
@@ -81,6 +82,7 @@ class AssetPackController extends Controller
         $pack = new AssetPack([
             'name' => $data['name'],
             'kind' => $data['kind'],
+            'style' => $data['style'] ?? null,
             'tier' => $official ? ($data['tier'] ?? 0) : 0,
             'published' => $official ? ($data['published'] ?? false) : true,
         ]);
@@ -93,7 +95,7 @@ class AssetPackController extends Controller
     public function update(Request $request, AssetPack $pack): AssetPackResource
     {
         Gate::authorize('manage', $pack);
-        $rules = ['name' => ['sometimes', 'string', 'max:80']];
+        $rules = ['name' => ['sometimes', 'string', 'max:80'], 'style' => ['sometimes', 'nullable', 'string', 'max:40']];
         if ($pack->isOfficial()) {
             $rules += ['tier' => ['sometimes', 'integer', 'between:0,9'], 'published' => ['sometimes', 'boolean'], 'sort' => ['sometimes', 'integer', 'min:0']];
         }

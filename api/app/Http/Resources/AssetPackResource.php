@@ -17,9 +17,11 @@ class AssetPackResource extends JsonResource
             'id' => $this->id,
             'name' => $this->name,
             'kind' => $this->kind->value,
+            'style' => $this->style,
             'tier' => $this->tier,
             'official' => $this->isOfficial(),
             'published' => $this->published,
+            'created_at' => $this->created_at,
             // Locked: visible in the library, but the plan doesn't include it.
             'locked' => ! app(Entitlements::class)->canUsePack($request->user(), $this->resource),
             'assets_count' => $this->whenCounted('assets'),

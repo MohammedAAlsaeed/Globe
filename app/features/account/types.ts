@@ -74,6 +74,8 @@ export interface AssetPack {
   id: string;
   name: string;
   kind: "stamps" | "textures" | "lines";
+  /** Groups official packs in the Texture Catalog (creator → style → pack). */
+  style?: string | null;
   tier: number;
   official: boolean;
   published: boolean;
@@ -95,8 +97,46 @@ export interface Asset {
   bytes: number;
   width: number | null;
   height: number | null;
+  /** Average colour (textures): shown while the picture loads. */
+  color?: string | null;
+  /** Textures: whether it repeats seamlessly, and its default scale. */
+  meta?: { tile?: boolean; scale?: number };
   /** Short-lived signed URL. */
   url: string;
+  /** A small preview (the picture itself for older uploads). */
+  thumb_url?: string;
+  created_at?: string;
+}
+
+/** The Texture Catalog from the server (GET texture-library). */
+export interface TextureLibrary {
+  packs: {
+    id: string;
+    name: string;
+    style: string | null;
+    official: boolean;
+    mine: boolean;
+    tier: number;
+    published: boolean;
+    /** Above the plan: previews only. */
+    locked: boolean;
+    created_at: string;
+  }[];
+  textures: {
+    id: string;
+    pack_id: string;
+    name: string;
+    category: string | null;
+    tags: string[];
+    width: number | null;
+    height: number | null;
+    color: string | null;
+    meta: { tile?: boolean; scale?: number };
+    thumb_url: string;
+    /** null while the pack is locked. */
+    url: string | null;
+    created_at: string;
+  }[];
 }
 
 /** The plan limits a signed-out visitor works under (the free plan). */

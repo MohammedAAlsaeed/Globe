@@ -1,19 +1,32 @@
 "use client";
+/* eslint-disable @next/next/no-img-element -- previews are data URLs and signed URLs */
 /**
- * Picks what paint (or a land layer's base) is made of: a texture from the
- * catalog — filtered by category, with scale and rotation — or a flat
- * colour with recent colours.
+ * Picks what paint (or a land layer's base) is made of: a texture, or a
+ * flat colour with recent colours.
+ *
+ * The panel stays light: the texture in use (its preview opens the Texture
+ * Catalog, ./TextureCatalog), this map's recently used textures and the
+ * person's favourites — each with the way it was drawn — then scale, turn
+ * and offsets. Browsing, searching and filtering happen in the catalog.
  */
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { Slider } from "../components/EditorControls";
+import { Glyph } from "../glyphs";
 import {
-  TEXTURES,
-  TEXTURE_CATEGORIES,
-  textureDef,
+  ensureTextures,
+  subscribeTextures,
+  textureLabel,
   textureThumb,
-  type TextureCategory,
+  texturesVersion,
 } from "./textures";
-import { isHidden, useContentControls } from "../contentControls";
+import { LookSwatch, TextureCatalog } from "./TextureCatalog";
+import {
+  favoriteSource,
+  sameTextureLook,
+  toggleFavorite,
+  useTextureFavorites,
+} from "./textureLibrary";
+import { useTextureUsage } from "./textureUsage";
 import type { PaintSource } from "../types";
 import { DEFAULT_SOURCE } from "./presets";
 
@@ -35,16 +48,24 @@ export function SourcePicker({
   /** The texture / colour switch (off when the caller has its own). */
   showType?: boolean;
 }) {
-  const [texCategory, setTexCategory] = useState<TextureCategory | "all">(
-    "all",
-  );
-  useContentControls();
-  // Textures staff have hidden are not offered; the one in use stays listed.
-  const textures = TEXTURES.filter(
-    (x) =>
-      (texCategory === "all" || x.category === texCategory) &&
-      (!isHidden("texture", x.id) || x.id === source.texture),
-  );
+  const [catalog, setCatalog] = useState(false),
+    usage = useTextureUsage(),
+    favorites = useTextureFavorites();
+  // Previews of uploaded textures sharpen once their pictures arrive.
+  useSyncExternalStore(subscribeTextures, texturesVersion, () => 0);
+  const favorite = favorites.find((f) => sameTextureLook(f.source, source)),
+    recent = usage.recent
+      .filter((r) => !sameTextureLook(r, source))
+      .slice(0, 8);
+
+  /** Applies a whole look (a recent or favourite one), its picture first. */
+  async function applyLook(look: PaintSource) {
+    await ensureTextures([look.texture]);
+    const { color: _color, ...rest } = favoriteSource(look);
+    void _color;
+    onChange(rest);
+  }
+
   return (
     <>
       {showType && (
@@ -65,39 +86,73 @@ export function SourcePicker({
       )}
       {source.type === "texture" ? (
         <>
-          <div className="mm-bp-chips">
+          <div className="mm-tx-current">
             <button
-              className={texCategory === "all" ? "active" : ""}
-              onClick={() => setTexCategory("all")}
+              className="mm-tx-current-swatch"
+              title={t("txcOpen")}
+              onClick={() => setCatalog(true)}
             >
-              {t("mmTexCatAll")}
+              <img
+                src={textureThumb(source.texture, source)}
+                alt=""
+                draggable={false}
+              />
             </button>
-            {TEXTURE_CATEGORIES.map((c) => (
-              <button
-                key={c.key}
-                className={texCategory === c.key ? "active" : ""}
-                onClick={() => setTexCategory(c.key)}
-              >
-                {t(c.labelKey)}
-              </button>
-            ))}
+            <div className="mm-tx-current-info">
+              <b>{textureLabel(source.texture, t)}</b>
+              <div className="mm-tx-current-actions">
+                <button className="mm-pill" onClick={() => setCatalog(true)}>
+                  <Glyph name="grid" size={13} />
+                  {t("txcBrowse")}
+                </button>
+                <button
+                  className={`mm-pill mm-tx-star ${favorite ? "selected" : ""}`}
+                  aria-pressed={!!favorite}
+                  title={favorite ? t("txcFavorited") : t("txcFavoriteHint")}
+                  aria-label={t("txcFavorite")}
+                  onClick={() => toggleFavorite(source)}
+                >
+                  <Glyph name="star" size={13} />
+                </button>
+              </div>
+            </div>
           </div>
-          <div className="mm-bp-texture-grid">
-            {textures.map((x) => (
-              <button
-                key={x.id}
-                className={source.texture === x.id ? "selected" : ""}
-                title={t(x.labelKey)}
-                onClick={() => onChange({ texture: x.id })}
-                style={{ backgroundImage: `url(${textureThumb(x.id)})` }}
-              >
-                <span>{t(x.labelKey)}</span>
-              </button>
-            ))}
-          </div>
-          <div className="mm-bp-current">
-            {t(textureDef(source.texture).labelKey)}
-          </div>
+          {recent.length > 0 && (
+            <div className="mm-tx-row">
+              <span className="mm-tx-row-title">{t("txcRecent")}</span>
+              <div className="mm-tx-swatches">
+                {recent.map((look, i) => (
+                  <LookSwatch
+                    key={`${look.texture}-${i}`}
+                    look={look}
+                    selected={false}
+                    title={textureLabel(look.texture, t)}
+                    onClick={() => void applyLook(look)}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+          {favorites.length > 0 && (
+            <div className="mm-tx-row">
+              <span className="mm-tx-row-title">
+                {t("txcFavorites")}
+                <small>{t("txcFavoritesHint")}</small>
+              </span>
+              <div className="mm-tx-swatches">
+                {favorites.map((f) => (
+                  <LookSwatch
+                    key={f.id}
+                    look={f.source}
+                    selected={sameTextureLook(f.source, source)}
+                    title={textureLabel(f.source.texture, t)}
+                    onClick={() => void applyLook(f.source)}
+                    onRemove={() => toggleFavorite(f.source)}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
           <Slider
             label={t("mmTextureScale")}
             defaultValue={DEFAULT_SOURCE.textureScale}
@@ -118,6 +173,35 @@ export function SourcePicker({
             onChange={(v) => onChange({ textureRotation: v })}
             format={(v) => `${v}°`}
           />
+          <Slider
+            label={t("txcOffsetX")}
+            defaultValue={0}
+            value={source.textureOffsetX ?? 0}
+            min={0}
+            max={1}
+            step={0.01}
+            onChange={(v) => onChange({ textureOffsetX: v })}
+            format={(v) => `${Math.round(v * 100)}%`}
+            parse={(v) => v / 100}
+          />
+          <Slider
+            label={t("txcOffsetY")}
+            defaultValue={0}
+            value={source.textureOffsetY ?? 0}
+            min={0}
+            max={1}
+            step={0.01}
+            onChange={(v) => onChange({ textureOffsetY: v })}
+            format={(v) => `${Math.round(v * 100)}%`}
+            parse={(v) => v / 100}
+          />
+          {catalog && (
+            <TextureCatalog
+              source={source}
+              onPick={onChange}
+              onClose={() => setCatalog(false)}
+            />
+          )}
         </>
       ) : (
         <div className="mm-bp-color">

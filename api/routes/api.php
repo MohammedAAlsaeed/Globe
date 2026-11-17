@@ -17,6 +17,8 @@ use App\Http\Controllers\Api\V1\ShapeStyleController;
 use App\Http\Controllers\Api\V1\SystemController;
 use App\Http\Controllers\Api\V1\TemplateController;
 use App\Http\Controllers\Api\V1\TextStyleController;
+use App\Http\Controllers\Api\V1\TextureFavoritesController;
+use App\Http\Controllers\Api\V1\TextureLibraryController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -48,6 +50,8 @@ Route::prefix('auth')->group(function () {
         Route::patch('me', [SessionController::class, 'update']);
         Route::get('me/preferences', [PreferencesController::class, 'show']);
         Route::put('me/preferences', [PreferencesController::class, 'update'])->middleware('throttle:api');
+        Route::get('me/texture-favorites', [TextureFavoritesController::class, 'show']);
+        Route::put('me/texture-favorites', [TextureFavoritesController::class, 'update'])->middleware('throttle:api');
         Route::post('logout', [SessionController::class, 'logout']);
         Route::post('email/verification-notification', [EmailVerificationController::class, 'send'])
             ->middleware('throttle:6,1');
@@ -63,6 +67,8 @@ Route::middleware('throttle:api')->group(function () {
     Route::get('content/controls', [ContentController::class, 'controls']);
     Route::get('templates', [TemplateController::class, 'index']);
     Route::get('templates/{template}/document', [TemplateController::class, 'document']);
+    // The Texture Catalog: packs and textures (previews), for guests too.
+    Route::get('texture-library', TextureLibraryController::class);
 });
 
 // ---- maps & assets ------------------------------------------------------------

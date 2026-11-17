@@ -78,7 +78,18 @@ import {
   saveBrushState,
   type BrushState,
 } from "./brush/state";
-import { textureDef } from "./brush/textures";
+import {
+  ensureTextures,
+  isUploadedTexture,
+  subscribeTextures,
+  textureLabel,
+  texturesSettled,
+} from "./brush/textures";
+import {
+  loadTextureLibrary,
+  syncTextureFavorites,
+} from "./brush/textureLibrary";
+import { TextureUsageContext, textureUsage } from "./brush/textureUsage";
 import { LineShapeNode } from "./lines/LineShape";
 import { tracePath } from "./lines/render";
 import { LINE_DRAW_MODES, LinePanel } from "./lines/LinePanel";
@@ -896,6 +907,28 @@ export function MapCreatorEditor({
           l.blend && l.blend !== "normal" ? l.blend : "";
     }
   });
+
+  // ---- Textures: the catalog's library, favourites, and this map's own ----
+  // (see ./brush/textureLibrary). The list is public; signed in adds "me".
+  const signedIn = !!user;
+  useEffect(() => {
+    if (user === undefined) return;
+    void loadTextureLibrary(signedIn);
+    void syncTextureFavorites(signedIn);
+  }, [signedIn, user]);
+  // Recently used looks and every texture in the map, for the panels.
+  const textureUse = useMemo(
+    () => textureUsage(project.layers),
+    [project.layers],
+  );
+  // Uploaded textures the map uses: their pictures, before they're needed.
+  useEffect(() => {
+    void ensureTextures(
+      [...textureUse.used].filter((id) => isUploadedTexture(id)),
+    );
+  }, [textureUse.used]);
+  // A texture's picture arrived: shapes and other canvas drawings redraw.
+  useEffect(() => subscribeTextures(() => stageRef.current?.batchDraw()), []);
 
   // ---- Stamps from the server's library (see ./stamps/remote) ----
   useEffect(() => {
@@ -4800,6 +4833,9 @@ export function MapCreatorEditor({
       ratio = outW / W;
     // Texts are vector outlines, drawn afresh at the output size — once their fonts are in.
     await ensureTextFonts();
+    // Uploaded textures this map uses, all here (not their stand-ins).
+    await ensureTextures(textureUse.used);
+    await texturesSettled();
     // Full-resolution land layers first (async), then the synchronous capture.
     const landImages = new Map<string, HTMLCanvasElement | null>();
     for (const layer of project.layers) {
@@ -5250,7 +5286,7 @@ export function MapCreatorEditor({
           PAINT_MODES.find((m) => m.key === o.mode)?.labelKey ?? "mmToolBrush",
         );
         if (o.erase) return `${t("mmEraser")} · ${mode}`;
-        return `${mode} · ${o.source.type === "texture" ? t(textureDef(o.source.texture).labelKey) : t("mmSourceColor")}`;
+        return `${mode} · ${o.source.type === "texture" ? textureLabel(o.source.texture, t) : t("mmSourceColor")}`;
       }
       case "land":
         return `${t(o.erase ? "mmLandRemove" : "mmLandAdd")} · ${t(LAND_MODES.find((m) => m.key === o.mode)?.labelKey ?? "mmToolLand")}`;
@@ -5762,1280 +5798,1387 @@ export function MapCreatorEditor({
 
   // ---- Render ----
   return (
-    <div className="mm-shell">
-      <header className="mm-appbar">
-        <Link href="/" className="mm-back" title={t("mmBackHome")}>
-          <Glyph name="chevronLeft" />
-        </Link>
-        <button
-          className="mm-back"
-          title={t("mmMyMaps")}
-          onClick={() => router.push("/maps")}
-        >
-          <Glyph name="folder" size={16} />
-        </button>
-        <button
-          className="mm-back"
-          title={t("mmExportMap")}
-          onClick={() => exportProjectToFile(project)}
-        >
-          <Glyph name="download" size={16} />
-        </button>
-        <button
-          className="mm-back"
-          title={t("exSaveTitle")}
-          onClick={() => setExportOpen(true)}
-        >
-          <Glyph name="image" size={16} />
-        </button>
-        <input
-          className="mm-title-input"
-          value={project.name}
-          maxLength={80}
-          placeholder={t("mmUntitledMap")}
-          onChange={(e) =>
-            setProject((p) => ({
-              ...p,
-              name: e.target.value,
-              updatedAt: Date.now(),
-            }))
-          }
-        />
-        <button
-          className="mm-back"
-          title={t("undo")}
-          disabled={!canUndo}
-          onClick={undo}
-        >
-          <Glyph name="undo" size={16} />
-        </button>
-        <button
-          className="mm-back"
-          title={t("redo")}
-          disabled={!canRedo}
-          onClick={redo}
-        >
-          <Glyph name="redo" size={16} />
-        </button>
-        <div className="mm-edit-menu-wrap" ref={editMenuRef}>
+    <TextureUsageContext.Provider value={textureUse}>
+      <div className="mm-shell">
+        <header className="mm-appbar">
+          <Link href="/" className="mm-back" title={t("mmBackHome")}>
+            <Glyph name="chevronLeft" />
+          </Link>
           <button
             className="mm-back"
-            title={t("mmEditMenu")}
-            onClick={() => setShowEditMenu((v) => !v)}
+            title={t("mmMyMaps")}
+            onClick={() => router.push("/maps")}
           >
-            <Glyph name="keyboard" size={16} />
+            <Glyph name="folder" size={16} />
           </button>
-          {showEditMenu && (
-            <div className="mm-edit-menu">
-              <div className="mm-menu-heading">{t("mmMenuTools")}</div>
-              {TOOLS.map((tl) => (
+          <button
+            className="mm-back"
+            title={t("mmExportMap")}
+            onClick={() => exportProjectToFile(project)}
+          >
+            <Glyph name="download" size={16} />
+          </button>
+          <button
+            className="mm-back"
+            title={t("exSaveTitle")}
+            onClick={() => setExportOpen(true)}
+          >
+            <Glyph name="image" size={16} />
+          </button>
+          <input
+            className="mm-title-input"
+            value={project.name}
+            maxLength={80}
+            placeholder={t("mmUntitledMap")}
+            onChange={(e) =>
+              setProject((p) => ({
+                ...p,
+                name: e.target.value,
+                updatedAt: Date.now(),
+              }))
+            }
+          />
+          <button
+            className="mm-back"
+            title={t("undo")}
+            disabled={!canUndo}
+            onClick={undo}
+          >
+            <Glyph name="undo" size={16} />
+          </button>
+          <button
+            className="mm-back"
+            title={t("redo")}
+            disabled={!canRedo}
+            onClick={redo}
+          >
+            <Glyph name="redo" size={16} />
+          </button>
+          <div className="mm-edit-menu-wrap" ref={editMenuRef}>
+            <button
+              className="mm-back"
+              title={t("mmEditMenu")}
+              onClick={() => setShowEditMenu((v) => !v)}
+            >
+              <Glyph name="keyboard" size={16} />
+            </button>
+            {showEditMenu && (
+              <div className="mm-edit-menu">
+                <div className="mm-menu-heading">{t("mmMenuTools")}</div>
+                {TOOLS.map((tl) => (
+                  <MenuRow
+                    key={tl.key}
+                    label={t(tl.labelKey)}
+                    shortcut={shortcutLabels(
+                      `tool.${tl.key}` as ShortcutId,
+                      keys,
+                    )}
+                    onClick={() => {
+                      selectTool(tl.key);
+                      setShowEditMenu(false);
+                    }}
+                  />
+                ))}
+                <div className="mm-menu-divider" />
+                <div className="mm-menu-heading">{t("mmMenuEdit")}</div>
                 <MenuRow
-                  key={tl.key}
-                  label={t(tl.labelKey)}
-                  shortcut={shortcutLabels(
-                    `tool.${tl.key}` as ShortcutId,
-                    keys,
-                  )}
+                  label={t("undo")}
+                  shortcut={shortcutLabel("edit.undo", keys)}
+                  disabled={!canUndo}
                   onClick={() => {
-                    selectTool(tl.key);
+                    undo();
                     setShowEditMenu(false);
                   }}
                 />
-              ))}
-              <div className="mm-menu-divider" />
-              <div className="mm-menu-heading">{t("mmMenuEdit")}</div>
-              <MenuRow
-                label={t("undo")}
-                shortcut={shortcutLabel("edit.undo", keys)}
-                disabled={!canUndo}
-                onClick={() => {
-                  undo();
-                  setShowEditMenu(false);
-                }}
-              />
-              <MenuRow
-                label={t("redo")}
-                shortcut={shortcutLabel("edit.redo", keys)}
-                disabled={!canRedo}
-                onClick={() => {
-                  redo();
-                  setShowEditMenu(false);
-                }}
-              />
-              <MenuRow
-                label={t("mmDuplicateObject")}
-                shortcut={shortcutLabel("edit.duplicate", keys)}
-                disabled={!selectedObjs.length}
-                onClick={() => {
-                  duplicateObjects(selectedIds);
-                  setShowEditMenu(false);
-                }}
-              />
-              <MenuRow
-                label={t("mmGroup")}
-                shortcut={shortcutLabel("edit.group", keys)}
-                disabled={selectedObjs.length < 2}
-                onClick={() => {
-                  groupSelection();
-                  setShowEditMenu(false);
-                }}
-              />
-              <MenuRow
-                label={t("mmUngroup")}
-                shortcut={shortcutLabel("edit.ungroup", keys)}
-                disabled={!selectedObjs.some((o) => o.group)}
-                onClick={() => {
-                  ungroupSelection();
-                  setShowEditMenu(false);
-                }}
-              />
-              <MenuRow
-                label={t("mmCopyObject")}
-                shortcut={shortcutLabel("edit.copy", keys)}
-                disabled={!selectedObjs.length}
-                onClick={() => {
-                  copySelection();
-                  setShowEditMenu(false);
-                }}
-              />
-              <MenuRow
-                label={t("mmPasteObject")}
-                shortcut={shortcutLabel("edit.paste", keys)}
-                disabled={!hasClipboard}
-                onClick={() => {
-                  pasteClipboard();
-                  setShowEditMenu(false);
-                }}
-              />
-              <MenuRow
-                label={t("mmDeleteObject")}
-                shortcut={shortcutLabel("edit.delete", keys)}
-                disabled={!selectedObjs.length}
-                onClick={() => {
-                  removeObjects(selectedIds);
-                  setShowEditMenu(false);
-                }}
-              />
-              <MenuRow
-                label={t("mmBringToFront")}
-                shortcut={shortcutLabel("arrange.front", keys)}
-                disabled={!selectedObjs.length}
-                onClick={() => {
-                  reorderObjects(selectedIds, "front");
-                  setShowEditMenu(false);
-                }}
-              />
-              <MenuRow
-                label={t("mmBringForward")}
-                disabled={selectedObjs.length !== 1}
-                onClick={() => {
-                  if (selectedObj) reorderObject(selectedObj.id, "forward");
-                  setShowEditMenu(false);
-                }}
-              />
-              <MenuRow
-                label={t("mmSendBackward")}
-                disabled={selectedObjs.length !== 1}
-                onClick={() => {
-                  if (selectedObj) reorderObject(selectedObj.id, "backward");
-                  setShowEditMenu(false);
-                }}
-              />
-              <MenuRow
-                label={t("mmSendToBack")}
-                shortcut={shortcutLabel("arrange.back", keys)}
-                disabled={!selectedObjs.length}
-                onClick={() => {
-                  reorderObjects(selectedIds, "back");
-                  setShowEditMenu(false);
-                }}
-              />
-              <div className="mm-menu-divider" />
-              <div className="mm-menu-heading">{t("mmMenuView")}</div>
-              <MenuRow
-                label={t("mmFitScreen")}
-                shortcut={shortcutLabel("view.fit", keys)}
-                onClick={() => {
-                  nav.fit();
-                  setShowEditMenu(false);
-                }}
-                icon="fit"
-              />
-              <MenuRow
-                label={t("ctActualSize")}
-                shortcut={shortcutLabel("view.actual", keys)}
-                onClick={() => {
-                  nav.zoomTo(1 / fitScale);
-                  setShowEditMenu(false);
-                }}
-              />
-              <MenuRow
-                label={t("ctHandTool")}
-                shortcut={shortcutLabel("view.hand", keys)}
-                icon={handMode ? "check" : undefined}
-                onClick={() => {
-                  setHandMode((h) => !h);
-                  setShowEditMenu(false);
-                }}
-              />
-              <MenuRow
-                label={t("ctOpenControls")}
-                shortcut={shortcutLabel("help.controls", keys)}
-                onClick={() => {
-                  setControlsOpen(true);
-                  setShowEditMenu(false);
-                }}
-              />
-              <MenuHint label={t("mmZoom")} hint={t("mmZoomHint")} />
-              <MenuHint label={t("mmPan")} hint={t("mmPanHint")} />
-              <MenuHint label={t("mmCancelDraft")} hint={t("mmEscapeHint")} />
-              <MenuHint
-                label={t("mmMultiSelect")}
-                hint={t("mmMultiSelectHint")}
-              />
-              <div className="mm-menu-heading">{t("stWheelHeading")}</div>
-              <MenuRow
-                label={t("stWheelZoom")}
-                icon={ctl.ctrlWheel === "zoom" ? "check" : undefined}
-                onClick={() => updateControls({ ctrlWheel: "zoom" })}
-              />
-              <MenuRow
-                label={t("stWheelRotate")}
-                icon={ctl.ctrlWheel === "rotate" ? "check" : undefined}
-                onClick={() => updateControls({ ctrlWheel: "rotate" })}
-              />
-              <MenuHint
-                label={t("stStampKeys")}
-                hint={t("stStampKeysHint", {
-                  bigger: shortcutLabels("stamp.bigger", keys),
-                  smaller: shortcutLabels("stamp.smaller", keys),
-                  left: shortcutLabel("stamp.turnLeft", keys),
-                  right: shortcutLabel("stamp.turnRight", keys),
-                })}
-              />
-              <div className="mm-menu-heading">{t("lnMenuHeading")}</div>
-              <MenuHint
-                label={t("lnKeysDraw", {
-                  line: shortcutLabel("tool.line", keys),
-                  free: shortcutLabel("line.free", keys),
-                  pen: shortcutLabel("line.pen", keys),
-                  nodes: shortcutLabel("line.editNodes", keys),
-                })}
-                hint={t("lnKeysDrawHint", {
-                  wider: shortcutLabel("line.wider", keys),
-                  thinner: shortcutLabel("line.thinner", keys),
-                })}
-              />
-              <MenuHint label={t("lnKeysEdit")} hint={t("lnKeysEditHint")} />
-              <div className="mm-menu-heading">{t("txMenuHeading")}</div>
-              <MenuHint
-                label={t("txKeysCreate", {
-                  text: shortcutLabel("tool.text", keys),
-                  select: shortcutLabel("tool.select", keys),
-                })}
-                hint={t("txKeysCreateHint", {
-                  finish: shortcutLabel("text.finish", keys),
-                  edit: shortcutLabel("text.edit", keys),
-                })}
-              />
-              <MenuHint
-                label={t("txKeysMove")}
-                hint={t("txKeysMoveHint", {
-                  all: shortcutLabel("edit.selectAll", keys),
-                })}
-              />
-            </div>
-          )}
-        </div>
-        <div className="mm-appbar-spacer" />
-        <button
-          className="mm-print-btn"
-          disabled={printing}
-          onClick={handlePrint}
-        >
-          <Glyph name="print" size={16} />
-          {t("mmPrintAction")}
-        </button>
-      </header>
-      <div className="mm-body">
-        <nav className="mm-tool-rail">
-          {TOOLS.map((tl) => (
-            <button
-              key={tl.key}
-              className={`mm-rail-btn ${tool === tl.key ? "active" : ""}`}
-              title={`${t(tl.labelKey)} (${shortcutLabels(`tool.${tl.key}` as ShortcutId, keys)})`}
-              onClick={() => selectTool(tl.key)}
-            >
-              <Glyph name={tl.key} />
-            </button>
-          ))}
-        </nav>
-        {tool === "brush" && (
-          <BrushPanel
-            state={brushState}
-            onChange={updateBrush}
-            t={t}
-            mapWidthPx={project.width}
-            tileCell={1 / project.tileCols}
-            recentColors={recentColors}
-            onCommitColor={(c) => setRecentColors((r) => pushRecent(r, c))}
-            favorites={favorites}
-            onSaveFavorite={(name) =>
-              setFavorites((list) => [
-                {
-                  id: crypto.randomUUID(),
-                  name,
-                  brush: brushState.brush,
-                  opacity: brushState.opacity,
-                  blend: brushState.blend,
-                  source: brushState.source,
-                },
-                ...list,
-              ])
-            }
-            onDeleteFavorite={(id) =>
-              setFavorites((list) => list.filter((f) => f.id !== id))
-            }
-            target={
-              active && (
-                <EditTarget
-                  role={active.role ?? "custom"}
-                  layerName={active.name}
-                  what={t(
-                    active.role === "land"
-                      ? "mmTargetLandTexture"
-                      : active.role === "water"
-                        ? "mmTargetWater"
-                        : "mmTargetPaint",
-                  )}
-                  note={
-                    active.locked
-                      ? t("mmTargetLocked")
-                      : active.role === "land"
-                        ? t("mmTargetLandTextureNote", {
-                            land: shortcutLabel("tool.land", keys),
-                          })
-                        : undefined
-                  }
-                  warning={active.locked}
+                <MenuRow
+                  label={t("redo")}
+                  shortcut={shortcutLabel("edit.redo", keys)}
+                  disabled={!canRedo}
+                  onClick={() => {
+                    redo();
+                    setShowEditMenu(false);
+                  }}
                 />
-              )
-            }
-          />
-        )}
-        {tool === "land" && (
-          <LandPanel
-            state={landTool}
-            onChange={updateLandTool}
-            t={t}
-            mapWidthPx={project.width}
-            target={
-              landTarget ? (
-                <EditTarget
-                  role="land"
-                  layerName={landTarget.name}
-                  what={t("mmTargetLandShape")}
-                  note={landTarget.locked ? t("mmTargetLocked") : undefined}
-                  warning={landTarget.locked}
+                <MenuRow
+                  label={t("mmDuplicateObject")}
+                  shortcut={shortcutLabel("edit.duplicate", keys)}
+                  disabled={!selectedObjs.length}
+                  onClick={() => {
+                    duplicateObjects(selectedIds);
+                    setShowEditMenu(false);
+                  }}
                 />
-              ) : (
-                <EditTarget
-                  role={active?.role ?? "custom"}
-                  layerName={active?.name ?? ""}
-                  what={t("mmTargetNoLand")}
-                  note={t("mmTargetNoLandNote")}
-                  warning
-                  action={
-                    topLand
-                      ? {
-                          label: t("mmUseLandLayer", { layer: topLand.name }),
-                          onClick: () => setActiveLayerId(topLand.id),
-                        }
-                      : {
-                          label: t("mmAddLandLayer"),
-                          onClick: () => addLayer("land"),
-                        }
-                  }
+                <MenuRow
+                  label={t("mmGroup")}
+                  shortcut={shortcutLabel("edit.group", keys)}
+                  disabled={selectedObjs.length < 2}
+                  onClick={() => {
+                    groupSelection();
+                    setShowEditMenu(false);
+                  }}
                 />
-              )
-            }
-            base={landTarget ? landSettings(landTarget).base : null}
-            onBaseChange={(patch) => {
-              if (!landTarget) return;
-              const land = landSettings(landTarget);
-              updateLayer(landTarget.id, {
-                land: { ...land, base: { ...land.base, ...patch } },
-              });
-            }}
-            recentColors={recentColors}
-            onCommitColor={(c) => setRecentColors((r) => pushRecent(r, c))}
-            onEditCoast={landTarget ? showCoastPanel : null}
-          />
-        )}
-        {(tool === "stamp" || stampEditing) && (
-          <StampPanel
-            state={stampTool}
-            onChange={setStampTool}
-            editing={stampEditing}
-            onEditLook={editSelectedStamps}
-            onDoneEditing={clearSelection}
-            floating={tool !== "stamp"}
-            defaultClipSource={clipDefault}
-            layerBlends={!!active?.blend && active.blend !== "normal"}
-            uploads={{
-              signedIn: !!user,
-              used: user?.usage.upload_bytes ?? 0,
-              quota: user?.plan.upload_quota_bytes ?? 0,
-              busy: stampUpload.busy,
-              error: stampUpload.error,
-              onUpload: (files, asSet) => void uploadOwnStamps(files, asSet),
-            }}
-            t={t}
-            mapWidthPx={project.width}
-            recentColors={recentColors}
-            onCommitColor={(c) => setRecentColors((r) => pushRecent(r, c))}
-            target={
-              active && (
-                <EditTarget
-                  role={active.role ?? "custom"}
-                  layerName={active.name}
-                  what={t("stTarget")}
-                  note={active.locked ? t("mmTargetLocked") : undefined}
-                  warning={active.locked}
+                <MenuRow
+                  label={t("mmUngroup")}
+                  shortcut={shortcutLabel("edit.ungroup", keys)}
+                  disabled={!selectedObjs.some((o) => o.group)}
+                  onClick={() => {
+                    ungroupSelection();
+                    setShowEditMenu(false);
+                  }}
                 />
-              )
-            }
-          />
-        )}
-        {(tool === "line" || lineEditing) && (
-          <LinePanel
-            state={lineTool}
-            onChange={changeLineTool}
-            editing={lineEditing}
-            onEditLook={editSelectedLines}
-            onDoneEditing={() => {
-              clearSelection();
-              setNodeEdit(null);
-            }}
-            baseLook={lineBase}
-            line={lineActions}
-            library={{
-              signedIn: !!user,
-              own: lineLib.own,
-              official: lineLib.official,
-              max: lineLib.max,
-              busy: lineLib.busy,
-              error: lineLib.error,
-              onSave: (name) =>
-                void lineLib.save(
-                  name,
-                  lineEditing ? lineEditing.look : lineTool.look,
-                ),
-              onDelete: (id) => void lineLib.remove(id),
-              onLimit: lineLib.promptLimit,
-            }}
-            uploads={{
-              signedIn: !!user,
-              busy: lineLib.uploadBusy,
-              error: lineLib.uploadError,
-              onUpload: (files) =>
-                void lineLib.upload(files).then(applyLineSet),
-              onAddPiece: (setId, role, file) =>
-                void lineLib.addPiece(setId, role, file),
-            }}
-            t={t}
-            mapWidthPx={project.width}
-            recentColors={recentColors}
-            onCommitColor={(c) => setRecentColors((r) => pushRecent(r, c))}
-            floating={tool !== "line"}
-            target={
-              active &&
-              tool === "line" && (
-                <EditTarget
-                  role={active.role ?? "custom"}
-                  layerName={active.name}
-                  what={t("lnTarget")}
-                  note={active.locked ? t("mmTargetLocked") : undefined}
-                  warning={active.locked}
+                <MenuRow
+                  label={t("mmCopyObject")}
+                  shortcut={shortcutLabel("edit.copy", keys)}
+                  disabled={!selectedObjs.length}
+                  onClick={() => {
+                    copySelection();
+                    setShowEditMenu(false);
+                  }}
                 />
-              )
-            }
-          />
-        )}
-        {(tool === "shape" || shapeEditing) && (
-          <ShapePanel
-            state={shapeTool}
-            onChange={changeShapeTool}
-            editing={shapeEditing}
-            onEditLook={editSelectedShapes}
-            onDoneEditing={() => {
-              clearSelection();
-              setShapeEdit(null);
-              setDoorEdit(null);
-            }}
-            baseLook={shapeBase}
-            shape={shapeActions}
-            combineCount={
-              selectedShapes.length === selectedObjs.length
-                ? selectedShapes.length
-                : 0
-            }
-            onCombine={combineSelectedShapes}
-            combineTarget={combineTarget ? objectLabel(combineTarget) : null}
-            library={{
-              signedIn: !!user,
-              own: shapeLib.own,
-              official: shapeLib.official,
-              max: shapeLib.max,
-              busy: shapeLib.busy,
-              error: shapeLib.error,
-              onSave: (name) =>
-                void shapeLib.save(
-                  name,
-                  shapeEditing ? shapeEditing.look : shapeTool.look,
-                ),
-              onDelete: (id) => void shapeLib.remove(id),
-              onLimit: shapeLib.promptLimit,
-            }}
-            uploads={{
-              signedIn: !!user,
-              busy: lineLib.uploadBusy,
-              error: lineLib.uploadError,
-              onUpload: (files) =>
-                void lineLib.upload(files).then((id) => {
-                  const set = id ? lineSet(id) : undefined;
-                  if (!set) return;
-                  const apply = (l: ShapeLook): ShapeLook => ({
-                    ...l,
-                    stroke: {
-                      ...l.stroke,
-                      mode: "stamp",
-                      stamp: stampFromSet(set, l.stroke.stamp),
-                    },
-                  });
-                  if (shapeEditing)
-                    editSelectedShapes(apply(shapeEditing.look));
-                  else
-                    setShapeTool((st) => ({
-                      ...st,
-                      look: apply(st.look),
-                      styleId: null,
-                    }));
-                }),
-              onAddPiece: (setId, role, file) =>
-                void lineLib.addPiece(setId, role, file),
-            }}
-            t={t}
-            mapWidthPx={project.width}
-            gridCellPx={
-              project.snapToGrid ? project.width / project.tileCols : null
-            }
-            recentColors={recentColors}
-            onCommitColor={(c) => setRecentColors((r) => pushRecent(r, c))}
-            floating={tool !== "shape"}
-            target={
-              active &&
-              tool === "shape" && (
-                <EditTarget
-                  role={active.role ?? "custom"}
-                  layerName={active.name}
-                  what={t("shTarget")}
-                  note={active.locked ? t("mmTargetLocked") : undefined}
-                  warning={active.locked}
+                <MenuRow
+                  label={t("mmPasteObject")}
+                  shortcut={shortcutLabel("edit.paste", keys)}
+                  disabled={!hasClipboard}
+                  onClick={() => {
+                    pasteClipboard();
+                    setShowEditMenu(false);
+                  }}
                 />
-              )
-            }
-          />
-        )}
-        {(tool === "text" || textEditing) && (
-          <TextPanel
-            state={textTool}
-            onChange={setTextTool}
-            editing={textEditing}
-            onEditLook={editSelectedTexts}
-            onEditText={editSingleText}
-            onDoneEditing={() => {
-              finishTextEdit();
-              clearSelection();
-              setPathEdit(null);
-            }}
-            baseLook={textBase}
-            shaped={textShaped}
-            actions={textActions}
-            library={{
-              signedIn: !!user,
-              own: textLib.own,
-              official: textLib.official,
-              max: textLib.max,
-              busy: textLib.busy,
-              error: textLib.error,
-              onSave: (name) =>
-                void textLib.save(
-                  name,
-                  textEditing ? textEditing.look : textTool.look,
-                ),
-              onDelete: (id) => void textLib.remove(id),
-              onLimit: textLib.promptLimit,
-            }}
-            t={t}
-            mapWidthPx={project.width}
-            mapHeightPx={project.height}
-            recentColors={recentColors}
-            onCommitColor={(c) => setRecentColors((r) => pushRecent(r, c))}
-            mapColors={mapColors}
-            floating={tool !== "text"}
-            target={
-              active &&
-              tool === "text" && (
-                <EditTarget
-                  role={active.role ?? "custom"}
-                  layerName={active.name}
-                  what={t("txTarget")}
-                  note={active.locked ? t("mmTargetLocked") : undefined}
-                  warning={active.locked}
+                <MenuRow
+                  label={t("mmDeleteObject")}
+                  shortcut={shortcutLabel("edit.delete", keys)}
+                  disabled={!selectedObjs.length}
+                  onClick={() => {
+                    removeObjects(selectedIds);
+                    setShowEditMenu(false);
+                  }}
                 />
-              )
-            }
-          />
-        )}
-        <div className="mm-canvas-column">
-          <div
-            className={`mm-top-toolbar ${floatingPanel ? "beside-floating" : ""}`}
+                <MenuRow
+                  label={t("mmBringToFront")}
+                  shortcut={shortcutLabel("arrange.front", keys)}
+                  disabled={!selectedObjs.length}
+                  onClick={() => {
+                    reorderObjects(selectedIds, "front");
+                    setShowEditMenu(false);
+                  }}
+                />
+                <MenuRow
+                  label={t("mmBringForward")}
+                  disabled={selectedObjs.length !== 1}
+                  onClick={() => {
+                    if (selectedObj) reorderObject(selectedObj.id, "forward");
+                    setShowEditMenu(false);
+                  }}
+                />
+                <MenuRow
+                  label={t("mmSendBackward")}
+                  disabled={selectedObjs.length !== 1}
+                  onClick={() => {
+                    if (selectedObj) reorderObject(selectedObj.id, "backward");
+                    setShowEditMenu(false);
+                  }}
+                />
+                <MenuRow
+                  label={t("mmSendToBack")}
+                  shortcut={shortcutLabel("arrange.back", keys)}
+                  disabled={!selectedObjs.length}
+                  onClick={() => {
+                    reorderObjects(selectedIds, "back");
+                    setShowEditMenu(false);
+                  }}
+                />
+                <div className="mm-menu-divider" />
+                <div className="mm-menu-heading">{t("mmMenuView")}</div>
+                <MenuRow
+                  label={t("mmFitScreen")}
+                  shortcut={shortcutLabel("view.fit", keys)}
+                  onClick={() => {
+                    nav.fit();
+                    setShowEditMenu(false);
+                  }}
+                  icon="fit"
+                />
+                <MenuRow
+                  label={t("ctActualSize")}
+                  shortcut={shortcutLabel("view.actual", keys)}
+                  onClick={() => {
+                    nav.zoomTo(1 / fitScale);
+                    setShowEditMenu(false);
+                  }}
+                />
+                <MenuRow
+                  label={t("ctHandTool")}
+                  shortcut={shortcutLabel("view.hand", keys)}
+                  icon={handMode ? "check" : undefined}
+                  onClick={() => {
+                    setHandMode((h) => !h);
+                    setShowEditMenu(false);
+                  }}
+                />
+                <MenuRow
+                  label={t("ctOpenControls")}
+                  shortcut={shortcutLabel("help.controls", keys)}
+                  onClick={() => {
+                    setControlsOpen(true);
+                    setShowEditMenu(false);
+                  }}
+                />
+                <MenuHint label={t("mmZoom")} hint={t("mmZoomHint")} />
+                <MenuHint label={t("mmPan")} hint={t("mmPanHint")} />
+                <MenuHint label={t("mmCancelDraft")} hint={t("mmEscapeHint")} />
+                <MenuHint
+                  label={t("mmMultiSelect")}
+                  hint={t("mmMultiSelectHint")}
+                />
+                <div className="mm-menu-heading">{t("stWheelHeading")}</div>
+                <MenuRow
+                  label={t("stWheelZoom")}
+                  icon={ctl.ctrlWheel === "zoom" ? "check" : undefined}
+                  onClick={() => updateControls({ ctrlWheel: "zoom" })}
+                />
+                <MenuRow
+                  label={t("stWheelRotate")}
+                  icon={ctl.ctrlWheel === "rotate" ? "check" : undefined}
+                  onClick={() => updateControls({ ctrlWheel: "rotate" })}
+                />
+                <MenuHint
+                  label={t("stStampKeys")}
+                  hint={t("stStampKeysHint", {
+                    bigger: shortcutLabels("stamp.bigger", keys),
+                    smaller: shortcutLabels("stamp.smaller", keys),
+                    left: shortcutLabel("stamp.turnLeft", keys),
+                    right: shortcutLabel("stamp.turnRight", keys),
+                  })}
+                />
+                <div className="mm-menu-heading">{t("lnMenuHeading")}</div>
+                <MenuHint
+                  label={t("lnKeysDraw", {
+                    line: shortcutLabel("tool.line", keys),
+                    free: shortcutLabel("line.free", keys),
+                    pen: shortcutLabel("line.pen", keys),
+                    nodes: shortcutLabel("line.editNodes", keys),
+                  })}
+                  hint={t("lnKeysDrawHint", {
+                    wider: shortcutLabel("line.wider", keys),
+                    thinner: shortcutLabel("line.thinner", keys),
+                  })}
+                />
+                <MenuHint label={t("lnKeysEdit")} hint={t("lnKeysEditHint")} />
+                <div className="mm-menu-heading">{t("txMenuHeading")}</div>
+                <MenuHint
+                  label={t("txKeysCreate", {
+                    text: shortcutLabel("tool.text", keys),
+                    select: shortcutLabel("tool.select", keys),
+                  })}
+                  hint={t("txKeysCreateHint", {
+                    finish: shortcutLabel("text.finish", keys),
+                    edit: shortcutLabel("text.edit", keys),
+                  })}
+                />
+                <MenuHint
+                  label={t("txKeysMove")}
+                  hint={t("txKeysMoveHint", {
+                    all: shortcutLabel("edit.selectAll", keys),
+                  })}
+                />
+              </div>
+            )}
+          </div>
+          <div className="mm-appbar-spacer" />
+          <button
+            className="mm-print-btn"
+            disabled={printing}
+            onClick={handlePrint}
           >
-            {tool === "select" && selectedObjs.length === 0 && (
-              <span className="mm-toolbar-note">{t("mmNoSelection")}</span>
-            )}
-            {tool === "select" && selectedObjs.length > 1 && (
-              <MultiSelectionBar
-                count={selectedObjs.length}
-                t={t}
-                onDuplicate={() => duplicateObjects(selectedIds)}
-                onDelete={() => removeObjects(selectedIds)}
-                onCopy={copySelection}
-                onFront={() => reorderObjects(selectedIds, "front")}
-                onBack={() => reorderObjects(selectedIds, "back")}
-                onClear={clearSelection}
-                grouped={selectedObjs.some((o) => o.group)}
-                onGroup={groupSelection}
-                onUngroup={ungroupSelection}
-                onAlign={(mode) => arrangeSelection(mode)}
-                onDistribute={(axis) =>
-                  arrangeSelection(axis === "x" ? "distributeX" : "distributeY")
-                }
-                onLock={() => setObjectFlags(selectedIds, { locked: true })}
-                onHide={() => setObjectFlags(selectedIds, { hidden: true })}
-                onSaveStamp={user ? () => void saveSelectionAsStamp() : null}
-              />
-            )}
-            {tool === "brush" && (
-              <>
-                <div
-                  className="mm-tb-modes"
-                  role="radiogroup"
-                  aria-label={t("mmSubTools")}
-                >
-                  {PAINT_MODES.map((m) => (
-                    <button
-                      key={m.key}
-                      className={brushState.mode === m.key ? "active" : ""}
-                      title={t(m.labelKey)}
-                      role="radio"
-                      aria-checked={brushState.mode === m.key}
-                      onClick={() =>
-                        updateBrush({ ...brushState, mode: m.key })
-                      }
-                    >
-                      <Glyph name={m.glyph} size={16} />
-                    </button>
-                  ))}
-                </div>
-                <button
-                  className={`mm-pill ${brushState.erase ? "selected" : ""}`}
-                  title={t("mmEraserHint")}
-                  onClick={() =>
-                    setBrushState((st) => ({ ...st, erase: !st.erase }))
-                  }
-                >
-                  {t("mmEraser")}
-                </button>
-                {brushState.mode === "free" && (
-                  <Slider
-                    label={t("mmBrushSize")}
-                    defaultValue={Math.round(
-                      brushBase(brushState, favorites).brush.size *
-                        project.width,
+            <Glyph name="print" size={16} />
+            {t("mmPrintAction")}
+          </button>
+        </header>
+        <div className="mm-body">
+          <nav className="mm-tool-rail">
+            {TOOLS.map((tl) => (
+              <button
+                key={tl.key}
+                className={`mm-rail-btn ${tool === tl.key ? "active" : ""}`}
+                title={`${t(tl.labelKey)} (${shortcutLabels(`tool.${tl.key}` as ShortcutId, keys)})`}
+                onClick={() => selectTool(tl.key)}
+              >
+                <Glyph name={tl.key} />
+              </button>
+            ))}
+          </nav>
+          {tool === "brush" && (
+            <BrushPanel
+              state={brushState}
+              onChange={updateBrush}
+              t={t}
+              mapWidthPx={project.width}
+              tileCell={1 / project.tileCols}
+              recentColors={recentColors}
+              onCommitColor={(c) => setRecentColors((r) => pushRecent(r, c))}
+              favorites={favorites}
+              onSaveFavorite={(name) =>
+                setFavorites((list) => [
+                  {
+                    id: crypto.randomUUID(),
+                    name,
+                    brush: brushState.brush,
+                    opacity: brushState.opacity,
+                    blend: brushState.blend,
+                    source: brushState.source,
+                  },
+                  ...list,
+                ])
+              }
+              onDeleteFavorite={(id) =>
+                setFavorites((list) => list.filter((f) => f.id !== id))
+              }
+              target={
+                active && (
+                  <EditTarget
+                    role={active.role ?? "custom"}
+                    layerName={active.name}
+                    what={t(
+                      active.role === "land"
+                        ? "mmTargetLandTexture"
+                        : active.role === "water"
+                          ? "mmTargetWater"
+                          : "mmTargetPaint",
                     )}
-                    value={Math.round(brushState.brush.size * project.width)}
-                    min={1}
-                    max={Math.round(project.width * 0.25)}
-                    step={1}
+                    note={
+                      active.locked
+                        ? t("mmTargetLocked")
+                        : active.role === "land"
+                          ? t("mmTargetLandTextureNote", {
+                              land: shortcutLabel("tool.land", keys),
+                            })
+                          : undefined
+                    }
+                    warning={active.locked}
+                  />
+                )
+              }
+            />
+          )}
+          {tool === "land" && (
+            <LandPanel
+              state={landTool}
+              onChange={updateLandTool}
+              t={t}
+              mapWidthPx={project.width}
+              target={
+                landTarget ? (
+                  <EditTarget
+                    role="land"
+                    layerName={landTarget.name}
+                    what={t("mmTargetLandShape")}
+                    note={landTarget.locked ? t("mmTargetLocked") : undefined}
+                    warning={landTarget.locked}
+                  />
+                ) : (
+                  <EditTarget
+                    role={active?.role ?? "custom"}
+                    layerName={active?.name ?? ""}
+                    what={t("mmTargetNoLand")}
+                    note={t("mmTargetNoLandNote")}
+                    warning
+                    action={
+                      topLand
+                        ? {
+                            label: t("mmUseLandLayer", { layer: topLand.name }),
+                            onClick: () => setActiveLayerId(topLand.id),
+                          }
+                        : {
+                            label: t("mmAddLandLayer"),
+                            onClick: () => addLayer("land"),
+                          }
+                    }
+                  />
+                )
+              }
+              base={landTarget ? landSettings(landTarget).base : null}
+              onBaseChange={(patch) => {
+                if (!landTarget) return;
+                const land = landSettings(landTarget);
+                updateLayer(landTarget.id, {
+                  land: { ...land, base: { ...land.base, ...patch } },
+                });
+              }}
+              recentColors={recentColors}
+              onCommitColor={(c) => setRecentColors((r) => pushRecent(r, c))}
+              onEditCoast={landTarget ? showCoastPanel : null}
+            />
+          )}
+          {(tool === "stamp" || stampEditing) && (
+            <StampPanel
+              state={stampTool}
+              onChange={setStampTool}
+              editing={stampEditing}
+              onEditLook={editSelectedStamps}
+              onDoneEditing={clearSelection}
+              floating={tool !== "stamp"}
+              defaultClipSource={clipDefault}
+              layerBlends={!!active?.blend && active.blend !== "normal"}
+              uploads={{
+                signedIn: !!user,
+                used: user?.usage.upload_bytes ?? 0,
+                quota: user?.plan.upload_quota_bytes ?? 0,
+                busy: stampUpload.busy,
+                error: stampUpload.error,
+                onUpload: (files, asSet) => void uploadOwnStamps(files, asSet),
+              }}
+              t={t}
+              mapWidthPx={project.width}
+              recentColors={recentColors}
+              onCommitColor={(c) => setRecentColors((r) => pushRecent(r, c))}
+              target={
+                active && (
+                  <EditTarget
+                    role={active.role ?? "custom"}
+                    layerName={active.name}
+                    what={t("stTarget")}
+                    note={active.locked ? t("mmTargetLocked") : undefined}
+                    warning={active.locked}
+                  />
+                )
+              }
+            />
+          )}
+          {(tool === "line" || lineEditing) && (
+            <LinePanel
+              state={lineTool}
+              onChange={changeLineTool}
+              editing={lineEditing}
+              onEditLook={editSelectedLines}
+              onDoneEditing={() => {
+                clearSelection();
+                setNodeEdit(null);
+              }}
+              baseLook={lineBase}
+              line={lineActions}
+              library={{
+                signedIn: !!user,
+                own: lineLib.own,
+                official: lineLib.official,
+                max: lineLib.max,
+                busy: lineLib.busy,
+                error: lineLib.error,
+                onSave: (name) =>
+                  void lineLib.save(
+                    name,
+                    lineEditing ? lineEditing.look : lineTool.look,
+                  ),
+                onDelete: (id) => void lineLib.remove(id),
+                onLimit: lineLib.promptLimit,
+              }}
+              uploads={{
+                signedIn: !!user,
+                busy: lineLib.uploadBusy,
+                error: lineLib.uploadError,
+                onUpload: (files) =>
+                  void lineLib.upload(files).then(applyLineSet),
+                onAddPiece: (setId, role, file) =>
+                  void lineLib.addPiece(setId, role, file),
+              }}
+              t={t}
+              mapWidthPx={project.width}
+              recentColors={recentColors}
+              onCommitColor={(c) => setRecentColors((r) => pushRecent(r, c))}
+              floating={tool !== "line"}
+              target={
+                active &&
+                tool === "line" && (
+                  <EditTarget
+                    role={active.role ?? "custom"}
+                    layerName={active.name}
+                    what={t("lnTarget")}
+                    note={active.locked ? t("mmTargetLocked") : undefined}
+                    warning={active.locked}
+                  />
+                )
+              }
+            />
+          )}
+          {(tool === "shape" || shapeEditing) && (
+            <ShapePanel
+              state={shapeTool}
+              onChange={changeShapeTool}
+              editing={shapeEditing}
+              onEditLook={editSelectedShapes}
+              onDoneEditing={() => {
+                clearSelection();
+                setShapeEdit(null);
+                setDoorEdit(null);
+              }}
+              baseLook={shapeBase}
+              shape={shapeActions}
+              combineCount={
+                selectedShapes.length === selectedObjs.length
+                  ? selectedShapes.length
+                  : 0
+              }
+              onCombine={combineSelectedShapes}
+              combineTarget={combineTarget ? objectLabel(combineTarget) : null}
+              library={{
+                signedIn: !!user,
+                own: shapeLib.own,
+                official: shapeLib.official,
+                max: shapeLib.max,
+                busy: shapeLib.busy,
+                error: shapeLib.error,
+                onSave: (name) =>
+                  void shapeLib.save(
+                    name,
+                    shapeEditing ? shapeEditing.look : shapeTool.look,
+                  ),
+                onDelete: (id) => void shapeLib.remove(id),
+                onLimit: shapeLib.promptLimit,
+              }}
+              uploads={{
+                signedIn: !!user,
+                busy: lineLib.uploadBusy,
+                error: lineLib.uploadError,
+                onUpload: (files) =>
+                  void lineLib.upload(files).then((id) => {
+                    const set = id ? lineSet(id) : undefined;
+                    if (!set) return;
+                    const apply = (l: ShapeLook): ShapeLook => ({
+                      ...l,
+                      stroke: {
+                        ...l.stroke,
+                        mode: "stamp",
+                        stamp: stampFromSet(set, l.stroke.stamp),
+                      },
+                    });
+                    if (shapeEditing)
+                      editSelectedShapes(apply(shapeEditing.look));
+                    else
+                      setShapeTool((st) => ({
+                        ...st,
+                        look: apply(st.look),
+                        styleId: null,
+                      }));
+                  }),
+                onAddPiece: (setId, role, file) =>
+                  void lineLib.addPiece(setId, role, file),
+              }}
+              t={t}
+              mapWidthPx={project.width}
+              gridCellPx={
+                project.snapToGrid ? project.width / project.tileCols : null
+              }
+              recentColors={recentColors}
+              onCommitColor={(c) => setRecentColors((r) => pushRecent(r, c))}
+              floating={tool !== "shape"}
+              target={
+                active &&
+                tool === "shape" && (
+                  <EditTarget
+                    role={active.role ?? "custom"}
+                    layerName={active.name}
+                    what={t("shTarget")}
+                    note={active.locked ? t("mmTargetLocked") : undefined}
+                    warning={active.locked}
+                  />
+                )
+              }
+            />
+          )}
+          {(tool === "text" || textEditing) && (
+            <TextPanel
+              state={textTool}
+              onChange={setTextTool}
+              editing={textEditing}
+              onEditLook={editSelectedTexts}
+              onEditText={editSingleText}
+              onDoneEditing={() => {
+                finishTextEdit();
+                clearSelection();
+                setPathEdit(null);
+              }}
+              baseLook={textBase}
+              shaped={textShaped}
+              actions={textActions}
+              library={{
+                signedIn: !!user,
+                own: textLib.own,
+                official: textLib.official,
+                max: textLib.max,
+                busy: textLib.busy,
+                error: textLib.error,
+                onSave: (name) =>
+                  void textLib.save(
+                    name,
+                    textEditing ? textEditing.look : textTool.look,
+                  ),
+                onDelete: (id) => void textLib.remove(id),
+                onLimit: textLib.promptLimit,
+              }}
+              t={t}
+              mapWidthPx={project.width}
+              mapHeightPx={project.height}
+              recentColors={recentColors}
+              onCommitColor={(c) => setRecentColors((r) => pushRecent(r, c))}
+              mapColors={mapColors}
+              floating={tool !== "text"}
+              target={
+                active &&
+                tool === "text" && (
+                  <EditTarget
+                    role={active.role ?? "custom"}
+                    layerName={active.name}
+                    what={t("txTarget")}
+                    note={active.locked ? t("mmTargetLocked") : undefined}
+                    warning={active.locked}
+                  />
+                )
+              }
+            />
+          )}
+          <div className="mm-canvas-column">
+            <div
+              className={`mm-top-toolbar ${floatingPanel ? "beside-floating" : ""}`}
+            >
+              {tool === "select" && selectedObjs.length === 0 && (
+                <span className="mm-toolbar-note">{t("mmNoSelection")}</span>
+              )}
+              {tool === "select" && selectedObjs.length > 1 && (
+                <MultiSelectionBar
+                  count={selectedObjs.length}
+                  t={t}
+                  onDuplicate={() => duplicateObjects(selectedIds)}
+                  onDelete={() => removeObjects(selectedIds)}
+                  onCopy={copySelection}
+                  onFront={() => reorderObjects(selectedIds, "front")}
+                  onBack={() => reorderObjects(selectedIds, "back")}
+                  onClear={clearSelection}
+                  grouped={selectedObjs.some((o) => o.group)}
+                  onGroup={groupSelection}
+                  onUngroup={ungroupSelection}
+                  onAlign={(mode) => arrangeSelection(mode)}
+                  onDistribute={(axis) =>
+                    arrangeSelection(
+                      axis === "x" ? "distributeX" : "distributeY",
+                    )
+                  }
+                  onLock={() => setObjectFlags(selectedIds, { locked: true })}
+                  onHide={() => setObjectFlags(selectedIds, { hidden: true })}
+                  onSaveStamp={user ? () => void saveSelectionAsStamp() : null}
+                />
+              )}
+              {tool === "brush" && (
+                <>
+                  <div
+                    className="mm-tb-modes"
+                    role="radiogroup"
+                    aria-label={t("mmSubTools")}
+                  >
+                    {PAINT_MODES.map((m) => (
+                      <button
+                        key={m.key}
+                        className={brushState.mode === m.key ? "active" : ""}
+                        title={t(m.labelKey)}
+                        role="radio"
+                        aria-checked={brushState.mode === m.key}
+                        onClick={() =>
+                          updateBrush({ ...brushState, mode: m.key })
+                        }
+                      >
+                        <Glyph name={m.glyph} size={16} />
+                      </button>
+                    ))}
+                  </div>
+                  <button
+                    className={`mm-pill ${brushState.erase ? "selected" : ""}`}
+                    title={t("mmEraserHint")}
+                    onClick={() =>
+                      setBrushState((st) => ({ ...st, erase: !st.erase }))
+                    }
+                  >
+                    {t("mmEraser")}
+                  </button>
+                  {brushState.mode === "free" && (
+                    <Slider
+                      label={t("mmBrushSize")}
+                      defaultValue={Math.round(
+                        brushBase(brushState, favorites).brush.size *
+                          project.width,
+                      )}
+                      value={Math.round(brushState.brush.size * project.width)}
+                      min={1}
+                      max={Math.round(project.width * 0.25)}
+                      step={1}
+                      onChange={(v) =>
+                        setBrushState((st) => ({
+                          ...st,
+                          presetId: null,
+                          brush: { ...st.brush, size: v / project.width },
+                        }))
+                      }
+                      format={(v) => `${v} px`}
+                    />
+                  )}
+                  <Slider
+                    label={t("mmBrushOpacity")}
+                    defaultValue={brushBase(brushState, favorites).opacity}
+                    value={brushState.opacity}
+                    min={0.02}
+                    max={1}
+                    step={0.01}
                     onChange={(v) =>
                       setBrushState((st) => ({
                         ...st,
                         presetId: null,
-                        brush: { ...st.brush, size: v / project.width },
+                        opacity: v,
                       }))
                     }
-                    format={(v) => `${v} px`}
+                    format={(v) => `${Math.round(v * 100)}%`}
                   />
-                )}
-                <Slider
-                  label={t("mmBrushOpacity")}
-                  defaultValue={brushBase(brushState, favorites).opacity}
-                  value={brushState.opacity}
-                  min={0.02}
-                  max={1}
-                  step={0.01}
-                  onChange={(v) =>
-                    setBrushState((st) => ({
-                      ...st,
-                      presetId: null,
-                      opacity: v,
-                    }))
-                  }
-                  format={(v) => `${Math.round(v * 100)}%`}
-                />
-                {polyDraft && polyDraft.length >= 3 && (
-                  <button className="secondary-button" onClick={commitPolygon}>
-                    {t("mmFinishShape")}
-                  </button>
-                )}
-              </>
-            )}
-            {tool === "land" && (
-              <>
-                <div
-                  className="mm-tb-modes"
-                  role="radiogroup"
-                  aria-label={t("mmSubTools")}
-                >
-                  {LAND_MODES.map((m) => (
+                  {polyDraft && polyDraft.length >= 3 && (
                     <button
-                      key={m.key}
-                      className={landTool.mode === m.key ? "active" : ""}
-                      title={t(m.labelKey)}
-                      role="radio"
-                      aria-checked={landTool.mode === m.key}
-                      onClick={() =>
-                        updateLandTool({ ...landTool, mode: m.key })
-                      }
+                      className="secondary-button"
+                      onClick={commitPolygon}
                     >
-                      <Glyph name={m.glyph} size={16} />
+                      {t("mmFinishShape")}
                     </button>
-                  ))}
-                </div>
-                <button
-                  className={`mm-pill ${landTool.erase ? "selected" : ""}`}
-                  title={t("mmLandRemoveHint")}
-                  onClick={() =>
-                    setLandTool((st) => ({ ...st, erase: !st.erase }))
-                  }
-                >
-                  {t("mmLandRemove")}
-                </button>
-                {landTool.mode === "free" && (
-                  <Slider
-                    label={t("mmBrushSize")}
-                    defaultValue={Math.round(
-                      DEFAULT_LAND_TOOL.size * project.width,
-                    )}
-                    value={Math.round(landTool.size * project.width)}
-                    min={2}
-                    max={Math.round(project.width * 0.3)}
-                    step={1}
-                    onChange={(v) =>
-                      setLandTool((st) => ({ ...st, size: v / project.width }))
-                    }
-                    format={(v) => `${v} px`}
-                  />
-                )}
-                {polyDraft && polyDraft.length >= 3 && (
-                  <button className="secondary-button" onClick={commitPolygon}>
-                    {t("mmFinishShape")}
-                  </button>
-                )}
-              </>
-            )}
-            {tool === "stamp" && (
-              <>
-                <Slider
-                  label={t("stSize")}
-                  defaultValue={stampFactoryLook(stampSet(stampTool.set)).size}
-                  value={stampTool.look.size}
-                  min={0.003}
-                  max={0.4}
-                  step={0.001}
-                  onChange={(v) =>
-                    setStampTool((st) => ({
-                      ...st,
-                      look: { ...st.look, size: v },
-                    }))
-                  }
-                  format={(v) => `${Math.round(v * project.width)} px`}
-                />
-                <Slider
-                  label={t("stRotation")}
-                  defaultValue={0}
-                  value={Math.round(stampTool.look.rotation)}
-                  min={-180}
-                  max={180}
-                  step={1}
-                  onChange={(v) =>
-                    setStampTool((st) => ({
-                      ...st,
-                      look: { ...st.look, rotation: v },
-                    }))
-                  }
-                  format={(v) => `${v}°`}
-                />
-              </>
-            )}
-            {tool === "line" && (
-              <>
-                <div
-                  className="mm-tb-modes"
-                  role="radiogroup"
-                  aria-label={t("lnDrawMode")}
-                >
-                  {LINE_DRAW_MODES.map((m) => (
-                    <button
-                      key={m.key}
-                      className={lineTool.draw === m.key ? "active" : ""}
-                      title={`${t(m.labelKey)} (${shortcutLabel(m.shortcut, keys)})`}
-                      role="radio"
-                      aria-checked={lineTool.draw === m.key}
-                      onClick={() =>
-                        changeLineTool({ ...lineTool, draw: m.key })
-                      }
-                    >
-                      <Glyph name={m.glyph} size={16} />
-                    </button>
-                  ))}
-                </div>
-                {lineTool.draw !== "edit" &&
-                  (lineTool.look.mode === "color" ? (
-                    <Slider
-                      label={t("lnWidth")}
-                      defaultValue={
-                        Math.round(
-                          lineBaseLook(lineTool.styleId, libraryStyles).stroke
-                            .width *
-                            project.width *
-                            10,
-                        ) / 10
-                      }
-                      value={
-                        Math.round(
-                          lineTool.look.stroke.width * project.width * 10,
-                        ) / 10
-                      }
-                      min={0.5}
-                      max={Math.round(project.width * 0.04)}
-                      step={0.5}
-                      onChange={(v) =>
-                        setLineTool((st) => ({
-                          ...st,
-                          look: {
-                            ...st.look,
-                            stroke: {
-                              ...st.look.stroke,
-                              width: v / project.width,
-                            },
-                          },
-                        }))
-                      }
-                      format={(v) => `${v} px`}
-                    />
-                  ) : (
-                    <Slider
-                      label={t("lnStampSize")}
-                      defaultValue={
-                        Math.round(
-                          lineBaseLook(lineTool.styleId, libraryStyles).stamp
-                            .size *
-                            project.width *
-                            10,
-                        ) / 10
-                      }
-                      value={
-                        Math.round(
-                          lineTool.look.stamp.size * project.width * 10,
-                        ) / 10
-                      }
-                      min={1}
-                      max={Math.round(project.width * 0.1)}
-                      step={0.5}
-                      onChange={(v) =>
-                        setLineTool((st) => ({
-                          ...st,
-                          look: {
-                            ...st.look,
-                            stamp: {
-                              ...st.look.stamp,
-                              size: v / project.width,
-                            },
-                          },
-                        }))
-                      }
-                      format={(v) => `${v} px`}
-                    />
-                  ))}
-                {penDraft && penDraft.length >= 2 && (
-                  <button
-                    className="secondary-button"
-                    onClick={() => finishPen(false)}
-                  >
-                    {t("lnFinish")}
-                  </button>
-                )}
-                {penDraft && penDraft.length >= 3 && !penTarget && (
-                  <button
-                    className="secondary-button"
-                    onClick={() => finishPen(true)}
-                  >
-                    {t("lnFinishClosed")}
-                  </button>
-                )}
-                {lineTool.draw === "edit" && !nodeEdit && (
-                  <span className="mm-toolbar-note">{t("lnPickLine")}</span>
-                )}
-              </>
-            )}
-            {tool === "shape" && (
-              <>
-                <div
-                  className="mm-tb-modes"
-                  role="radiogroup"
-                  aria-label={t("shDrawMode")}
-                >
-                  {SHAPE_DRAW_MODES.map((m) => (
-                    <button
-                      key={m.key}
-                      className={shapeTool.draw === m.key ? "active" : ""}
-                      title={`${t(m.labelKey)} (${shortcutLabel(m.shortcut, keys)})`}
-                      role="radio"
-                      aria-checked={shapeTool.draw === m.key}
-                      onClick={() =>
-                        changeShapeTool({ ...shapeTool, draw: m.key })
-                      }
-                    >
-                      <Glyph name={m.glyph} size={16} />
-                    </button>
-                  ))}
-                </div>
-                {shapeTool.draw !== "edit" && shapeTool.draw !== "doors" && (
+                  )}
+                </>
+              )}
+              {tool === "land" && (
+                <>
                   <div
                     className="mm-tb-modes"
                     role="radiogroup"
-                    aria-label={t("shCombine")}
+                    aria-label={t("mmSubTools")}
                   >
-                    {SHAPE_COMBINES.map((c) => (
+                    {LAND_MODES.map((m) => (
                       <button
-                        key={c}
-                        className={shapeTool.combine === c ? "active" : ""}
-                        title={`${t(`shOp_${c}`)} (${shortcutLabel("shape.combine", keys)})`}
+                        key={m.key}
+                        className={landTool.mode === m.key ? "active" : ""}
+                        title={t(m.labelKey)}
                         role="radio"
-                        aria-checked={shapeTool.combine === c}
+                        aria-checked={landTool.mode === m.key}
                         onClick={() =>
-                          changeShapeTool({ ...shapeTool, combine: c })
+                          updateLandTool({ ...landTool, mode: m.key })
                         }
                       >
-                        <Glyph name={COMBINE_GLYPH[c]} size={16} />
+                        <Glyph name={m.glyph} size={16} />
                       </button>
                     ))}
                   </div>
-                )}
-                {penDraft && penDraft.length >= 3 && (
                   <button
-                    className="secondary-button"
-                    onClick={() => finishPen(true)}
-                  >
-                    {t("mmFinishShape")}
-                  </button>
-                )}
-                {shapeTool.draw === "edit" && !shapeEdit && (
-                  <span className="mm-toolbar-note">{t("shPickShape")}</span>
-                )}
-                {shapeTool.draw === "doors" && (
-                  <span className="mm-toolbar-note">{t("shDoorsNote")}</span>
-                )}
-              </>
-            )}
-            {tool === "text" && (
-              <>
-                <Slider
-                  label={t("txSize")}
-                  defaultValue={
-                    textEditing
-                      ? textBase.size
-                      : baseTextLook(textTool.styleId, textLibraryStyles).size
-                  }
-                  value={
-                    textEditing ? textEditing.look.size : textTool.look.size
-                  }
-                  min={0.002}
-                  max={0.25}
-                  step={0.0005}
-                  onChange={(v) =>
-                    textEditing
-                      ? editSelectedTexts((l) => ({ ...l, size: v }), "size")
-                      : setTextTool((st) => ({
-                          ...st,
-                          look: { ...st.look, size: v },
-                          styleId: null,
-                        }))
-                  }
-                  format={(v) => `${Math.round(v * project.width)} px`}
-                />
-                <label className="mm-ln-select mm-tx-quick-style">
-                  <span>{t("txStyle")}</span>
-                  <select
-                    value={
-                      (textEditing ? textEditing.styleId : textTool.styleId) ??
-                      ""
+                    className={`mm-pill ${landTool.erase ? "selected" : ""}`}
+                    title={t("mmLandRemoveHint")}
+                    onClick={() =>
+                      setLandTool((st) => ({ ...st, erase: !st.erase }))
                     }
-                    onChange={(e) => {
-                      const s = [
-                        ...BUILTIN_TEXT_STYLES,
-                        ...textLibraryStyles,
-                      ].find((x) => x.id === e.target.value);
-                      if (!s || s.locked) return;
-                      if (textEditing)
-                        editSelectedTexts(
-                          (l) => ({
-                            ...s.look,
-                            ...(l.curveMode === "path"
-                              ? { curveMode: "path" as const }
-                              : {}),
-                          }),
-                          "style",
-                          s.id,
-                        );
-                      else
-                        setTextTool((st) => ({
-                          ...st,
-                          look: s.look,
-                          styleId: s.id,
-                        }));
-                    }}
                   >
-                    <option value="">{t("txStyleCustom")}</option>
-                    {BUILTIN_TEXT_STYLES.filter(
-                      (s) =>
-                        !isHidden("text_style", s.id) ||
-                        s.id ===
-                          (textEditing
-                            ? textEditing.styleId
-                            : textTool.styleId),
-                    ).map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {t(s.labelKey ?? "")}
-                      </option>
+                    {t("mmLandRemove")}
+                  </button>
+                  {landTool.mode === "free" && (
+                    <Slider
+                      label={t("mmBrushSize")}
+                      defaultValue={Math.round(
+                        DEFAULT_LAND_TOOL.size * project.width,
+                      )}
+                      value={Math.round(landTool.size * project.width)}
+                      min={2}
+                      max={Math.round(project.width * 0.3)}
+                      step={1}
+                      onChange={(v) =>
+                        setLandTool((st) => ({
+                          ...st,
+                          size: v / project.width,
+                        }))
+                      }
+                      format={(v) => `${v} px`}
+                    />
+                  )}
+                  {polyDraft && polyDraft.length >= 3 && (
+                    <button
+                      className="secondary-button"
+                      onClick={commitPolygon}
+                    >
+                      {t("mmFinishShape")}
+                    </button>
+                  )}
+                </>
+              )}
+              {tool === "stamp" && (
+                <>
+                  <Slider
+                    label={t("stSize")}
+                    defaultValue={
+                      stampFactoryLook(stampSet(stampTool.set)).size
+                    }
+                    value={stampTool.look.size}
+                    min={0.003}
+                    max={0.4}
+                    step={0.001}
+                    onChange={(v) =>
+                      setStampTool((st) => ({
+                        ...st,
+                        look: { ...st.look, size: v },
+                      }))
+                    }
+                    format={(v) => `${Math.round(v * project.width)} px`}
+                  />
+                  <Slider
+                    label={t("stRotation")}
+                    defaultValue={0}
+                    value={Math.round(stampTool.look.rotation)}
+                    min={-180}
+                    max={180}
+                    step={1}
+                    onChange={(v) =>
+                      setStampTool((st) => ({
+                        ...st,
+                        look: { ...st.look, rotation: v },
+                      }))
+                    }
+                    format={(v) => `${v}°`}
+                  />
+                </>
+              )}
+              {tool === "line" && (
+                <>
+                  <div
+                    className="mm-tb-modes"
+                    role="radiogroup"
+                    aria-label={t("lnDrawMode")}
+                  >
+                    {LINE_DRAW_MODES.map((m) => (
+                      <button
+                        key={m.key}
+                        className={lineTool.draw === m.key ? "active" : ""}
+                        title={`${t(m.labelKey)} (${shortcutLabel(m.shortcut, keys)})`}
+                        role="radio"
+                        aria-checked={lineTool.draw === m.key}
+                        onClick={() =>
+                          changeLineTool({ ...lineTool, draw: m.key })
+                        }
+                      >
+                        <Glyph name={m.glyph} size={16} />
+                      </button>
                     ))}
-                    {textLibraryStyles
-                      .filter((s) => !s.locked)
-                      .map((s) => (
+                  </div>
+                  {lineTool.draw !== "edit" &&
+                    (lineTool.look.mode === "color" ? (
+                      <Slider
+                        label={t("lnWidth")}
+                        defaultValue={
+                          Math.round(
+                            lineBaseLook(lineTool.styleId, libraryStyles).stroke
+                              .width *
+                              project.width *
+                              10,
+                          ) / 10
+                        }
+                        value={
+                          Math.round(
+                            lineTool.look.stroke.width * project.width * 10,
+                          ) / 10
+                        }
+                        min={0.5}
+                        max={Math.round(project.width * 0.04)}
+                        step={0.5}
+                        onChange={(v) =>
+                          setLineTool((st) => ({
+                            ...st,
+                            look: {
+                              ...st.look,
+                              stroke: {
+                                ...st.look.stroke,
+                                width: v / project.width,
+                              },
+                            },
+                          }))
+                        }
+                        format={(v) => `${v} px`}
+                      />
+                    ) : (
+                      <Slider
+                        label={t("lnStampSize")}
+                        defaultValue={
+                          Math.round(
+                            lineBaseLook(lineTool.styleId, libraryStyles).stamp
+                              .size *
+                              project.width *
+                              10,
+                          ) / 10
+                        }
+                        value={
+                          Math.round(
+                            lineTool.look.stamp.size * project.width * 10,
+                          ) / 10
+                        }
+                        min={1}
+                        max={Math.round(project.width * 0.1)}
+                        step={0.5}
+                        onChange={(v) =>
+                          setLineTool((st) => ({
+                            ...st,
+                            look: {
+                              ...st.look,
+                              stamp: {
+                                ...st.look.stamp,
+                                size: v / project.width,
+                              },
+                            },
+                          }))
+                        }
+                        format={(v) => `${v} px`}
+                      />
+                    ))}
+                  {penDraft && penDraft.length >= 2 && (
+                    <button
+                      className="secondary-button"
+                      onClick={() => finishPen(false)}
+                    >
+                      {t("lnFinish")}
+                    </button>
+                  )}
+                  {penDraft && penDraft.length >= 3 && !penTarget && (
+                    <button
+                      className="secondary-button"
+                      onClick={() => finishPen(true)}
+                    >
+                      {t("lnFinishClosed")}
+                    </button>
+                  )}
+                  {lineTool.draw === "edit" && !nodeEdit && (
+                    <span className="mm-toolbar-note">{t("lnPickLine")}</span>
+                  )}
+                </>
+              )}
+              {tool === "shape" && (
+                <>
+                  <div
+                    className="mm-tb-modes"
+                    role="radiogroup"
+                    aria-label={t("shDrawMode")}
+                  >
+                    {SHAPE_DRAW_MODES.map((m) => (
+                      <button
+                        key={m.key}
+                        className={shapeTool.draw === m.key ? "active" : ""}
+                        title={`${t(m.labelKey)} (${shortcutLabel(m.shortcut, keys)})`}
+                        role="radio"
+                        aria-checked={shapeTool.draw === m.key}
+                        onClick={() =>
+                          changeShapeTool({ ...shapeTool, draw: m.key })
+                        }
+                      >
+                        <Glyph name={m.glyph} size={16} />
+                      </button>
+                    ))}
+                  </div>
+                  {shapeTool.draw !== "edit" && shapeTool.draw !== "doors" && (
+                    <div
+                      className="mm-tb-modes"
+                      role="radiogroup"
+                      aria-label={t("shCombine")}
+                    >
+                      {SHAPE_COMBINES.map((c) => (
+                        <button
+                          key={c}
+                          className={shapeTool.combine === c ? "active" : ""}
+                          title={`${t(`shOp_${c}`)} (${shortcutLabel("shape.combine", keys)})`}
+                          role="radio"
+                          aria-checked={shapeTool.combine === c}
+                          onClick={() =>
+                            changeShapeTool({ ...shapeTool, combine: c })
+                          }
+                        >
+                          <Glyph name={COMBINE_GLYPH[c]} size={16} />
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {penDraft && penDraft.length >= 3 && (
+                    <button
+                      className="secondary-button"
+                      onClick={() => finishPen(true)}
+                    >
+                      {t("mmFinishShape")}
+                    </button>
+                  )}
+                  {shapeTool.draw === "edit" && !shapeEdit && (
+                    <span className="mm-toolbar-note">{t("shPickShape")}</span>
+                  )}
+                  {shapeTool.draw === "doors" && (
+                    <span className="mm-toolbar-note">{t("shDoorsNote")}</span>
+                  )}
+                </>
+              )}
+              {tool === "text" && (
+                <>
+                  <Slider
+                    label={t("txSize")}
+                    defaultValue={
+                      textEditing
+                        ? textBase.size
+                        : baseTextLook(textTool.styleId, textLibraryStyles).size
+                    }
+                    value={
+                      textEditing ? textEditing.look.size : textTool.look.size
+                    }
+                    min={0.002}
+                    max={0.25}
+                    step={0.0005}
+                    onChange={(v) =>
+                      textEditing
+                        ? editSelectedTexts((l) => ({ ...l, size: v }), "size")
+                        : setTextTool((st) => ({
+                            ...st,
+                            look: { ...st.look, size: v },
+                            styleId: null,
+                          }))
+                    }
+                    format={(v) => `${Math.round(v * project.width)} px`}
+                  />
+                  <label className="mm-ln-select mm-tx-quick-style">
+                    <span>{t("txStyle")}</span>
+                    <select
+                      value={
+                        (textEditing
+                          ? textEditing.styleId
+                          : textTool.styleId) ?? ""
+                      }
+                      onChange={(e) => {
+                        const s = [
+                          ...BUILTIN_TEXT_STYLES,
+                          ...textLibraryStyles,
+                        ].find((x) => x.id === e.target.value);
+                        if (!s || s.locked) return;
+                        if (textEditing)
+                          editSelectedTexts(
+                            (l) => ({
+                              ...s.look,
+                              ...(l.curveMode === "path"
+                                ? { curveMode: "path" as const }
+                                : {}),
+                            }),
+                            "style",
+                            s.id,
+                          );
+                        else
+                          setTextTool((st) => ({
+                            ...st,
+                            look: s.look,
+                            styleId: s.id,
+                          }));
+                      }}
+                    >
+                      <option value="">{t("txStyleCustom")}</option>
+                      {BUILTIN_TEXT_STYLES.filter(
+                        (s) =>
+                          !isHidden("text_style", s.id) ||
+                          s.id ===
+                            (textEditing
+                              ? textEditing.styleId
+                              : textTool.styleId),
+                      ).map((s) => (
                         <option key={s.id} value={s.id}>
-                          {s.name}
+                          {t(s.labelKey ?? "")}
                         </option>
                       ))}
-                  </select>
-                </label>
-                {singleText && !textEdit && (
-                  <button
-                    className="secondary-button"
-                    onClick={() => editTextInline(singleText.id)}
-                  >
-                    {t("txEditInline")}
-                  </button>
-                )}
-                {textEdit && (
-                  <button className="secondary-button" onClick={finishTextEdit}>
-                    {t("txDoneTyping")}
-                  </button>
-                )}
-              </>
-            )}
-            {tool === "select" && selectedObj && (
-              <ObjectQuickBar
-                obj={selectedObj}
-                layerId={selectedLayer!.id}
-                t={t}
-                onPatch={patchSelected}
-                onDuplicate={() => duplicateObject(selectedObj.id)}
-                onDelete={() => removeObject(selectedObj.id)}
-                onReorder={(dir) => reorderObject(selectedObj.id, dir)}
-                lineActions={lineActions ?? undefined}
-              />
-            )}
-          </div>
-          {notice && (
-            <div
-              className={`mm-editor-notice ${noticeOk ? "ok" : ""} ${floatingPanel ? "beside-floating" : ""}`}
-              role={noticeOk ? "status" : "alert"}
-            >
-              <span>{notice}</span>
-              <button onClick={() => setNotice(null)} aria-label={t("close")}>
-                ×
-              </button>
+                      {textLibraryStyles
+                        .filter((s) => !s.locked)
+                        .map((s) => (
+                          <option key={s.id} value={s.id}>
+                            {s.name}
+                          </option>
+                        ))}
+                    </select>
+                  </label>
+                  {singleText && !textEdit && (
+                    <button
+                      className="secondary-button"
+                      onClick={() => editTextInline(singleText.id)}
+                    >
+                      {t("txEditInline")}
+                    </button>
+                  )}
+                  {textEdit && (
+                    <button
+                      className="secondary-button"
+                      onClick={finishTextEdit}
+                    >
+                      {t("txDoneTyping")}
+                    </button>
+                  )}
+                </>
+              )}
+              {tool === "select" && selectedObj && (
+                <ObjectQuickBar
+                  obj={selectedObj}
+                  layerId={selectedLayer!.id}
+                  t={t}
+                  onPatch={patchSelected}
+                  onDuplicate={() => duplicateObject(selectedObj.id)}
+                  onDelete={() => removeObject(selectedObj.id)}
+                  onReorder={(dir) => reorderObject(selectedObj.id, dir)}
+                  lineActions={lineActions ?? undefined}
+                />
+              )}
             </div>
-          )}
-          <div
-            className="mm-canvas-wrap"
-            ref={containerRef}
-            style={{
-              cursor: panningActive
-                ? "grabbing"
-                : (spaceHeld && ctl.spacePan) || handMode
-                  ? "grab"
-                  : attachPick
-                    ? "copy"
-                    : tool === "select" ||
-                        (tool === "line" && lineTool.draw === "edit")
-                      ? undefined
-                      : tool === "text"
-                        ? "text"
-                        : "crosshair",
-            }}
-          >
-            {/* Room around the map, so it can be moved anywhere and zoomed at
-              any point. On its own box, never as the scroller's padding: a
-              padding sized from the view would keep the view from shrinking. */}
+            {notice && (
+              <div
+                className={`mm-editor-notice ${noticeOk ? "ok" : ""} ${floatingPanel ? "beside-floating" : ""}`}
+                role={noticeOk ? "status" : "alert"}
+              >
+                <span>{notice}</span>
+                <button onClick={() => setNotice(null)} aria-label={t("close")}>
+                  ×
+                </button>
+              </div>
+            )}
             <div
-              className="mm-canvas-space"
+              className="mm-canvas-wrap"
+              ref={containerRef}
               style={{
-                padding: `${Math.round(view.h * 0.5)}px ${Math.round(view.w * 0.5)}px`,
+                cursor: panningActive
+                  ? "grabbing"
+                  : (spaceHeld && ctl.spacePan) || handMode
+                    ? "grab"
+                    : attachPick
+                      ? "copy"
+                      : tool === "select" ||
+                          (tool === "line" && lineTool.draw === "edit")
+                        ? undefined
+                        : tool === "text"
+                          ? "text"
+                          : "crosshair",
               }}
             >
+              {/* Room around the map, so it can be moved anywhere and zoomed at
+              any point. On its own box, never as the scroller's padding: a
+              padding sized from the view would keep the view from shrinking. */}
               <div
-                className="mm-stage-box"
-                ref={stageBoxRef}
-                style={{ width: W, height: H }}
+                className="mm-canvas-space"
+                style={{
+                  padding: `${Math.round(view.h * 0.5)}px ${Math.round(view.w * 0.5)}px`,
+                }}
               >
-                <Stage
-                  ref={stageRef}
-                  width={W}
-                  height={H}
-                  onPointerDown={handlePointerDown}
-                  onPointerMove={handleStageHover}
-                  onPointerLeave={hideBrushCursor}
-                  onDblClick={finishRegion}
-                  onDblTap={finishRegion}
-                  onContextMenu={handleContextMenu}
+                <div
+                  className="mm-stage-box"
+                  ref={stageBoxRef}
+                  style={{ width: W, height: H }}
                 >
-                  <Layer listening={false}>
-                    <Rect
-                      x={0}
-                      y={0}
-                      width={W}
-                      height={H}
-                      fill={project.background}
-                    />
-                    {project.snapToGrid && (
-                      <Group ref={gridGroupRef}>
-                        {Array.from(
-                          { length: project.tileCols + 1 },
-                          (_, i) => (
-                            <Line
-                              key={`v${i}`}
-                              points={[i * tileW, 0, i * tileW, H]}
-                              stroke="rgba(255,255,255,0.14)"
-                              strokeWidth={1}
-                            />
-                          ),
-                        )}
-                        {Array.from(
-                          { length: project.tileRows + 1 },
-                          (_, i) => (
-                            <Line
-                              key={`h${i}`}
-                              points={[0, i * tileH, W, i * tileH]}
-                              stroke="rgba(255,255,255,0.14)"
-                              strokeWidth={1}
-                            />
-                          ),
-                        )}
-                      </Group>
-                    )}
-                  </Layer>
-                  {project.layers.map((layer) => {
-                    const land = landByLayer.get(layer.id);
-                    return (
-                      <Layer
-                        key={layer.id}
-                        ref={(node) => {
-                          if (node) konvaLayersRef.current.set(layer.id, node);
-                          else konvaLayersRef.current.delete(layer.id);
-                        }}
-                        visible={layer.visible}
-                        opacity={layer.opacity}
-                        listening={layer.id === active?.id && !layer.locked}
-                      >
-                        {/* Land layers: land shapes, textured, inside one coastline. */}
-                        {land && (
-                          <LandLayerNode
-                            layerId={layer.id}
-                            lands={land.lands}
-                            paints={land.paints}
-                            base={land.base}
-                            fx={land.fx}
-                            seed={layerSeed(layer.id)}
-                            W={W}
-                            H={H}
-                            projectW={project.width}
-                            projectH={project.height}
-                            wrap={!!project.seamless}
-                            onBusyChange={onCoastBusy}
-                            onLandChange={onLandChange}
-                            stage={stageView}
-                          />
-                        )}
-                        {layer.objects.map((o) => {
-                          // Land shapes and land texture are drawn by LandLayerNode.
-                          if (o.kind === "land" || o.hidden) return null;
-                          if (o.kind === "paint")
-                            return land ? null : (
-                              <PaintNode key={o.id} o={o} W={W} H={H} />
-                            );
-                          const handlers = objectHandlers(o, layer);
-                          if (o.kind === "shape")
-                            return (
-                              <ShapeShapeNode
-                                key={o.id}
-                                {...handlers}
-                                shape={o}
-                                W={W}
-                                H={H}
-                                // A mask draws nothing itself (see ShapeMaskNode below).
-                                pass={o.fill.type === "mask" ? "none" : "all"}
-                                opacity={o.opacity}
-                                globalCompositeOperation={blendOp(o.blend)}
-                              />
-                            );
-                          if (o.kind === "line")
-                            // A line being continued with the Pen is shown by its draft.
-                            return penTarget?.id === o.id ? null : (
-                              <LineShapeNode
-                                key={o.id}
-                                {...handlers}
-                                line={o}
-                                W={W}
-                                H={H}
-                                opacity={o.opacity}
-                                globalCompositeOperation={blendOp(o.blend)}
-                              />
-                            );
-                          if (o.kind === "brush")
-                            return (
+                  <Stage
+                    ref={stageRef}
+                    width={W}
+                    height={H}
+                    onPointerDown={handlePointerDown}
+                    onPointerMove={handleStageHover}
+                    onPointerLeave={hideBrushCursor}
+                    onDblClick={finishRegion}
+                    onDblTap={finishRegion}
+                    onContextMenu={handleContextMenu}
+                  >
+                    <Layer listening={false}>
+                      <Rect
+                        x={0}
+                        y={0}
+                        width={W}
+                        height={H}
+                        fill={project.background}
+                      />
+                      {project.snapToGrid && (
+                        <Group ref={gridGroupRef}>
+                          {Array.from(
+                            { length: project.tileCols + 1 },
+                            (_, i) => (
                               <Line
+                                key={`v${i}`}
+                                points={[i * tileW, 0, i * tileW, H]}
+                                stroke="rgba(255,255,255,0.14)"
+                                strokeWidth={1}
+                              />
+                            ),
+                          )}
+                          {Array.from(
+                            { length: project.tileRows + 1 },
+                            (_, i) => (
+                              <Line
+                                key={`h${i}`}
+                                points={[0, i * tileH, W, i * tileH]}
+                                stroke="rgba(255,255,255,0.14)"
+                                strokeWidth={1}
+                              />
+                            ),
+                          )}
+                        </Group>
+                      )}
+                    </Layer>
+                    {project.layers.map((layer) => {
+                      const land = landByLayer.get(layer.id);
+                      return (
+                        <Layer
+                          key={layer.id}
+                          ref={(node) => {
+                            if (node)
+                              konvaLayersRef.current.set(layer.id, node);
+                            else konvaLayersRef.current.delete(layer.id);
+                          }}
+                          visible={layer.visible}
+                          opacity={layer.opacity}
+                          listening={layer.id === active?.id && !layer.locked}
+                        >
+                          {/* Land layers: land shapes, textured, inside one coastline. */}
+                          {land && (
+                            <LandLayerNode
+                              layerId={layer.id}
+                              lands={land.lands}
+                              paints={land.paints}
+                              base={land.base}
+                              fx={land.fx}
+                              seed={layerSeed(layer.id)}
+                              W={W}
+                              H={H}
+                              projectW={project.width}
+                              projectH={project.height}
+                              wrap={!!project.seamless}
+                              onBusyChange={onCoastBusy}
+                              onLandChange={onLandChange}
+                              stage={stageView}
+                            />
+                          )}
+                          {layer.objects.map((o) => {
+                            // Land shapes and land texture are drawn by LandLayerNode.
+                            if (o.kind === "land" || o.hidden) return null;
+                            if (o.kind === "paint")
+                              return land ? null : (
+                                <PaintNode key={o.id} o={o} W={W} H={H} />
+                              );
+                            const handlers = objectHandlers(o, layer);
+                            if (o.kind === "shape")
+                              return (
+                                <ShapeShapeNode
+                                  key={o.id}
+                                  {...handlers}
+                                  shape={o}
+                                  W={W}
+                                  H={H}
+                                  // A mask draws nothing itself (see ShapeMaskNode below).
+                                  pass={o.fill.type === "mask" ? "none" : "all"}
+                                  opacity={o.opacity}
+                                  globalCompositeOperation={blendOp(o.blend)}
+                                />
+                              );
+                            if (o.kind === "line")
+                              // A line being continued with the Pen is shown by its draft.
+                              return penTarget?.id === o.id ? null : (
+                                <LineShapeNode
+                                  key={o.id}
+                                  {...handlers}
+                                  line={o}
+                                  W={W}
+                                  H={H}
+                                  opacity={o.opacity}
+                                  globalCompositeOperation={blendOp(o.blend)}
+                                />
+                              );
+                            if (o.kind === "brush")
+                              return (
+                                <Line
+                                  key={o.id}
+                                  {...handlers}
+                                  points={flattenPoints(o.points, W, H)}
+                                  {...strokeAppearance(o, W)}
+                                />
+                              );
+                            if (o.kind === "stamp")
+                              return (
+                                <StampNode
+                                  key={o.id}
+                                  o={o}
+                                  W={W}
+                                  H={H}
+                                  shadow={resolveShadow(o, layer)}
+                                  op={stampCompositeOp(o, layer)}
+                                  handlers={handlers}
+                                />
+                              );
+                            // Texts: straight and arc ones turn around their anchor; path texts sit in map space.
+                            const onPath = o.curveMode === "path" && !!o.path;
+                            return (
+                              <MapTextNode
                                 key={o.id}
                                 {...handlers}
-                                points={flattenPoints(o.points, W, H)}
-                                {...strokeAppearance(o, W)}
+                                text={o}
+                                W={W}
+                                H={H}
+                                x={onPath ? 0 : o.x * W}
+                                y={onPath ? 0 : o.y * H}
+                                rotation={onPath ? 0 : o.rotation}
+                                opacity={o.opacity}
+                                globalCompositeOperation={blendOp(o.blend)}
+                                editing={textEdit?.id === o.id}
                               />
                             );
-                          if (o.kind === "stamp")
+                          })}
+                          {/* The layer's masks: keep only what's inside them (or hide it). */}
+                          {(() => {
+                            const masks = layer.objects.filter(
+                              (o): o is MMShape =>
+                                o.kind === "shape" &&
+                                o.fill.type === "mask" &&
+                                !o.hidden,
+                            );
+                            if (!masks.length) return null;
                             return (
+                              <>
+                                <ShapeMaskNode
+                                  id={maskNodeId(layer.id)}
+                                  masks={masks}
+                                  W={W}
+                                  H={H}
+                                  listening={false}
+                                />
+                                {/* A mask's own walls go over what it clips. */}
+                                {masks
+                                  .filter((o) => o.stroke.mode !== "none")
+                                  .map((o) => (
+                                    <ShapeShapeNode
+                                      key={`${o.id}:stroke`}
+                                      id={`${o.id}:stroke`}
+                                      shape={o}
+                                      W={W}
+                                      H={H}
+                                      pass="stroke"
+                                      listening={false}
+                                      opacity={o.opacity}
+                                      globalCompositeOperation={blendOp(
+                                        o.blend,
+                                      )}
+                                    />
+                                  ))}
+                              </>
+                            );
+                          })()}
+                          {/* Shape being drawn (new shapes only; parts joining a
+                        shape preview on that shape), set imperatively. */}
+                          {(shapeDrafting ||
+                            (tool === "shape" && !!penDraft)) &&
+                            layer.id === active?.id && (
+                              <ShapeShapeNode
+                                ref={shapeDraftRef}
+                                shape={null as unknown as MMShape}
+                                W={W}
+                                H={H}
+                                listening={false}
+                                opacity={shapeTool.look.opacity}
+                                globalCompositeOperation={blendOp(
+                                  shapeTool.look.blend,
+                                )}
+                              />
+                            )}
+                          {/* Stamps being scattered (Multiple placement), not yet added. */}
+                          {scatterDraft &&
+                            layer.id === active?.id &&
+                            scatterDraft.map((o) => (
                               <StampNode
                                 key={o.id}
                                 o={o}
@@ -7043,1282 +7186,1210 @@ export function MapCreatorEditor({
                                 H={H}
                                 shadow={resolveShadow(o, layer)}
                                 op={stampCompositeOp(o, layer)}
-                                handlers={handlers}
                               />
-                            );
-                          // Texts: straight and arc ones turn around their anchor; path texts sit in map space.
-                          const onPath = o.curveMode === "path" && !!o.path;
-                          return (
-                            <MapTextNode
-                              key={o.id}
-                              {...handlers}
-                              text={o}
-                              W={W}
-                              H={H}
-                              x={onPath ? 0 : o.x * W}
-                              y={onPath ? 0 : o.y * H}
-                              rotation={onPath ? 0 : o.rotation}
-                              opacity={o.opacity}
-                              globalCompositeOperation={blendOp(o.blend)}
-                              editing={textEdit?.id === o.id}
-                            />
-                          );
-                        })}
-                        {/* The layer's masks: keep only what's inside them (or hide it). */}
-                        {(() => {
-                          const masks = layer.objects.filter(
-                            (o): o is MMShape =>
-                              o.kind === "shape" &&
-                              o.fill.type === "mask" &&
-                              !o.hidden,
-                          );
-                          if (!masks.length) return null;
-                          return (
-                            <>
-                              <ShapeMaskNode
-                                id={maskNodeId(layer.id)}
-                                masks={masks}
+                            ))}
+                          {/* Line being drawn (Free Draw trail / Pen), set imperatively. */}
+                          {(lineDrafting || (tool === "line" && !!penDraft)) &&
+                            layer.id === active?.id && (
+                              <LineShapeNode
+                                ref={lineDraftRef}
+                                line={lineDraftBase}
                                 W={W}
                                 H={H}
                                 listening={false}
+                                opacity={lineTool.look.opacity}
+                                globalCompositeOperation={blendOp(
+                                  lineTool.look.blend,
+                                )}
                               />
-                              {/* A mask's own walls go over what it clips. */}
-                              {masks
-                                .filter((o) => o.stroke.mode !== "none")
-                                .map((o) => (
-                                  <ShapeShapeNode
-                                    key={`${o.id}:stroke`}
-                                    id={`${o.id}:stroke`}
-                                    shape={o}
-                                    W={W}
-                                    H={H}
-                                    pass="stroke"
-                                    listening={false}
-                                    opacity={o.opacity}
-                                    globalCompositeOperation={blendOp(o.blend)}
-                                  />
-                                ))}
-                            </>
-                          );
-                        })()}
-                        {/* Shape being drawn (new shapes only; parts joining a
-                        shape preview on that shape), set imperatively. */}
-                        {(shapeDrafting || (tool === "shape" && !!penDraft)) &&
-                          layer.id === active?.id && (
-                            <ShapeShapeNode
-                              ref={shapeDraftRef}
-                              shape={null as unknown as MMShape}
-                              W={W}
-                              H={H}
-                              listening={false}
-                              opacity={shapeTool.look.opacity}
-                              globalCompositeOperation={blendOp(
-                                shapeTool.look.blend,
-                              )}
-                            />
-                          )}
-                        {/* Stamps being scattered (Multiple placement), not yet added. */}
-                        {scatterDraft &&
-                          layer.id === active?.id &&
-                          scatterDraft.map((o) => (
-                            <StampNode
-                              key={o.id}
-                              o={o}
-                              W={W}
-                              H={H}
-                              shadow={resolveShadow(o, layer)}
-                              op={stampCompositeOp(o, layer)}
-                            />
-                          ))}
-                        {/* Line being drawn (Free Draw trail / Pen), set imperatively. */}
-                        {(lineDrafting || (tool === "line" && !!penDraft)) &&
-                          layer.id === active?.id && (
-                            <LineShapeNode
-                              ref={lineDraftRef}
-                              line={lineDraftBase}
-                              W={W}
-                              H={H}
-                              listening={false}
-                              opacity={lineTool.look.opacity}
-                              globalCompositeOperation={blendOp(
-                                lineTool.look.blend,
-                              )}
-                            />
-                          )}
-                        {/* Live Brush / Land preview — inside the active layer, so
+                            )}
+                          {/* Live Brush / Land preview — inside the active layer, so
                         erasers and blend modes preview exactly as they commit.
                         Its image/position are set imperatively per frame. */}
-                        {(paintPreview || !!polyDraft) &&
-                          layer.id === active?.id && (
-                            <KonvaImage
-                              ref={paintImageRef}
-                              image={undefined}
-                              visible={false}
-                              listening={false}
-                              opacity={previewLook.opacity}
-                              globalCompositeOperation={previewLook.op}
-                            />
-                          )}
-                      </Layer>
-                    );
-                  })}
-                  {/* Editor-only overlays: live drafts and the marquee. Hidden
+                          {(paintPreview || !!polyDraft) &&
+                            layer.id === active?.id && (
+                              <KonvaImage
+                                ref={paintImageRef}
+                                image={undefined}
+                                visible={false}
+                                listening={false}
+                                opacity={previewLook.opacity}
+                                globalCompositeOperation={previewLook.op}
+                              />
+                            )}
+                        </Layer>
+                      );
+                    })}
+                    {/* Editor-only overlays: live drafts and the marquee. Hidden
                   when rendering the map for print. */}
-                  <Layer ref={overlayLayerRef} listening={false}>
-                    {tool === "land" && landTool.erase && (
-                      <LandDraftOutline W={W} H={H} />
-                    )}
-                    {penDraft &&
-                      penDraft.map((n, i) => (
-                        <Circle
-                          key={i}
-                          x={n.x * W}
-                          y={n.y * H}
-                          radius={i === 0 ? 5 : 3.5}
-                          fill={i === 0 ? "#f2a65a" : "#ffffff"}
-                          stroke="#1b1f24"
-                          strokeWidth={1}
-                        />
-                      ))}
-                    {polyDraft && (
-                      <>
-                        <Line
-                          points={flattenPoints(polyDraft, W, H)}
-                          stroke="#f2a65a"
-                          strokeWidth={1.5}
-                          dash={[4, 3]}
-                          closed={polyDraft.length >= 3}
-                        />
-                        {polyDraft.map((p, i) => (
+                    <Layer ref={overlayLayerRef} listening={false}>
+                      {tool === "land" && landTool.erase && (
+                        <LandDraftOutline W={W} H={H} />
+                      )}
+                      {penDraft &&
+                        penDraft.map((n, i) => (
                           <Circle
                             key={i}
-                            x={p.x * W}
-                            y={p.y * H}
-                            radius={i === 0 ? 5 : 4}
-                            fill={i === 0 ? "#f2a65a" : "#cfd7de"}
+                            x={n.x * W}
+                            y={n.y * H}
+                            radius={i === 0 ? 5 : 3.5}
+                            fill={i === 0 ? "#f2a65a" : "#ffffff"}
+                            stroke="#1b1f24"
+                            strokeWidth={1}
                           />
                         ))}
-                      </>
-                    )}
-                    {(tool === "brush" ||
-                      tool === "land" ||
-                      tool === "line") && (
-                      <Circle
-                        ref={brushCursorRef}
-                        radius={Math.max(
-                          1,
-                          ((tool === "land"
-                            ? landTool.size
-                            : tool === "line"
-                              ? lineTool.look.mode === "stamp"
-                                ? lineTool.look.stamp.size
-                                : lineTool.look.stroke.width +
-                                  2 * lineTool.look.stroke.casing
-                              : brushState.brush.size) *
-                            W) /
-                            2,
-                        )}
-                        stroke="rgba(255,255,255,0.9)"
-                        strokeWidth={1}
-                        shadowColor="#000"
-                        shadowBlur={2}
-                        shadowOpacity={0.8}
-                        visible={false}
-                        dash={
-                          tool !== "line" &&
-                          (tool === "land" ? landTool.erase : brushState.erase)
-                            ? [3, 3]
-                            : undefined
-                        }
-                      />
-                    )}
-                    {/* Masks of the active layer, and the shape a new part
-                    joins, as dashed outlines (masks draw nothing themselves). */}
-                    {active && (tool === "shape" || tool === "select") && (
-                      <ShapeGuides
-                        outlines={active.objects
-                          .filter(
-                            (o): o is MMShape =>
-                              o.kind === "shape" &&
-                              !o.hidden &&
-                              (o.fill.type === "mask" ||
-                                (tool === "shape" &&
-                                  o.id === combineTarget?.id)),
-                          )
-                          .map((o) => shapeOutlineOf(o.parts, W, H, 1))}
-                      />
-                    )}
-                    {/* The outline of a part being drawn, set imperatively. */}
-                    {tool === "shape" && (
-                      <Shape
-                        ref={shapeDraftGuideRef}
-                        listening={false}
-                        sceneFunc={(ctx, node) => {
-                          const nodes = node.getAttr("nodes") as
-                              LineNode[] | null | undefined,
-                            w = (node.getAttr("W") as number) || W,
-                            h = (node.getAttr("H") as number) || H;
-                          if (!nodes || nodes.length < 2) return;
-                          const c = (
-                            ctx as unknown as {
-                              _context: CanvasRenderingContext2D;
-                            }
-                          )._context;
-                          c.save();
-                          c.beginPath();
-                          tracePath(c, nodes, true, w, h);
-                          c.lineWidth = 1.2;
-                          c.strokeStyle = "#f2a65a";
-                          c.setLineDash([5, 3]);
-                          c.stroke();
-                          c.restore();
-                        }}
-                      />
-                    )}
-                    {tool === "stamp" && nextStamp && (
-                      <Group
-                        ref={stampGhostRef}
-                        name="stampGhost"
-                        visible={false}
-                        opacity={0.7}
-                      >
-                        <StampNode
-                          o={nextStamp}
-                          W={W}
-                          H={H}
-                          shadow={
-                            active ? resolveShadow(nextStamp, active) : null
-                          }
-                        />
-                        {stampTool.placement !== "single" &&
-                          stampTool.spread > 0 && (
+                      {polyDraft && (
+                        <>
+                          <Line
+                            points={flattenPoints(polyDraft, W, H)}
+                            stroke="#f2a65a"
+                            strokeWidth={1.5}
+                            dash={[4, 3]}
+                            closed={polyDraft.length >= 3}
+                          />
+                          {polyDraft.map((p, i) => (
                             <Circle
-                              radius={
-                                (stampTool.spread * stampTool.look.size * W) / 2
-                              }
-                              stroke="rgba(255,255,255,0.7)"
-                              strokeWidth={1}
-                              dash={[4, 4]}
-                              opacity={
-                                stampTool.placement === "multiple" ? 1 : 0.45
-                              }
+                              key={i}
+                              x={p.x * W}
+                              y={p.y * H}
+                              radius={i === 0 ? 5 : 4}
+                              fill={i === 0 ? "#f2a65a" : "#cfd7de"}
                             />
+                          ))}
+                        </>
+                      )}
+                      {(tool === "brush" ||
+                        tool === "land" ||
+                        tool === "line") && (
+                        <Circle
+                          ref={brushCursorRef}
+                          radius={Math.max(
+                            1,
+                            ((tool === "land"
+                              ? landTool.size
+                              : tool === "line"
+                                ? lineTool.look.mode === "stamp"
+                                  ? lineTool.look.stamp.size
+                                  : lineTool.look.stroke.width +
+                                    2 * lineTool.look.stroke.casing
+                                : brushState.brush.size) *
+                              W) /
+                              2,
                           )}
-                      </Group>
-                    )}
-                    {marqueeStart && (
-                      <Rect
-                        ref={marqueeRectRef}
-                        x={marqueeStart.x}
-                        y={marqueeStart.y}
-                        width={0}
-                        height={0}
-                        fill="rgba(242,166,90,0.12)"
-                        stroke="#f2a65a"
-                        strokeWidth={1}
-                        dash={[4, 3]}
-                      />
-                    )}
-                  </Layer>
-                  <Layer ref={uiLayerRef}>
-                    {editedShape && shapeEdit && (
-                      <ShapePartsEditor
-                        shape={editedShape}
-                        W={W}
-                        H={H}
-                        part={shapeEdit.part}
-                        onPickPart={(id) =>
-                          setShapeEdit({ ...shapeEdit, part: id, sel: [] })
-                        }
-                        nodeSel={shapeEdit.sel}
-                        onSelectNodes={(sel) =>
-                          setShapeEdit({ ...shapeEdit, sel })
-                        }
-                        onPreview={(pathId, nodes) =>
-                          previewShapeNode({
-                            ...editedShape,
-                            ...withNodes(editedShape, pathId, nodes, W, H),
-                          })
-                        }
-                        onCommit={(pathId, nodes) =>
-                          patchShapes([editedShape.id], (cur) =>
-                            withNodes(cur, pathId, nodes.map(roundNode), W, H),
-                          )
-                        }
-                        snap={(p) => snapShapePoint(p)}
-                      />
-                    )}
-                    {doorShape && doorEdit && (
-                      <ShapeDoorsEditor
-                        shape={doorShape}
-                        W={W}
-                        H={H}
-                        selected={doorEdit.portal}
-                        onSelect={(id) =>
-                          setDoorEdit({ id: doorShape.id, portal: id })
-                        }
-                        onPreview={(portals) =>
-                          previewShapeNode({ ...doorShape, portals })
-                        }
-                        onCommit={(portals) =>
-                          patchShapes([doorShape.id], () => ({ portals }))
-                        }
-                        thickness={shapeReach(doorShape, W) * 2}
-                      />
-                    )}
-                    {nodeEditing && editedLine && nodeEdit && (
-                      <LineNodeEditor
-                        line={editedLine}
-                        W={W}
-                        H={H}
-                        selected={nodeEdit.sel}
-                        onSelect={(sel) =>
-                          setNodeEdit({ id: editedLine.id, sel })
-                        }
-                        onPreview={(nodes) => {
-                          const n =
-                            stageRef.current &&
-                            findNode(stageRef.current, editedLine.id);
-                          if (!n) return;
-                          n.setAttr("line", { ...editedLine, nodes });
-                          n.getLayer()?.batchDraw();
-                        }}
-                        onCommit={(nodes) =>
-                          patchLines([editedLine.id], () => ({
-                            nodes: nodes.map(roundNode),
-                          }))
-                        }
-                        snap={(p) => snapLinePoint(p, editedLine.id)}
-                      />
-                    )}
-                    {/* The path under a selected text, shown while it's selected. */}
-                    {selectedTexts.map((o) =>
-                      o.curveMode === "path" && o.path ? (
-                        <Line
-                          key={`guide-${o.id}`}
-                          points={Array.from(
-                            flatten(
-                              o.path.reverse
-                                ? [...o.path.nodes].reverse()
-                                : o.path.nodes,
-                              false,
-                              W,
-                              H,
-                              0.5,
-                            ).xy,
-                          )}
-                          stroke="#f2a65a"
+                          stroke="rgba(255,255,255,0.9)"
                           strokeWidth={1}
-                          dash={[5, 4]}
-                          opacity={0.8}
-                          listening={false}
-                        />
-                      ) : null,
-                    )}
-                    {pathText && pathEdit && (
-                      <LineNodeEditor
-                        line={
-                          {
-                            ...lineTool.look,
-                            id: pathText.id,
-                            kind: "line",
-                            closed: false,
-                            nodes: pathText.path!.nodes,
-                          } as MMLine
-                        }
-                        W={W}
-                        H={H}
-                        selected={pathEdit.sel}
-                        onSelect={(sel) =>
-                          setPathEdit({ id: pathText.id, sel })
-                        }
-                        onPreview={(nodes) => {
-                          const n =
-                            stageRef.current &&
-                            findNode(stageRef.current, pathText.id);
-                          if (!n) return;
-                          n.setAttr("text", {
-                            ...pathText,
-                            path: { ...pathText.path!, nodes },
-                          });
-                          n.getLayer()?.batchDraw();
-                        }}
-                        onCommit={(nodes) => {
-                          const rounded = nodes.map(roundNode),
-                            mid = pathMiddle(rounded);
-                          patchTexts([pathText.id], (cur) =>
-                            cur.path
-                              ? {
-                                  path: { ...cur.path, nodes: rounded },
-                                  x: mid.x,
-                                  y: mid.y,
-                                }
-                              : {},
-                          );
-                        }}
-                        snap={(p) => snapLinePoint(p)}
-                      />
-                    )}
-                    {(tool === "select" || tool === "text") &&
-                      selectedIds.length > 0 && (
-                        <Transformer
-                          ref={transformerRef}
-                          rotateEnabled
-                          anchorSize={9}
-                          keepRatio={selectedObjs.every(
-                            (o) => o.kind === "stamp" || o.kind === "text",
-                          )}
-                          enabledAnchors={
-                            selectedObjs.length === 1 &&
-                            selectedObjs[0].kind === "text" &&
-                            selectedObjs[0].curveMode !== "path"
-                              ? [
-                                  "top-left",
-                                  "top-right",
-                                  "bottom-left",
-                                  "bottom-right",
-                                  "middle-left",
-                                  "middle-right",
-                                ]
+                          shadowColor="#000"
+                          shadowBlur={2}
+                          shadowOpacity={0.8}
+                          visible={false}
+                          dash={
+                            tool !== "line" &&
+                            (tool === "land"
+                              ? landTool.erase
+                              : brushState.erase)
+                              ? [3, 3]
                               : undefined
                           }
-                          rotationSnaps={
-                            shiftDown
-                              ? Array.from({ length: 24 }, (_, i) => i * 15)
-                              : []
-                          }
-                          rotationSnapTolerance={shiftDown ? 7.5 : 0}
-                          onTransformStart={() => beginGesture([])}
-                          onDragStart={() => beginGesture([])}
                         />
                       )}
-                  </Layer>
-                </Stage>
-                {textEdit &&
-                  (() => {
-                    const o = textEdit.id
-                      ? selectedTexts.find((x) => x.id === textEdit.id)
-                      : null;
-                    const look = o ?? textTool.look;
-                    const onPath = !!o && o.curveMode === "path" && !!o.path;
-                    return (
-                      <InlineTextEditor
-                        key={textEdit.id ?? "new"}
-                        text={textEdit.draft}
-                        look={look}
-                        x={(o ? o.x : textEdit.x) * W}
-                        y={(o ? o.y : textEdit.y) * H}
-                        rotation={o && !onPath ? o.rotation : 0}
-                        W={W}
-                        onChange={typeText}
-                        onDone={finishTextEdit}
-                        placeholder={t("txTypeHere")}
-                      />
-                    );
-                  })()}
-                {gestureInfo && (
-                  <div
-                    className="mm-gesture-info"
-                    style={{
-                      left: gestureInfo.x + 16,
-                      top: gestureInfo.y + 16,
-                    }}
-                  >
-                    {gestureInfo.text}
-                  </div>
-                )}
-                {/* The size preview's readout, shown/placed imperatively
-                (flashSizePreview) so a slider drag adds no renders. */}
-                <div
-                  ref={sizeReadoutRef}
-                  className="mm-gesture-info"
-                  style={{ display: "none" }}
-                  aria-hidden
-                />
-              </div>
-            </div>
-          </div>
-          <div className="mm-status-bar">
-            <CloudStatusBar status={sync.status} onSave={sync.saveNow} />
-            <div className="mm-status-group mm-status-center">
-              <button
-                onClick={() => nav.zoomAt(1 / 1.25, null, { smooth: true })}
-                title={t("mmZoom")}
-              >
-                <Glyph name="zoomOut" size={15} />
-              </button>
-              <button
-                className="mm-zoom-label"
-                onClick={() => nav.zoomTo(1 / fitScale)}
-                title={t("ctActualSize")}
-              >
-                {Math.round(displayScale * 100)}%
-              </button>
-              <button
-                onClick={() => nav.zoomAt(1.25, null, { smooth: true })}
-                title={t("mmZoom")}
-              >
-                <Glyph name="zoomIn" size={15} />
-              </button>
-              <button onClick={() => nav.fit()} title={t("mmFitScreen")}>
-                <Glyph name="fit" size={15} />
-              </button>
-              <button
-                className={handMode ? "active" : ""}
-                aria-pressed={handMode}
-                onClick={() => setHandMode((h) => !h)}
-                title={`${t("ctHandTool")} (${shortcutLabel("view.hand", keys)})`}
-              >
-                <Glyph name="hand" size={15} />
-              </button>
-              <button
-                onClick={() => setControlsOpen(true)}
-                title={`${t("ctOpenControls")} (${shortcutLabel("help.controls", keys)})`}
-              >
-                <Glyph name="keyboard" size={15} />
-              </button>
-            </div>
-            <div className="mm-status-group">
-              <span className="mm-res-badge">
-                {resolutionBadge(project.resolutionTier)}
-              </span>
-              <button
-                className={`mm-snap-toggle ${project.snapToGrid ? "on" : ""}`}
-                onClick={() =>
-                  setProject((p) => ({ ...p, snapToGrid: !p.snapToGrid }))
-                }
-                title={t("mmSnapToGrid")}
-              >
-                <Glyph name="grid" size={15} />
-                {t("mmSnapToGrid")}
-              </button>
-              <button
-                onClick={() => setShortcutsVisible((v) => !v)}
-                title={t(
-                  shortcutsVisible ? "mmHideShortcuts" : "mmShowShortcuts",
-                )}
-              >
-                <Glyph name="keyboard" size={15} />
-              </button>
-            </div>
-          </div>
-          {shortcutsVisible && (
-            <div className="mm-shortcut-hint">
-              <span>
-                {tool === "brush"
-                  ? t(
-                      PAINT_MODES.find((m) => m.key === brushState.mode)!
-                        .hintKey,
-                    )
-                  : tool === "land"
-                    ? t(
-                        LAND_MODES.find((m) => m.key === landTool.mode)!
-                          .hintKey,
-                      )
-                    : tool === "line"
-                      ? t(
-                          LINE_DRAW_MODES.find((m) => m.key === lineTool.draw)!
-                            .hintKey,
-                        )
-                      : t(HINT_KEY[tool])}
-              </span>
-              <span className="mm-shortcut-legend">
-                1–7 {t("mmToolSelect")}/{t("mmToolBrush")}/… ·{" "}
-                {t("mmMultiSelectHint")} · {shortcutLabel("edit.undo", keys)}{" "}
-                {t("undo")} · {shortcutLabel("edit.redo", keys)} {t("redo")} ·{" "}
-                {shortcutLabel("edit.duplicate", keys)} {t("mmDuplicateObject")}{" "}
-                · {shortcutLabel("edit.copy", keys)}/
-                {shortcutLabel("edit.paste", keys)} {t("mmCopyObject")}/
-                {t("mmPasteObject")} · {shortcutLabel("arrange.front", keys)} /{" "}
-                {shortcutLabel("arrange.back", keys)} {t("mmBringToFront")}/
-                {t("mmSendToBack")} · {t("mmZoomHint")}
-              </span>
-            </div>
-          )}
-        </div>
-        <aside className="mm-right-panel">
-          <div className="mm-panel-tabs">
-            <button
-              className={panelTab === "objects" ? "active" : ""}
-              onClick={() => setPanelTab("objects")}
-            >
-              <Glyph name="objects" size={15} />
-              {t("mmPanelObjects")}
-            </button>
-            <button
-              className={panelTab === "layers" ? "active" : ""}
-              onClick={() => setPanelTab("layers")}
-            >
-              <Glyph name="layers" size={15} />
-              {t("mmPanelLayers")}
-            </button>
-          </div>
-          {panelTab === "objects" ? (
-            <div className="mm-objects-tab">
-              <div className="mm-search-row">
-                <Glyph name="search" size={14} />
-                <input
-                  placeholder={t("mmSearchObjects")}
-                  value={objectSearch}
-                  onChange={(e) => setObjectSearch(e.target.value)}
-                />
-              </div>
-              {objectRows.length === 0 && (
-                <p className="mm-empty-note">{t("mmNoObjects")}</p>
-              )}
-              <div className="mm-object-list">
-                {objectRows.map(({ layer, o }) => (
-                  <div
-                    key={o.id}
-                    className={`mm-object-row ${selectedIdSet.has(o.id) ? "selected" : ""} ${o.hidden ? "hidden-object" : ""}`}
-                  >
-                    <button
-                      className="mm-object-main"
-                      onClick={() => {
-                        setActiveLayerId(layer.id);
-                        selectOnly(o.id);
-                        setTool("select");
+                      {/* Masks of the active layer, and the shape a new part
+                    joins, as dashed outlines (masks draw nothing themselves). */}
+                      {active && (tool === "shape" || tool === "select") && (
+                        <ShapeGuides
+                          outlines={active.objects
+                            .filter(
+                              (o): o is MMShape =>
+                                o.kind === "shape" &&
+                                !o.hidden &&
+                                (o.fill.type === "mask" ||
+                                  (tool === "shape" &&
+                                    o.id === combineTarget?.id)),
+                            )
+                            .map((o) => shapeOutlineOf(o.parts, W, H, 1))}
+                        />
+                      )}
+                      {/* The outline of a part being drawn, set imperatively. */}
+                      {tool === "shape" && (
+                        <Shape
+                          ref={shapeDraftGuideRef}
+                          listening={false}
+                          sceneFunc={(ctx, node) => {
+                            const nodes = node.getAttr("nodes") as
+                                LineNode[] | null | undefined,
+                              w = (node.getAttr("W") as number) || W,
+                              h = (node.getAttr("H") as number) || H;
+                            if (!nodes || nodes.length < 2) return;
+                            const c = (
+                              ctx as unknown as {
+                                _context: CanvasRenderingContext2D;
+                              }
+                            )._context;
+                            c.save();
+                            c.beginPath();
+                            tracePath(c, nodes, true, w, h);
+                            c.lineWidth = 1.2;
+                            c.strokeStyle = "#f2a65a";
+                            c.setLineDash([5, 3]);
+                            c.stroke();
+                            c.restore();
+                          }}
+                        />
+                      )}
+                      {tool === "stamp" && nextStamp && (
+                        <Group
+                          ref={stampGhostRef}
+                          name="stampGhost"
+                          visible={false}
+                          opacity={0.7}
+                        >
+                          <StampNode
+                            o={nextStamp}
+                            W={W}
+                            H={H}
+                            shadow={
+                              active ? resolveShadow(nextStamp, active) : null
+                            }
+                          />
+                          {stampTool.placement !== "single" &&
+                            stampTool.spread > 0 && (
+                              <Circle
+                                radius={
+                                  (stampTool.spread * stampTool.look.size * W) /
+                                  2
+                                }
+                                stroke="rgba(255,255,255,0.7)"
+                                strokeWidth={1}
+                                dash={[4, 4]}
+                                opacity={
+                                  stampTool.placement === "multiple" ? 1 : 0.45
+                                }
+                              />
+                            )}
+                        </Group>
+                      )}
+                      {marqueeStart && (
+                        <Rect
+                          ref={marqueeRectRef}
+                          x={marqueeStart.x}
+                          y={marqueeStart.y}
+                          width={0}
+                          height={0}
+                          fill="rgba(242,166,90,0.12)"
+                          stroke="#f2a65a"
+                          strokeWidth={1}
+                          dash={[4, 3]}
+                        />
+                      )}
+                    </Layer>
+                    <Layer ref={uiLayerRef}>
+                      {editedShape && shapeEdit && (
+                        <ShapePartsEditor
+                          shape={editedShape}
+                          W={W}
+                          H={H}
+                          part={shapeEdit.part}
+                          onPickPart={(id) =>
+                            setShapeEdit({ ...shapeEdit, part: id, sel: [] })
+                          }
+                          nodeSel={shapeEdit.sel}
+                          onSelectNodes={(sel) =>
+                            setShapeEdit({ ...shapeEdit, sel })
+                          }
+                          onPreview={(pathId, nodes) =>
+                            previewShapeNode({
+                              ...editedShape,
+                              ...withNodes(editedShape, pathId, nodes, W, H),
+                            })
+                          }
+                          onCommit={(pathId, nodes) =>
+                            patchShapes([editedShape.id], (cur) =>
+                              withNodes(
+                                cur,
+                                pathId,
+                                nodes.map(roundNode),
+                                W,
+                                H,
+                              ),
+                            )
+                          }
+                          snap={(p) => snapShapePoint(p)}
+                        />
+                      )}
+                      {doorShape && doorEdit && (
+                        <ShapeDoorsEditor
+                          shape={doorShape}
+                          W={W}
+                          H={H}
+                          selected={doorEdit.portal}
+                          onSelect={(id) =>
+                            setDoorEdit({ id: doorShape.id, portal: id })
+                          }
+                          onPreview={(portals) =>
+                            previewShapeNode({ ...doorShape, portals })
+                          }
+                          onCommit={(portals) =>
+                            patchShapes([doorShape.id], () => ({ portals }))
+                          }
+                          thickness={shapeReach(doorShape, W) * 2}
+                        />
+                      )}
+                      {nodeEditing && editedLine && nodeEdit && (
+                        <LineNodeEditor
+                          line={editedLine}
+                          W={W}
+                          H={H}
+                          selected={nodeEdit.sel}
+                          onSelect={(sel) =>
+                            setNodeEdit({ id: editedLine.id, sel })
+                          }
+                          onPreview={(nodes) => {
+                            const n =
+                              stageRef.current &&
+                              findNode(stageRef.current, editedLine.id);
+                            if (!n) return;
+                            n.setAttr("line", { ...editedLine, nodes });
+                            n.getLayer()?.batchDraw();
+                          }}
+                          onCommit={(nodes) =>
+                            patchLines([editedLine.id], () => ({
+                              nodes: nodes.map(roundNode),
+                            }))
+                          }
+                          snap={(p) => snapLinePoint(p, editedLine.id)}
+                        />
+                      )}
+                      {/* The path under a selected text, shown while it's selected. */}
+                      {selectedTexts.map((o) =>
+                        o.curveMode === "path" && o.path ? (
+                          <Line
+                            key={`guide-${o.id}`}
+                            points={Array.from(
+                              flatten(
+                                o.path.reverse
+                                  ? [...o.path.nodes].reverse()
+                                  : o.path.nodes,
+                                false,
+                                W,
+                                H,
+                                0.5,
+                              ).xy,
+                            )}
+                            stroke="#f2a65a"
+                            strokeWidth={1}
+                            dash={[5, 4]}
+                            opacity={0.8}
+                            listening={false}
+                          />
+                        ) : null,
+                      )}
+                      {pathText && pathEdit && (
+                        <LineNodeEditor
+                          line={
+                            {
+                              ...lineTool.look,
+                              id: pathText.id,
+                              kind: "line",
+                              closed: false,
+                              nodes: pathText.path!.nodes,
+                            } as MMLine
+                          }
+                          W={W}
+                          H={H}
+                          selected={pathEdit.sel}
+                          onSelect={(sel) =>
+                            setPathEdit({ id: pathText.id, sel })
+                          }
+                          onPreview={(nodes) => {
+                            const n =
+                              stageRef.current &&
+                              findNode(stageRef.current, pathText.id);
+                            if (!n) return;
+                            n.setAttr("text", {
+                              ...pathText,
+                              path: { ...pathText.path!, nodes },
+                            });
+                            n.getLayer()?.batchDraw();
+                          }}
+                          onCommit={(nodes) => {
+                            const rounded = nodes.map(roundNode),
+                              mid = pathMiddle(rounded);
+                            patchTexts([pathText.id], (cur) =>
+                              cur.path
+                                ? {
+                                    path: { ...cur.path, nodes: rounded },
+                                    x: mid.x,
+                                    y: mid.y,
+                                  }
+                                : {},
+                            );
+                          }}
+                          snap={(p) => snapLinePoint(p)}
+                        />
+                      )}
+                      {(tool === "select" || tool === "text") &&
+                        selectedIds.length > 0 && (
+                          <Transformer
+                            ref={transformerRef}
+                            rotateEnabled
+                            anchorSize={9}
+                            keepRatio={selectedObjs.every(
+                              (o) => o.kind === "stamp" || o.kind === "text",
+                            )}
+                            enabledAnchors={
+                              selectedObjs.length === 1 &&
+                              selectedObjs[0].kind === "text" &&
+                              selectedObjs[0].curveMode !== "path"
+                                ? [
+                                    "top-left",
+                                    "top-right",
+                                    "bottom-left",
+                                    "bottom-right",
+                                    "middle-left",
+                                    "middle-right",
+                                  ]
+                                : undefined
+                            }
+                            rotationSnaps={
+                              shiftDown
+                                ? Array.from({ length: 24 }, (_, i) => i * 15)
+                                : []
+                            }
+                            rotationSnapTolerance={shiftDown ? 7.5 : 0}
+                            onTransformStart={() => beginGesture([])}
+                            onDragStart={() => beginGesture([])}
+                          />
+                        )}
+                    </Layer>
+                  </Stage>
+                  {textEdit &&
+                    (() => {
+                      const o = textEdit.id
+                        ? selectedTexts.find((x) => x.id === textEdit.id)
+                        : null;
+                      const look = o ?? textTool.look;
+                      const onPath = !!o && o.curveMode === "path" && !!o.path;
+                      return (
+                        <InlineTextEditor
+                          key={textEdit.id ?? "new"}
+                          text={textEdit.draft}
+                          look={look}
+                          x={(o ? o.x : textEdit.x) * W}
+                          y={(o ? o.y : textEdit.y) * H}
+                          rotation={o && !onPath ? o.rotation : 0}
+                          W={W}
+                          onChange={typeText}
+                          onDone={finishTextEdit}
+                          placeholder={t("txTypeHere")}
+                        />
+                      );
+                    })()}
+                  {gestureInfo && (
+                    <div
+                      className="mm-gesture-info"
+                      style={{
+                        left: gestureInfo.x + 16,
+                        top: gestureInfo.y + 16,
                       }}
                     >
-                      <Glyph
-                        name={
-                          o.kind === "stamp"
-                            ? "stamp"
-                            : o.kind === "text"
-                              ? "text"
-                              : o.kind === "shape"
-                                ? o.fill.type === "mask"
-                                  ? "mask"
-                                  : "shape"
-                                : o.kind === "line"
-                                  ? "line"
-                                  : o.kind === "land"
-                                    ? o.erase
-                                      ? "water"
-                                      : "land"
-                                    : o.kind === "paint"
-                                      ? o.erase
-                                        ? "eraser"
-                                        : (PAINT_MODES.find(
-                                            (m) => m.key === o.mode,
-                                          )?.glyph ?? "brush")
-                                      : "brush"
-                        }
-                        size={14}
-                      />
-                      <span>{objectLabel(o)}</span>
-                      <small className="mm-layer-badge">{layer.name}</small>
-                    </button>
-                    <button
-                      title={t(o.hidden ? "mmShowObject" : "mmHideObjects")}
-                      aria-pressed={!!o.hidden}
-                      className={o.hidden ? "on" : ""}
-                      onClick={() =>
-                        setObjectFlags([o.id], { hidden: !o.hidden })
-                      }
-                    >
-                      <Glyph name={o.hidden ? "eyeOff" : "eye"} size={13} />
-                    </button>
-                    <button
-                      title={t(o.locked ? "mmUnlockObject" : "mmLockObjects")}
-                      aria-pressed={!!o.locked}
-                      className={o.locked ? "on" : ""}
-                      onClick={() =>
-                        setObjectFlags([o.id], { locked: !o.locked })
-                      }
-                    >
-                      <Glyph name={o.locked ? "lock" : "unlock"} size={13} />
-                    </button>
-                    <button
-                      title={t("mmDuplicateObject")}
-                      onClick={() => duplicateObject(o.id)}
-                    >
-                      <Glyph name="duplicate" size={13} />
-                    </button>
-                    <button
-                      title={t("mmDeleteObject")}
-                      onClick={() => removeObject(o.id)}
-                    >
-                      <Glyph name="trash" size={13} />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ) : (
-            <div className="mm-layers-tab">
-              <div className="mm-layers-header">
-                <span>{project.layers.length}/20</span>
-                <div className="mm-add-layer-wrap" ref={layerMenuRef}>
-                  <button
-                    className="mm-add-layer"
-                    onClick={() => setShowLayerMenu((v) => !v)}
-                    aria-expanded={showLayerMenu}
-                  >
-                    <Glyph name="plus" size={14} />
-                    {t("mmAddLayer")}
-                  </button>
-                  {showLayerMenu && (
-                    <div className="mm-edit-menu mm-layer-menu">
-                      <MenuRow
-                        label={t("mmAddLandLayer")}
-                        icon="land"
-                        onClick={() => {
-                          addLayer("land");
-                          setShowLayerMenu(false);
-                        }}
-                      />
-                      <MenuRow
-                        label={t("mmAddWaterLayer")}
-                        icon="water"
-                        onClick={() => {
-                          addLayer("water");
-                          setShowLayerMenu(false);
-                        }}
-                      />
-                      <MenuRow
-                        label={t("mmAddCustomLayer")}
-                        icon="layers"
-                        onClick={() => {
-                          addLayer("custom");
-                          setShowLayerMenu(false);
-                        }}
-                      />
+                      {gestureInfo.text}
                     </div>
                   )}
-                </div>
-              </div>
-              <div className="mm-layer-list">
-                <div className="mm-layer-row mm-base-row">
-                  <Glyph name="eye" size={14} />
-                  <span>{t("mmBaseLayer")}</span>
-                </div>
-                {[...project.layers].reverse().map((l) => (
+                  {/* The size preview's readout, shown/placed imperatively
+                (flashSizePreview) so a slider drag adds no renders. */}
                   <div
-                    key={l.id}
-                    className={`mm-layer-row ${activeLayerId === l.id ? "active" : ""}`}
-                    onClick={() => setActiveLayerId(l.id)}
-                  >
-                    {l.role && l.role !== "custom" && (
-                      <span
-                        className={`mm-layer-role mm-role-${l.role}`}
-                        title={t(
-                          l.role === "water" ? "mmLayerWater" : "mmLayerLand",
-                        )}
-                      >
-                        <Glyph name={l.role} size={12} />
-                      </span>
-                    )}
-                    <button
-                      className="mm-layer-icon"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        updateLayer(l.id, { visible: !l.visible });
-                      }}
-                      title={t("mmVisible")}
-                    >
-                      <Glyph name={l.visible ? "eye" : "eyeOff"} size={14} />
-                    </button>
-                    <button
-                      className="mm-layer-icon"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        updateLayer(l.id, { locked: !l.locked });
-                      }}
-                      title={t("mmLocked")}
-                    >
-                      <Glyph name={l.locked ? "lock" : "unlock"} size={14} />
-                    </button>
-                    <input
-                      className="mm-layer-name"
-                      key={l.id + l.name}
-                      defaultValue={l.name}
-                      maxLength={60}
-                      onClick={(e) => {
-                        // Editing a layer's name also makes it the active layer.
-                        e.stopPropagation();
-                        setActiveLayerId(l.id);
-                      }}
-                      onBlur={(e) => {
-                        if (e.target.value !== l.name)
-                          updateLayer(l.id, { name: e.target.value });
-                      }}
-                    />
-                    <small>{l.objects.length}</small>
-                    <button
-                      className="mm-layer-icon"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        moveLayer(l.id, 1);
-                      }}
-                      title={t("mmMoveUp")}
-                    >
-                      <Glyph name="up" size={13} />
-                    </button>
-                    <button
-                      className="mm-layer-icon"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        moveLayer(l.id, -1);
-                      }}
-                      title={t("mmMoveDown")}
-                    >
-                      <Glyph name="down" size={13} />
-                    </button>
-                    <button
-                      className="mm-layer-icon"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        removeLayer(l.id);
-                      }}
-                      title={t("mmRemoveLayer")}
-                    >
-                      <Glyph name="trash" size={13} />
-                    </button>
-                  </div>
-                ))}
+                    ref={sizeReadoutRef}
+                    className="mm-gesture-info"
+                    style={{ display: "none" }}
+                    aria-hidden
+                  />
+                </div>
               </div>
-              {active && (
-                <div className="mm-layer-opacity">
-                  <Slider
-                    label={t("mmLayerOpacity")}
-                    defaultValue={1}
-                    value={active.opacity}
-                    min={0}
-                    max={1}
-                    step={0.05}
-                    onChange={(v) => updateLayer(active.id, { opacity: v })}
-                    format={(v) => `${Math.round(v * 100)}%`}
-                  />
-                </div>
-              )}
-              {active && (
-                <LayerStampSettings
-                  layer={active}
-                  onChange={(patch) => updateLayer(active.id, patch)}
-                  t={t}
-                />
-              )}
-              {landTarget && (
-                <div ref={coastPanelRef}>
-                  <CoastEffectPanel
-                    layer={landTarget}
-                    t={t}
-                    mapWidthPx={project.width}
-                    busy={coastBusy.has(landTarget.id)}
-                    onChange={(coast) => updateLayer(landTarget.id, { coast })}
-                  />
-                </div>
-              )}
             </div>
-          )}
-        </aside>
-      </div>
-      {controlsOpen && (
-        <ControlsDialog t={t} onClose={() => setControlsOpen(false)} />
-      )}
-      {exportOpen && (
-        <ExportImageDialog
-          t={t}
-          name={project.name}
-          width={project.width}
-          height={project.height}
-          maxPx={exportMaxPx}
-          onExport={exportImage}
-          onLocked={() => setExportLimit(exportMaxPx)}
-          onClose={() => setExportOpen(false)}
-        />
-      )}
-      {exportLimit !== null && (
-        <UpgradeDialog
-          limit="export_px"
-          planCode={user?.plan.code ?? "explorer"}
-          max={exportLimit}
-          title={t("exLimitTitle")}
-          message={t(user ? "exLimitText" : "exLimitGuest", {
-            plan: t(`acPlan_${user?.plan.code ?? "explorer"}`),
-            px: exportLimit.toLocaleString(),
-          })}
-          onClose={() => setExportLimit(null)}
-        />
-      )}
-      {lineLib.limitPrompt && user && (
-        <UpgradeDialog
-          limit="line_styles"
-          planCode={lineLib.limitPrompt.plan ?? user.plan.code}
-          max={lineLib.limitPrompt.max ?? lineLib.max}
-          used={lineLib.own.length}
-          title={t("lnLimitTitle")}
-          message={t("lnLimitText", {
-            plan: t(`acPlan_${lineLib.limitPrompt.plan ?? user.plan.code}`),
-            max: lineLib.limitPrompt.max ?? lineLib.max,
-          })}
-          onClose={lineLib.closeLimitPrompt}
-        />
-      )}
-      {shapeLib.limitPrompt && user && (
-        <UpgradeDialog
-          limit="shape_styles"
-          planCode={shapeLib.limitPrompt.plan ?? user.plan.code}
-          max={shapeLib.limitPrompt.max ?? shapeLib.max}
-          used={shapeLib.own.length}
-          title={t("shLimitTitle")}
-          message={t("shLimitText", {
-            plan: t(`acPlan_${shapeLib.limitPrompt.plan ?? user.plan.code}`),
-            max: shapeLib.limitPrompt.max ?? shapeLib.max,
-          })}
-          onClose={shapeLib.closeLimitPrompt}
-        />
-      )}
-      {textLib.limitPrompt && user && (
-        <UpgradeDialog
-          limit="text_styles"
-          planCode={textLib.limitPrompt.plan ?? user.plan.code}
-          max={textLib.limitPrompt.max ?? textLib.max}
-          used={textLib.own.length}
-          title={t("txLimitTitle")}
-          message={t("txLimitText", {
-            plan: t(`acPlan_${textLib.limitPrompt.plan ?? user.plan.code}`),
-            max: textLib.limitPrompt.max ?? textLib.max,
-          })}
-          onClose={textLib.closeLimitPrompt}
-        />
-      )}
-      {sync.conflict && (
-        <ConflictDialog
-          busy={sync.resolving}
-          error={sync.resolveError}
-          onChoose={(c) => void sync.resolveConflict(c)}
-        />
-      )}
+            <div className="mm-status-bar">
+              <CloudStatusBar status={sync.status} onSave={sync.saveNow} />
+              <div className="mm-status-group mm-status-center">
+                <button
+                  onClick={() => nav.zoomAt(1 / 1.25, null, { smooth: true })}
+                  title={t("mmZoom")}
+                >
+                  <Glyph name="zoomOut" size={15} />
+                </button>
+                <button
+                  className="mm-zoom-label"
+                  onClick={() => nav.zoomTo(1 / fitScale)}
+                  title={t("ctActualSize")}
+                >
+                  {Math.round(displayScale * 100)}%
+                </button>
+                <button
+                  onClick={() => nav.zoomAt(1.25, null, { smooth: true })}
+                  title={t("mmZoom")}
+                >
+                  <Glyph name="zoomIn" size={15} />
+                </button>
+                <button onClick={() => nav.fit()} title={t("mmFitScreen")}>
+                  <Glyph name="fit" size={15} />
+                </button>
+                <button
+                  className={handMode ? "active" : ""}
+                  aria-pressed={handMode}
+                  onClick={() => setHandMode((h) => !h)}
+                  title={`${t("ctHandTool")} (${shortcutLabel("view.hand", keys)})`}
+                >
+                  <Glyph name="hand" size={15} />
+                </button>
+                <button
+                  onClick={() => setControlsOpen(true)}
+                  title={`${t("ctOpenControls")} (${shortcutLabel("help.controls", keys)})`}
+                >
+                  <Glyph name="keyboard" size={15} />
+                </button>
+              </div>
+              <div className="mm-status-group">
+                <span className="mm-res-badge">
+                  {resolutionBadge(project.resolutionTier)}
+                </span>
+                <button
+                  className={`mm-snap-toggle ${project.snapToGrid ? "on" : ""}`}
+                  onClick={() =>
+                    setProject((p) => ({ ...p, snapToGrid: !p.snapToGrid }))
+                  }
+                  title={t("mmSnapToGrid")}
+                >
+                  <Glyph name="grid" size={15} />
+                  {t("mmSnapToGrid")}
+                </button>
+                <button
+                  onClick={() => setShortcutsVisible((v) => !v)}
+                  title={t(
+                    shortcutsVisible ? "mmHideShortcuts" : "mmShowShortcuts",
+                  )}
+                >
+                  <Glyph name="keyboard" size={15} />
+                </button>
+              </div>
+            </div>
+            {shortcutsVisible && (
+              <div className="mm-shortcut-hint">
+                <span>
+                  {tool === "brush"
+                    ? t(
+                        PAINT_MODES.find((m) => m.key === brushState.mode)!
+                          .hintKey,
+                      )
+                    : tool === "land"
+                      ? t(
+                          LAND_MODES.find((m) => m.key === landTool.mode)!
+                            .hintKey,
+                        )
+                      : tool === "line"
+                        ? t(
+                            LINE_DRAW_MODES.find(
+                              (m) => m.key === lineTool.draw,
+                            )!.hintKey,
+                          )
+                        : t(HINT_KEY[tool])}
+                </span>
+                <span className="mm-shortcut-legend">
+                  1–7 {t("mmToolSelect")}/{t("mmToolBrush")}/… ·{" "}
+                  {t("mmMultiSelectHint")} · {shortcutLabel("edit.undo", keys)}{" "}
+                  {t("undo")} · {shortcutLabel("edit.redo", keys)} {t("redo")} ·{" "}
+                  {shortcutLabel("edit.duplicate", keys)}{" "}
+                  {t("mmDuplicateObject")} · {shortcutLabel("edit.copy", keys)}/
+                  {shortcutLabel("edit.paste", keys)} {t("mmCopyObject")}/
+                  {t("mmPasteObject")} · {shortcutLabel("arrange.front", keys)}{" "}
+                  / {shortcutLabel("arrange.back", keys)} {t("mmBringToFront")}/
+                  {t("mmSendToBack")} · {t("mmZoomHint")}
+                </span>
+              </div>
+            )}
+          </div>
+          <aside className="mm-right-panel">
+            <div className="mm-panel-tabs">
+              <button
+                className={panelTab === "objects" ? "active" : ""}
+                onClick={() => setPanelTab("objects")}
+              >
+                <Glyph name="objects" size={15} />
+                {t("mmPanelObjects")}
+              </button>
+              <button
+                className={panelTab === "layers" ? "active" : ""}
+                onClick={() => setPanelTab("layers")}
+              >
+                <Glyph name="layers" size={15} />
+                {t("mmPanelLayers")}
+              </button>
+            </div>
+            {panelTab === "objects" ? (
+              <div className="mm-objects-tab">
+                <div className="mm-search-row">
+                  <Glyph name="search" size={14} />
+                  <input
+                    placeholder={t("mmSearchObjects")}
+                    value={objectSearch}
+                    onChange={(e) => setObjectSearch(e.target.value)}
+                  />
+                </div>
+                {objectRows.length === 0 && (
+                  <p className="mm-empty-note">{t("mmNoObjects")}</p>
+                )}
+                <div className="mm-object-list">
+                  {objectRows.map(({ layer, o }) => (
+                    <div
+                      key={o.id}
+                      className={`mm-object-row ${selectedIdSet.has(o.id) ? "selected" : ""} ${o.hidden ? "hidden-object" : ""}`}
+                    >
+                      <button
+                        className="mm-object-main"
+                        onClick={() => {
+                          setActiveLayerId(layer.id);
+                          selectOnly(o.id);
+                          setTool("select");
+                        }}
+                      >
+                        <Glyph
+                          name={
+                            o.kind === "stamp"
+                              ? "stamp"
+                              : o.kind === "text"
+                                ? "text"
+                                : o.kind === "shape"
+                                  ? o.fill.type === "mask"
+                                    ? "mask"
+                                    : "shape"
+                                  : o.kind === "line"
+                                    ? "line"
+                                    : o.kind === "land"
+                                      ? o.erase
+                                        ? "water"
+                                        : "land"
+                                      : o.kind === "paint"
+                                        ? o.erase
+                                          ? "eraser"
+                                          : (PAINT_MODES.find(
+                                              (m) => m.key === o.mode,
+                                            )?.glyph ?? "brush")
+                                        : "brush"
+                          }
+                          size={14}
+                        />
+                        <span>{objectLabel(o)}</span>
+                        <small className="mm-layer-badge">{layer.name}</small>
+                      </button>
+                      <button
+                        title={t(o.hidden ? "mmShowObject" : "mmHideObjects")}
+                        aria-pressed={!!o.hidden}
+                        className={o.hidden ? "on" : ""}
+                        onClick={() =>
+                          setObjectFlags([o.id], { hidden: !o.hidden })
+                        }
+                      >
+                        <Glyph name={o.hidden ? "eyeOff" : "eye"} size={13} />
+                      </button>
+                      <button
+                        title={t(o.locked ? "mmUnlockObject" : "mmLockObjects")}
+                        aria-pressed={!!o.locked}
+                        className={o.locked ? "on" : ""}
+                        onClick={() =>
+                          setObjectFlags([o.id], { locked: !o.locked })
+                        }
+                      >
+                        <Glyph name={o.locked ? "lock" : "unlock"} size={13} />
+                      </button>
+                      <button
+                        title={t("mmDuplicateObject")}
+                        onClick={() => duplicateObject(o.id)}
+                      >
+                        <Glyph name="duplicate" size={13} />
+                      </button>
+                      <button
+                        title={t("mmDeleteObject")}
+                        onClick={() => removeObject(o.id)}
+                      >
+                        <Glyph name="trash" size={13} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="mm-layers-tab">
+                <div className="mm-layers-header">
+                  <span>{project.layers.length}/20</span>
+                  <div className="mm-add-layer-wrap" ref={layerMenuRef}>
+                    <button
+                      className="mm-add-layer"
+                      onClick={() => setShowLayerMenu((v) => !v)}
+                      aria-expanded={showLayerMenu}
+                    >
+                      <Glyph name="plus" size={14} />
+                      {t("mmAddLayer")}
+                    </button>
+                    {showLayerMenu && (
+                      <div className="mm-edit-menu mm-layer-menu">
+                        <MenuRow
+                          label={t("mmAddLandLayer")}
+                          icon="land"
+                          onClick={() => {
+                            addLayer("land");
+                            setShowLayerMenu(false);
+                          }}
+                        />
+                        <MenuRow
+                          label={t("mmAddWaterLayer")}
+                          icon="water"
+                          onClick={() => {
+                            addLayer("water");
+                            setShowLayerMenu(false);
+                          }}
+                        />
+                        <MenuRow
+                          label={t("mmAddCustomLayer")}
+                          icon="layers"
+                          onClick={() => {
+                            addLayer("custom");
+                            setShowLayerMenu(false);
+                          }}
+                        />
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <div className="mm-layer-list">
+                  <div className="mm-layer-row mm-base-row">
+                    <Glyph name="eye" size={14} />
+                    <span>{t("mmBaseLayer")}</span>
+                  </div>
+                  {[...project.layers].reverse().map((l) => (
+                    <div
+                      key={l.id}
+                      className={`mm-layer-row ${activeLayerId === l.id ? "active" : ""}`}
+                      onClick={() => setActiveLayerId(l.id)}
+                    >
+                      {l.role && l.role !== "custom" && (
+                        <span
+                          className={`mm-layer-role mm-role-${l.role}`}
+                          title={t(
+                            l.role === "water" ? "mmLayerWater" : "mmLayerLand",
+                          )}
+                        >
+                          <Glyph name={l.role} size={12} />
+                        </span>
+                      )}
+                      <button
+                        className="mm-layer-icon"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          updateLayer(l.id, { visible: !l.visible });
+                        }}
+                        title={t("mmVisible")}
+                      >
+                        <Glyph name={l.visible ? "eye" : "eyeOff"} size={14} />
+                      </button>
+                      <button
+                        className="mm-layer-icon"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          updateLayer(l.id, { locked: !l.locked });
+                        }}
+                        title={t("mmLocked")}
+                      >
+                        <Glyph name={l.locked ? "lock" : "unlock"} size={14} />
+                      </button>
+                      <input
+                        className="mm-layer-name"
+                        key={l.id + l.name}
+                        defaultValue={l.name}
+                        maxLength={60}
+                        onClick={(e) => {
+                          // Editing a layer's name also makes it the active layer.
+                          e.stopPropagation();
+                          setActiveLayerId(l.id);
+                        }}
+                        onBlur={(e) => {
+                          if (e.target.value !== l.name)
+                            updateLayer(l.id, { name: e.target.value });
+                        }}
+                      />
+                      <small>{l.objects.length}</small>
+                      <button
+                        className="mm-layer-icon"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          moveLayer(l.id, 1);
+                        }}
+                        title={t("mmMoveUp")}
+                      >
+                        <Glyph name="up" size={13} />
+                      </button>
+                      <button
+                        className="mm-layer-icon"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          moveLayer(l.id, -1);
+                        }}
+                        title={t("mmMoveDown")}
+                      >
+                        <Glyph name="down" size={13} />
+                      </button>
+                      <button
+                        className="mm-layer-icon"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          removeLayer(l.id);
+                        }}
+                        title={t("mmRemoveLayer")}
+                      >
+                        <Glyph name="trash" size={13} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                {active && (
+                  <div className="mm-layer-opacity">
+                    <Slider
+                      label={t("mmLayerOpacity")}
+                      defaultValue={1}
+                      value={active.opacity}
+                      min={0}
+                      max={1}
+                      step={0.05}
+                      onChange={(v) => updateLayer(active.id, { opacity: v })}
+                      format={(v) => `${Math.round(v * 100)}%`}
+                    />
+                  </div>
+                )}
+                {active && (
+                  <LayerStampSettings
+                    layer={active}
+                    onChange={(patch) => updateLayer(active.id, patch)}
+                    t={t}
+                  />
+                )}
+                {landTarget && (
+                  <div ref={coastPanelRef}>
+                    <CoastEffectPanel
+                      layer={landTarget}
+                      t={t}
+                      mapWidthPx={project.width}
+                      busy={coastBusy.has(landTarget.id)}
+                      onChange={(coast) =>
+                        updateLayer(landTarget.id, { coast })
+                      }
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+          </aside>
+        </div>
+        {controlsOpen && (
+          <ControlsDialog t={t} onClose={() => setControlsOpen(false)} />
+        )}
+        {exportOpen && (
+          <ExportImageDialog
+            t={t}
+            name={project.name}
+            width={project.width}
+            height={project.height}
+            maxPx={exportMaxPx}
+            onExport={exportImage}
+            onLocked={() => setExportLimit(exportMaxPx)}
+            onClose={() => setExportOpen(false)}
+          />
+        )}
+        {exportLimit !== null && (
+          <UpgradeDialog
+            limit="export_px"
+            planCode={user?.plan.code ?? "explorer"}
+            max={exportLimit}
+            title={t("exLimitTitle")}
+            message={t(user ? "exLimitText" : "exLimitGuest", {
+              plan: t(`acPlan_${user?.plan.code ?? "explorer"}`),
+              px: exportLimit.toLocaleString(),
+            })}
+            onClose={() => setExportLimit(null)}
+          />
+        )}
+        {lineLib.limitPrompt && user && (
+          <UpgradeDialog
+            limit="line_styles"
+            planCode={lineLib.limitPrompt.plan ?? user.plan.code}
+            max={lineLib.limitPrompt.max ?? lineLib.max}
+            used={lineLib.own.length}
+            title={t("lnLimitTitle")}
+            message={t("lnLimitText", {
+              plan: t(`acPlan_${lineLib.limitPrompt.plan ?? user.plan.code}`),
+              max: lineLib.limitPrompt.max ?? lineLib.max,
+            })}
+            onClose={lineLib.closeLimitPrompt}
+          />
+        )}
+        {shapeLib.limitPrompt && user && (
+          <UpgradeDialog
+            limit="shape_styles"
+            planCode={shapeLib.limitPrompt.plan ?? user.plan.code}
+            max={shapeLib.limitPrompt.max ?? shapeLib.max}
+            used={shapeLib.own.length}
+            title={t("shLimitTitle")}
+            message={t("shLimitText", {
+              plan: t(`acPlan_${shapeLib.limitPrompt.plan ?? user.plan.code}`),
+              max: shapeLib.limitPrompt.max ?? shapeLib.max,
+            })}
+            onClose={shapeLib.closeLimitPrompt}
+          />
+        )}
+        {textLib.limitPrompt && user && (
+          <UpgradeDialog
+            limit="text_styles"
+            planCode={textLib.limitPrompt.plan ?? user.plan.code}
+            max={textLib.limitPrompt.max ?? textLib.max}
+            used={textLib.own.length}
+            title={t("txLimitTitle")}
+            message={t("txLimitText", {
+              plan: t(`acPlan_${textLib.limitPrompt.plan ?? user.plan.code}`),
+              max: textLib.limitPrompt.max ?? textLib.max,
+            })}
+            onClose={textLib.closeLimitPrompt}
+          />
+        )}
+        {sync.conflict && (
+          <ConflictDialog
+            busy={sync.resolving}
+            error={sync.resolveError}
+            onChoose={(c) => void sync.resolveConflict(c)}
+          />
+        )}
 
-      {contextMenu && (
-        <div
-          ref={contextMenuRef}
-          className="mm-edit-menu mm-context-menu"
-          style={{ left: contextMenu.x, top: contextMenu.y }}
-        >
-          {singleText && (
-            <>
-              <MenuRow
-                label={t("txEditInline")}
-                shortcut={shortcutLabel("text.edit", keys)}
-                icon="text"
-                onClick={() => {
-                  editTextInline(singleText.id);
-                  setContextMenu(null);
-                }}
-              />
-              {singleText.curveMode === "path" && singleText.path && (
-                <MenuRow
-                  label={t("txEditPath")}
-                  shortcut={shortcutLabel("line.editNodes", keys)}
-                  icon="editNodes"
-                  onClick={() => {
-                    setPathEdit({ id: singleText.id, sel: [] });
-                    setContextMenu(null);
-                  }}
-                />
-              )}
-              {singleText.attach && (
-                <MenuRow
-                  label={t("txDetach")}
-                  onClick={() => {
-                    patchTexts([singleText.id], () => ({ attach: null }));
-                    setContextMenu(null);
-                  }}
-                />
-              )}
-              <div className="mm-menu-divider" />
-            </>
-          )}
-          {selectedTexts.length > 0 &&
-            selectedTexts.length === selectedObjs.length && (
+        {contextMenu && (
+          <div
+            ref={contextMenuRef}
+            className="mm-edit-menu mm-context-menu"
+            style={{ left: contextMenu.x, top: contextMenu.y }}
+          >
+            {singleText && (
               <>
-                {singleText && (
+                <MenuRow
+                  label={t("txEditInline")}
+                  shortcut={shortcutLabel("text.edit", keys)}
+                  icon="text"
+                  onClick={() => {
+                    editTextInline(singleText.id);
+                    setContextMenu(null);
+                  }}
+                />
+                {singleText.curveMode === "path" && singleText.path && (
                   <MenuRow
-                    label={t("txCopyStyle")}
+                    label={t("txEditPath")}
+                    shortcut={shortcutLabel("line.editNodes", keys)}
+                    icon="editNodes"
                     onClick={() => {
-                      copyTextStyle(singleText);
+                      setPathEdit({ id: singleText.id, sel: [] });
                       setContextMenu(null);
                     }}
                   />
                 )}
-                <MenuRow
-                  label={t("txPasteStyle")}
-                  onClick={() => {
-                    pasteTextStyle(selectedTexts.map((o) => o.id));
-                    setContextMenu(null);
-                  }}
-                />
+                {singleText.attach && (
+                  <MenuRow
+                    label={t("txDetach")}
+                    onClick={() => {
+                      patchTexts([singleText.id], () => ({ attach: null }));
+                      setContextMenu(null);
+                    }}
+                  />
+                )}
                 <div className="mm-menu-divider" />
               </>
             )}
-          {attachPair && (
-            <>
-              <MenuRow
-                label={t("txAttachPair")}
-                icon="stamp"
-                onClick={() => {
-                  patchTexts([attachPair.text.id], (cur) => ({
-                    attach: attachTo(
-                      cur,
-                      attachPair.stamp.id,
-                      attachPair.stamp,
-                    ),
-                  }));
-                  setContextMenu(null);
-                }}
-              />
-              <div className="mm-menu-divider" />
-            </>
-          )}
-          {selectedShapes.length === 1 && selectedObjs.length === 1 && (
-            <>
-              <MenuRow
-                label={t("lnEditNodes")}
-                shortcut={shortcutLabel("line.editNodes", keys)}
-                icon="editNodes"
-                onClick={() => {
-                  startShapeEdit(selectedShapes[0]);
-                  setContextMenu(null);
-                }}
-              />
-              <MenuRow
-                label={t("shDrawDoors")}
-                shortcut={shortcutLabel("shape.doors", keys)}
-                icon="door"
-                onClick={() => {
-                  const o = selectedShapes[0];
-                  selectTool("shape");
-                  setShapeTool((st) => ({ ...st, draw: "doors" }));
-                  selectOnly(o.id);
-                  setDoorEdit({ id: o.id, portal: null });
-                  setContextMenu(null);
-                }}
-              />
-              {selectedShapes[0].parts.length > 1 && (
+            {selectedTexts.length > 0 &&
+              selectedTexts.length === selectedObjs.length && (
                 <>
-                  <MenuRow
-                    label={t("shFlatten")}
-                    icon="flatten"
-                    onClick={() => {
-                      flattenShape(selectedShapes[0]);
-                      setContextMenu(null);
-                    }}
-                  />
-                  <MenuRow
-                    label={t("shRelease")}
-                    icon="release"
-                    onClick={() => {
-                      releaseShape(selectedShapes[0]);
-                      setContextMenu(null);
-                    }}
-                  />
-                </>
-              )}
-              {selectedShapes[0].parts.length === 1 &&
-                !isGroup(selectedShapes[0].parts[0]) && (
-                  <MenuRow
-                    label={t("shToLine")}
-                    icon="line"
-                    onClick={() => {
-                      shapeToLine(selectedShapes[0]);
-                      setContextMenu(null);
-                    }}
-                  />
-                )}
-              <div className="mm-menu-divider" />
-            </>
-          )}
-          {selectedShapes.length >= 2 &&
-            selectedShapes.length === selectedObjs.length && (
-              <>
-                {(["add", "subtract", "intersect", "exclude"] as const).map(
-                  (op) => (
+                  {singleText && (
                     <MenuRow
-                      key={op}
-                      label={t(`shCombine_${op}`)}
-                      icon={COMBINE_GLYPH[op]}
+                      label={t("txCopyStyle")}
                       onClick={() => {
-                        combineSelectedShapes(op);
+                        copyTextStyle(singleText);
                         setContextMenu(null);
                       }}
                     />
-                  ),
-                )}
+                  )}
+                  <MenuRow
+                    label={t("txPasteStyle")}
+                    onClick={() => {
+                      pasteTextStyle(selectedTexts.map((o) => o.id));
+                      setContextMenu(null);
+                    }}
+                  />
+                  <div className="mm-menu-divider" />
+                </>
+              )}
+            {attachPair && (
+              <>
+                <MenuRow
+                  label={t("txAttachPair")}
+                  icon="stamp"
+                  onClick={() => {
+                    patchTexts([attachPair.text.id], (cur) => ({
+                      attach: attachTo(
+                        cur,
+                        attachPair.stamp.id,
+                        attachPair.stamp,
+                      ),
+                    }));
+                    setContextMenu(null);
+                  }}
+                />
                 <div className="mm-menu-divider" />
               </>
             )}
-          {singleLine && singleLine.closed && (
-            <MenuRow
-              label={t("shFromLine")}
-              icon="shape"
-              onClick={() => {
-                lineToShape(singleLine);
-                setContextMenu(null);
-              }}
-            />
-          )}
-          {lineActions && singleLine && (
-            <MenuRow
-              label={t("txAlongLine")}
-              icon="text"
-              onClick={() => {
-                addTextAlongLine(singleLine);
-                setContextMenu(null);
-              }}
-            />
-          )}
-          {lineActions && (
-            <>
+            {selectedShapes.length === 1 && selectedObjs.length === 1 && (
+              <>
+                <MenuRow
+                  label={t("lnEditNodes")}
+                  shortcut={shortcutLabel("line.editNodes", keys)}
+                  icon="editNodes"
+                  onClick={() => {
+                    startShapeEdit(selectedShapes[0]);
+                    setContextMenu(null);
+                  }}
+                />
+                <MenuRow
+                  label={t("shDrawDoors")}
+                  shortcut={shortcutLabel("shape.doors", keys)}
+                  icon="door"
+                  onClick={() => {
+                    const o = selectedShapes[0];
+                    selectTool("shape");
+                    setShapeTool((st) => ({ ...st, draw: "doors" }));
+                    selectOnly(o.id);
+                    setDoorEdit({ id: o.id, portal: null });
+                    setContextMenu(null);
+                  }}
+                />
+                {selectedShapes[0].parts.length > 1 && (
+                  <>
+                    <MenuRow
+                      label={t("shFlatten")}
+                      icon="flatten"
+                      onClick={() => {
+                        flattenShape(selectedShapes[0]);
+                        setContextMenu(null);
+                      }}
+                    />
+                    <MenuRow
+                      label={t("shRelease")}
+                      icon="release"
+                      onClick={() => {
+                        releaseShape(selectedShapes[0]);
+                        setContextMenu(null);
+                      }}
+                    />
+                  </>
+                )}
+                {selectedShapes[0].parts.length === 1 &&
+                  !isGroup(selectedShapes[0].parts[0]) && (
+                    <MenuRow
+                      label={t("shToLine")}
+                      icon="line"
+                      onClick={() => {
+                        shapeToLine(selectedShapes[0]);
+                        setContextMenu(null);
+                      }}
+                    />
+                  )}
+                <div className="mm-menu-divider" />
+              </>
+            )}
+            {selectedShapes.length >= 2 &&
+              selectedShapes.length === selectedObjs.length && (
+                <>
+                  {(["add", "subtract", "intersect", "exclude"] as const).map(
+                    (op) => (
+                      <MenuRow
+                        key={op}
+                        label={t(`shCombine_${op}`)}
+                        icon={COMBINE_GLYPH[op]}
+                        onClick={() => {
+                          combineSelectedShapes(op);
+                          setContextMenu(null);
+                        }}
+                      />
+                    ),
+                  )}
+                  <div className="mm-menu-divider" />
+                </>
+              )}
+            {singleLine && singleLine.closed && (
               <MenuRow
-                label={t("lnEditNodes")}
-                shortcut={shortcutLabel("line.editNodes", keys)}
-                icon="editNodes"
+                label={t("shFromLine")}
+                icon="shape"
                 onClick={() => {
-                  lineActions.onEditNodes();
+                  lineToShape(singleLine);
                   setContextMenu(null);
                 }}
               />
+            )}
+            {lineActions && singleLine && (
               <MenuRow
-                label={t("lnReverse")}
-                icon="reverse"
+                label={t("txAlongLine")}
+                icon="text"
                 onClick={() => {
-                  lineActions.onReverse();
+                  addTextAlongLine(singleLine);
                   setContextMenu(null);
                 }}
               />
-              <MenuRow
-                label={t(lineActions.closed ? "lnOpenPath" : "lnClosePath")}
-                icon="closePath"
-                disabled={!lineActions.canClose}
-                onClick={() => {
-                  lineActions.onToggleClosed();
-                  setContextMenu(null);
-                }}
-              />
-              <div className="mm-menu-divider" />
-            </>
-          )}
-          <MenuRow
-            label={t("mmDuplicateObject")}
-            shortcut={shortcutLabel("edit.duplicate", keys)}
-            disabled={!selectedObjs.length}
-            onClick={() => {
-              duplicateObjects(selectedIds);
-              setContextMenu(null);
-            }}
-          />
-          <MenuRow
-            label={t("mmCopyObject")}
-            shortcut={shortcutLabel("edit.copy", keys)}
-            disabled={!selectedObjs.length}
-            onClick={() => {
-              copySelection();
-              setContextMenu(null);
-            }}
-          />
-          <MenuRow
-            label={t("mmPasteObject")}
-            shortcut={shortcutLabel("edit.paste", keys)}
-            disabled={!hasClipboard}
-            onClick={() => {
-              pasteClipboard();
-              setContextMenu(null);
-            }}
-          />
-          <MenuRow
-            label={t("mmDeleteObject")}
-            shortcut={shortcutLabel("edit.delete", keys)}
-            disabled={!selectedObjs.length}
-            onClick={() => {
-              removeObjects(selectedIds);
-              setContextMenu(null);
-            }}
-          />
-          <div className="mm-menu-divider" />
-          <MenuRow
-            label={t("mmGroup")}
-            shortcut={shortcutLabel("edit.group", keys)}
-            disabled={selectedObjs.length < 2}
-            onClick={() => {
-              groupSelection();
-              setContextMenu(null);
-            }}
-          />
-          <MenuRow
-            label={t("mmUngroup")}
-            shortcut={shortcutLabel("edit.ungroup", keys)}
-            disabled={!selectedObjs.some((o) => o.group)}
-            onClick={() => {
-              ungroupSelection();
-              setContextMenu(null);
-            }}
-          />
-          <MenuRow
-            label={t("mmLockObjects")}
-            disabled={!selectedObjs.length}
-            onClick={() => {
-              setObjectFlags(selectedIds, { locked: true });
-              setContextMenu(null);
-            }}
-          />
-          <MenuRow
-            label={t("mmHideObjects")}
-            disabled={!selectedObjs.length}
-            onClick={() => {
-              setObjectFlags(selectedIds, { hidden: true });
-              setContextMenu(null);
-            }}
-          />
-          {user && (
+            )}
+            {lineActions && (
+              <>
+                <MenuRow
+                  label={t("lnEditNodes")}
+                  shortcut={shortcutLabel("line.editNodes", keys)}
+                  icon="editNodes"
+                  onClick={() => {
+                    lineActions.onEditNodes();
+                    setContextMenu(null);
+                  }}
+                />
+                <MenuRow
+                  label={t("lnReverse")}
+                  icon="reverse"
+                  onClick={() => {
+                    lineActions.onReverse();
+                    setContextMenu(null);
+                  }}
+                />
+                <MenuRow
+                  label={t(lineActions.closed ? "lnOpenPath" : "lnClosePath")}
+                  icon="closePath"
+                  disabled={!lineActions.canClose}
+                  onClick={() => {
+                    lineActions.onToggleClosed();
+                    setContextMenu(null);
+                  }}
+                />
+                <div className="mm-menu-divider" />
+              </>
+            )}
             <MenuRow
-              label={t("stSaveAsStamp")}
+              label={t("mmDuplicateObject")}
+              shortcut={shortcutLabel("edit.duplicate", keys)}
               disabled={!selectedObjs.length}
               onClick={() => {
-                void saveSelectionAsStamp();
+                duplicateObjects(selectedIds);
                 setContextMenu(null);
               }}
             />
-          )}
-          <div className="mm-menu-divider" />
-          <MenuRow
-            label={t("mmBringToFront")}
-            shortcut={shortcutLabel("arrange.front", keys)}
-            disabled={!selectedObjs.length}
-            onClick={() => {
-              reorderObjects(selectedIds, "front");
-              setContextMenu(null);
-            }}
-          />
-          <MenuRow
-            label={t("mmBringForward")}
-            disabled={selectedObjs.length !== 1}
-            onClick={() => {
-              if (selectedObj) reorderObject(selectedObj.id, "forward");
-              setContextMenu(null);
-            }}
-          />
-          <MenuRow
-            label={t("mmSendBackward")}
-            disabled={selectedObjs.length !== 1}
-            onClick={() => {
-              if (selectedObj) reorderObject(selectedObj.id, "backward");
-              setContextMenu(null);
-            }}
-          />
-          <MenuRow
-            label={t("mmSendToBack")}
-            shortcut={shortcutLabel("arrange.back", keys)}
-            disabled={!selectedObjs.length}
-            onClick={() => {
-              reorderObjects(selectedIds, "back");
-              setContextMenu(null);
-            }}
-          />
-        </div>
-      )}
-    </div>
+            <MenuRow
+              label={t("mmCopyObject")}
+              shortcut={shortcutLabel("edit.copy", keys)}
+              disabled={!selectedObjs.length}
+              onClick={() => {
+                copySelection();
+                setContextMenu(null);
+              }}
+            />
+            <MenuRow
+              label={t("mmPasteObject")}
+              shortcut={shortcutLabel("edit.paste", keys)}
+              disabled={!hasClipboard}
+              onClick={() => {
+                pasteClipboard();
+                setContextMenu(null);
+              }}
+            />
+            <MenuRow
+              label={t("mmDeleteObject")}
+              shortcut={shortcutLabel("edit.delete", keys)}
+              disabled={!selectedObjs.length}
+              onClick={() => {
+                removeObjects(selectedIds);
+                setContextMenu(null);
+              }}
+            />
+            <div className="mm-menu-divider" />
+            <MenuRow
+              label={t("mmGroup")}
+              shortcut={shortcutLabel("edit.group", keys)}
+              disabled={selectedObjs.length < 2}
+              onClick={() => {
+                groupSelection();
+                setContextMenu(null);
+              }}
+            />
+            <MenuRow
+              label={t("mmUngroup")}
+              shortcut={shortcutLabel("edit.ungroup", keys)}
+              disabled={!selectedObjs.some((o) => o.group)}
+              onClick={() => {
+                ungroupSelection();
+                setContextMenu(null);
+              }}
+            />
+            <MenuRow
+              label={t("mmLockObjects")}
+              disabled={!selectedObjs.length}
+              onClick={() => {
+                setObjectFlags(selectedIds, { locked: true });
+                setContextMenu(null);
+              }}
+            />
+            <MenuRow
+              label={t("mmHideObjects")}
+              disabled={!selectedObjs.length}
+              onClick={() => {
+                setObjectFlags(selectedIds, { hidden: true });
+                setContextMenu(null);
+              }}
+            />
+            {user && (
+              <MenuRow
+                label={t("stSaveAsStamp")}
+                disabled={!selectedObjs.length}
+                onClick={() => {
+                  void saveSelectionAsStamp();
+                  setContextMenu(null);
+                }}
+              />
+            )}
+            <div className="mm-menu-divider" />
+            <MenuRow
+              label={t("mmBringToFront")}
+              shortcut={shortcutLabel("arrange.front", keys)}
+              disabled={!selectedObjs.length}
+              onClick={() => {
+                reorderObjects(selectedIds, "front");
+                setContextMenu(null);
+              }}
+            />
+            <MenuRow
+              label={t("mmBringForward")}
+              disabled={selectedObjs.length !== 1}
+              onClick={() => {
+                if (selectedObj) reorderObject(selectedObj.id, "forward");
+                setContextMenu(null);
+              }}
+            />
+            <MenuRow
+              label={t("mmSendBackward")}
+              disabled={selectedObjs.length !== 1}
+              onClick={() => {
+                if (selectedObj) reorderObject(selectedObj.id, "backward");
+                setContextMenu(null);
+              }}
+            />
+            <MenuRow
+              label={t("mmSendToBack")}
+              shortcut={shortcutLabel("arrange.back", keys)}
+              disabled={!selectedObjs.length}
+              onClick={() => {
+                reorderObjects(selectedIds, "back");
+                setContextMenu(null);
+              }}
+            />
+          </div>
+        )}
+      </div>
+    </TextureUsageContext.Provider>
   );
 }

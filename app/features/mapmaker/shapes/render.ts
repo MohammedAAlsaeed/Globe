@@ -128,7 +128,12 @@ function fillStyle(
     const k =
       (TEXTURE_BASE_PX * f.source.textureScale * (w / PAINT_REF_WIDTH)) /
       tile.width;
-    pattern.setTransform(fillMatrix(f, s.frame, w, h, k));
+    pattern.setTransform(
+      fillMatrix(f, s.frame, w, h, k).translate(
+        (f.source.textureOffsetX ?? 0) * tile.width,
+        (f.source.textureOffsetY ?? 0) * tile.height,
+      ),
+    );
     return pattern;
   }
   if (f.type === "pattern") {

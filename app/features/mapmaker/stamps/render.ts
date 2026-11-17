@@ -14,6 +14,8 @@ import {
   hasFilters,
   hexToRgb,
   rgbToHex,
+  isUploadedTexture,
+  texturesVersion,
 } from "../brush/textures";
 import type { MMLayer, MMStamp, ShadowSettings } from "../types";
 import type { ArtPart, VectorArt } from "./art";
@@ -227,7 +229,8 @@ export function stampPicture(
 ): HTMLCanvasElement | null {
   const base = stampRaster(o, px, onReady);
   if (!base || o.clip !== "texture" || !o.clipSource) return base;
-  const key = `${base.width}|${W}|${H}`,
+  // An uploaded texture may arrive later: draw again then.
+  const key = `${base.width}|${W}|${H}|${isUploadedTexture(o.clipSource.texture) ? texturesVersion() : 0}`,
     hit = clipped.get(o);
   if (hit?.key === key) return hit.canvas;
   const c = document.createElement("canvas");
