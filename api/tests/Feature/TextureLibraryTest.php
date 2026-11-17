@@ -124,7 +124,7 @@ class TextureLibraryTest extends TestCase
             ->assertJsonPath('data.updated_at', 1700000000000);
 
         foreach ([
-            'unknown texture' => $this->source(['texture' => 'marble']),
+            'unknown texture' => $this->source(['texture' => 'notATexture']),
             'colour' => $this->source(['type' => 'color']),
             'offset' => $this->source(['textureOffsetX' => 3]),
             'scale' => $this->source(['textureScale' => 'big']),

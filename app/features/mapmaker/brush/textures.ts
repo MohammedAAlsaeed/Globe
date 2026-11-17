@@ -1,5 +1,7 @@
 /**
- * Textures: the 29 built into the editor — original, procedurally generated,
+ * Textures: the 141 built into the editor (the first 29 below, the
+ * Navigators' 12 in ./navigatorTextures, and the library's 100 in
+ * ./libraryTextures) — original, procedurally generated,
  * seamless terrain textures (no image assets, nothing licensed) — and
  * uploaded ones ("u:<asset id>", from the texture library: official packs
  * and people's own), which arrive as pictures.
@@ -19,8 +21,26 @@
  */
 import { fbm, gradientNoise, hash2, ridged, smoothstep, worley } from "./noise";
 import type { PaintSource } from "../types";
+import { NAVIGATOR_TEXTURES } from "./navigatorTextures";
+import { LIBRARY_TEXTURES } from "./libraryTextures";
 
-export type TextureCategory = "terrain" | "vegetation" | "water" | "special";
+/** How textures are filed, in the order the catalog lists them. Uploaded
+ * textures use the same categories (see api/app/Support/Textures.php). */
+export const TEXTURE_CATEGORY_KEYS = [
+  "vegetation",
+  "terrain",
+  "desert",
+  "mountains",
+  "water",
+  "snow",
+  "volcanic",
+  "paper",
+  "details",
+  "navigators",
+  "fantasy",
+  "special",
+] as const;
+export type TextureCategory = (typeof TEXTURE_CATEGORY_KEYS)[number];
 type RGB = [number, number, number];
 type Generator = (u: number, v: number) => RGB;
 
@@ -198,7 +218,7 @@ const TEXTURE_DEFS: TextureDef[] = [
   // Terrain
   {
     id: "sand",
-    category: "terrain",
+    category: "desert",
     labelKey: "mmTexSand",
     gen: (() => {
       const r = ramp(["#c9ad74", "#dcc38c", "#ead6a6"]);
@@ -211,7 +231,7 @@ const TEXTURE_DEFS: TextureDef[] = [
   },
   {
     id: "dunes",
-    category: "terrain",
+    category: "desert",
     labelKey: "mmTexDunes",
     gen: (() => {
       const r = ramp(["#b98a4e", "#d4a868", "#e9c88e", "#f1d9a8"]);
@@ -230,7 +250,7 @@ const TEXTURE_DEFS: TextureDef[] = [
   },
   {
     id: "desert",
-    category: "terrain",
+    category: "desert",
     labelKey: "mmTexDesert",
     gen: (() => {
       const r = ramp(["#b78f5f", "#cfa877", "#dfbf8f"]);
@@ -276,7 +296,7 @@ const TEXTURE_DEFS: TextureDef[] = [
   },
   {
     id: "rock",
-    category: "terrain",
+    category: "mountains",
     labelKey: "mmTexRock",
     gen: (() => {
       const r = ramp(["#55524d", "#6f6b64", "#8c877e", "#a8a399"]);
@@ -289,7 +309,7 @@ const TEXTURE_DEFS: TextureDef[] = [
   },
   {
     id: "mountains",
-    category: "terrain",
+    category: "mountains",
     labelKey: "mmTexMountains",
     gen: (() => {
       const r = ramp(["#4b443c", "#6d6255", "#8c7f6e", "#b1a490", "#e7e6e2"]);
@@ -302,7 +322,7 @@ const TEXTURE_DEFS: TextureDef[] = [
   },
   {
     id: "cliffs",
-    category: "terrain",
+    category: "mountains",
     labelKey: "mmTexCliffs",
     gen: (() => {
       const r = ramp(["#3f3a35", "#5d5650", "#7b736a", "#958c80"]);
@@ -316,7 +336,7 @@ const TEXTURE_DEFS: TextureDef[] = [
   },
   {
     id: "snow",
-    category: "terrain",
+    category: "snow",
     labelKey: "mmTexSnow",
     gen: (() => {
       const r = ramp(["#c9d6e3", "#e1e9f1", "#f5f8fb"]);
@@ -329,7 +349,7 @@ const TEXTURE_DEFS: TextureDef[] = [
   },
   {
     id: "ice",
-    category: "terrain",
+    category: "snow",
     labelKey: "mmTexIce",
     gen: (() => {
       const r = ramp(["#8fbfd4", "#b5d9e7", "#dbeef5"]);
@@ -346,13 +366,13 @@ const TEXTURE_DEFS: TextureDef[] = [
   },
   {
     id: "tundra",
-    category: "terrain",
+    category: "snow",
     labelKey: "mmTexTundra",
     gen: grassLike(["#6c6c56", "#83826a", "#9a9a82", "#b3b4a0"], 139),
   },
   {
     id: "ash",
-    category: "terrain",
+    category: "volcanic",
     labelKey: "mmTexAsh",
     gen: (() => {
       const r = ramp(["#262423", "#3a3735", "#4f4b48"]);
@@ -420,7 +440,7 @@ const TEXTURE_DEFS: TextureDef[] = [
   // Special
   {
     id: "lava",
-    category: "special",
+    category: "volcanic",
     labelKey: "mmTexLava",
     gen: (() => {
       const crust = ramp(["#1f1411", "#33211a", "#4a2e22"]),
@@ -443,7 +463,7 @@ const TEXTURE_DEFS: TextureDef[] = [
   },
   {
     id: "parchment",
-    category: "special",
+    category: "paper",
     labelKey: "mmTexParchment",
     gen: (() => {
       const r = ramp(["#cbb48a", "#ddc9a0", "#ebdcb9"]);
@@ -459,7 +479,7 @@ const TEXTURE_DEFS: TextureDef[] = [
   },
   {
     id: "cobblestone",
-    category: "special",
+    category: "details",
     labelKey: "mmTexCobble",
     gen: (() => {
       const r = ramp(["#5f5a54", "#7a746c", "#958e84"]);
@@ -473,7 +493,7 @@ const TEXTURE_DEFS: TextureDef[] = [
   },
   {
     id: "planks",
-    category: "special",
+    category: "details",
     labelKey: "mmTexPlanks",
     gen: (() => {
       const r = ramp(["#6e4a2c", "#8a5d36", "#a87545", "#bf8c57"]);
@@ -507,7 +527,7 @@ const TEXTURE_DEFS: TextureDef[] = [
   },
   {
     id: "flagstone",
-    category: "special",
+    category: "details",
     labelKey: "mmTexFlagstone",
     gen: (() => {
       const r = ramp(["#6c6862", "#86817a", "#9c968c", "#b1aa9f"]);
@@ -526,7 +546,7 @@ const TEXTURE_DEFS: TextureDef[] = [
   },
   {
     id: "inkwash",
-    category: "special",
+    category: "paper",
     labelKey: "mmTexInkWash",
     gen: (() => {
       const r = ramp(["#3a3f4a", "#59606c", "#7d838d", "#a5a9b0"]);
@@ -534,17 +554,16 @@ const TEXTURE_DEFS: TextureDef[] = [
         r(n01(fbm(u * 3 + fbm(u * 2, v * 2, 154, 2, 2), v * 3, 155, 5, 3)));
     })(),
   },
+  // The Navigators: a hand-painted sea chart's materials.
+  ...NAVIGATOR_TEXTURES,
+  // The library: every other kind of ground.
+  ...LIBRARY_TEXTURES,
 ];
 
 export const TEXTURES: readonly TextureDef[] = TEXTURE_DEFS;
 export const TEXTURE_IDS = TEXTURE_DEFS.map((t) => t.id);
 export const TEXTURE_CATEGORIES: { key: TextureCategory; labelKey: string }[] =
-  [
-    { key: "terrain", labelKey: "mmTexCatTerrain" },
-    { key: "vegetation", labelKey: "mmTexCatVegetation" },
-    { key: "water", labelKey: "mmTexCatWater" },
-    { key: "special", labelKey: "mmTexCatSpecial" },
-  ];
+  TEXTURE_CATEGORY_KEYS.map((key) => ({ key, labelKey: `mmTexCat_${key}` }));
 const BY_ID = new Map(TEXTURE_DEFS.map((t) => [t.id, t]));
 /** A built-in texture (the first one for anything else). */
 export function textureDef(id: string) {
@@ -984,6 +1003,54 @@ export function textureThumb(id: string, filters: Filters = NO_FILTERS) {
   thumbCache.set(key, url);
   return url;
 }
+
+/** A built-in texture's thumbnail if it is drawn already, else null (and
+ * it is queued: see `queueThumb`). Uploaded textures answer at once. */
+export function readyThumb(id: string): string | null {
+  if (!isBuiltinTexture(id)) return textureThumb(id);
+  return (
+    thumbCache.get(
+      `${id}|${NO_FILTERS.hue}|${NO_FILTERS.saturation}|${NO_FILTERS.brightness}|${NO_FILTERS.contrast}`,
+    ) ?? null
+  );
+}
+/** A built-in texture's rough colour (a few samples), as a stand-in. */
+export function thumbColor(id: string) {
+  const g = textureDef(id).gen,
+    s = [g(0.2, 0.3), g(0.7, 0.6), g(0.4, 0.8), g(0.9, 0.1)];
+  return rgbToHex(
+    [0, 1, 2].map((c) => s.reduce((a, x) => a + x[c], 0) / s.length) as [
+      number,
+      number,
+      number,
+    ],
+  );
+}
+// Built-in thumbnails are drawn in the background, a few per frame, so a
+// catalog of a hundred and more textures opens at once instead of freezing.
+const thumbQueue: string[] = [];
+const thumbListeners = new Set<() => void>();
+let thumbTimer: ReturnType<typeof setTimeout> | null = null,
+  thumbVersion = 0;
+export function queueThumb(id: string) {
+  if (readyThumb(id) || thumbQueue.includes(id)) return;
+  thumbQueue.push(id);
+  thumbTimer ??= setTimeout(drainThumbs, 0);
+}
+function drainThumbs() {
+  thumbTimer = null;
+  const end = performance.now() + 12;
+  while (thumbQueue.length && performance.now() < end)
+    textureThumb(thumbQueue.shift()!);
+  thumbVersion++;
+  thumbListeners.forEach((f) => f());
+  if (thumbQueue.length) thumbTimer = setTimeout(drainThumbs, 16);
+}
+export function subscribeThumbs(f: () => void) {
+  thumbListeners.add(f);
+  return () => void thumbListeners.delete(f);
+}
+export const thumbsVersion = () => thumbVersion;
 
 function colorSwatch(color: string) {
   return `data:image/svg+xml,${encodeURIComponent(

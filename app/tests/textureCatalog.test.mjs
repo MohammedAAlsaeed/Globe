@@ -87,7 +87,10 @@ test("search: any word order, word starts, both languages", () => {
 });
 
 test("the built-in textures are filed, tagged and findable in Arabic", () => {
-  assert.equal(builtin.textures.length, 29);
+  assert.equal(builtin.textures.length, 141);
+  // Every texture lists each tag once (the catalog keys them).
+  for (const tex of builtin.textures)
+    assert.equal(new Set(tex.tags).size, tex.tags.length, tex.id);
   const sand = builtin.textures.find((t) => t.id === "sand");
   assert.equal(sand.category, "desert");
   assert.equal(sand.packId, "builtin:desert");
@@ -237,7 +240,7 @@ test("texture references and offsets", () => {
   assert.ok(isTextureId("grass"));
   assert.ok(isTextureId("u:01JC0000000000000000000000"));
   assert.ok(!isTextureId("u:nope"));
-  assert.ok(!isTextureId("marble"));
+  assert.ok(!isTextureId("notATexture"));
   assert.ok(isUploadedTexture("u:01JC0000000000000000000000"));
   assert.ok(!isUploadedTexture("grass"));
   // Offsets shift the pattern by a fraction of one tile.

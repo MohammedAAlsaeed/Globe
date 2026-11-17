@@ -9,7 +9,14 @@
  * editor's catalogs, and maps that already use it keep drawing it. Loaded in
  * the browser only (it draws with the editor's canvas engines).
  */
-import { useMemo, useReducer, useState, type ReactNode } from "react";
+import {
+  useEffect,
+  useMemo,
+  useReducer,
+  useState,
+  useSyncExternalStore,
+  type ReactNode,
+} from "react";
 import { useTranslation } from "react-i18next";
 import { useAdmin } from "../AdminApp";
 import { admin } from "../api";
@@ -32,7 +39,11 @@ import { EarthThumb } from "../../mapmaker/CreateMapModal";
 import {
   TEXTURES,
   TEXTURE_CATEGORIES,
-  textureThumb,
+  queueThumb,
+  readyThumb,
+  subscribeThumbs,
+  thumbColor,
+  thumbsVersion,
 } from "../../mapmaker/brush/textures";
 import { builtinLineSets, lineSetLabel } from "../../mapmaker/lines/catalog";
 import { lookPreview } from "../../mapmaker/lines/render";
@@ -160,9 +171,19 @@ function itemsOf(kind: ControlKind, t: T): Item[] {
   }
 }
 
+/** Drawn in the background, a few per frame (there are over a hundred). */
 function TextureSwatch({ id }: { id: string }) {
-  const url = useMemo(() => textureThumb(id), [id]);
-  return <img className="fill" src={url} alt="" draggable={false} />;
+  useSyncExternalStore(subscribeThumbs, thumbsVersion, () => 0);
+  const url = readyThumb(id),
+    standIn = useMemo(() => thumbColor(id), [id]);
+  useEffect(() => {
+    if (!url) queueThumb(id);
+  }, [id, url]);
+  return url ? (
+    <img className="fill" src={url} alt="" draggable={false} />
+  ) : (
+    <span className="fill" style={{ display: "block", background: standIn }} />
+  );
 }
 
 export default function BuiltinContent({ kind }: { kind: ControlKind }) {

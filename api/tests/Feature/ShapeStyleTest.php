@@ -108,7 +108,7 @@ class ShapeStyleTest extends TestCase
             'stroke opacity' => self::look(['stroke' => ['opacity' => 2]]),
             'wall art' => self::look(['stroke' => ['stamp' => ['parts' => ['seg' => ['../x']]]]]),
             'fill type' => self::look(['fill' => ['type' => 'gradient']]),
-            'texture' => self::look(['fill' => ['source' => ['texture' => 'marble']]]),
+            'texture' => self::look(['fill' => ['source' => ['texture' => 'notATexture']]]),
             'pattern' => self::look(['fill' => ['pattern' => 'lava']]),
             'anchor' => self::look(['fill' => ['anchor' => 'screen']]),
             'feather' => self::look(['fill' => ['feather' => 1]]),

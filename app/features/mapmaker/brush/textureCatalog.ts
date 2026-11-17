@@ -13,7 +13,8 @@
  * Filters of different kinds must all hold (AND); choices within one kind
  * are alternatives (OR): two packs ticked show the textures of either.
  */
-import { TEXTURES, type TextureCategory } from "./textures";
+import { TEXTURE_CATEGORY_KEYS, TEXTURES } from "./textures";
+import { LIBRARY_TAGS } from "./libraryTextures";
 import {
   indexFor,
   labelMatches,
@@ -25,16 +26,7 @@ export type Creator = "atelier" | "official" | "me";
 export const CREATORS: Creator[] = ["atelier", "official", "me"];
 
 /** How textures are filed (built-in and uploaded alike). */
-export const CATALOG_CATEGORIES = [
-  "terrain",
-  "vegetation",
-  "water",
-  "mountains",
-  "desert",
-  "paper",
-  "details",
-  "special",
-] as const;
+export const CATALOG_CATEGORIES = TEXTURE_CATEGORY_KEYS;
 export type CatalogCategory = (typeof CATALOG_CATEGORIES)[number];
 
 export interface CatalogPack {
@@ -75,20 +67,6 @@ export interface CatalogTexture {
 // ---- the built-in textures ------------------------------------------------------------
 /** The atelier's own style: textures drawn by code. */
 export const BUILTIN_STYLE = "procedural";
-/** Built-in textures filed more finely than their generator groups. */
-const BUILTIN_CATEGORY: Partial<Record<string, CatalogCategory>> = {
-  rock: "mountains",
-  mountains: "mountains",
-  cliffs: "mountains",
-  sand: "desert",
-  dunes: "desert",
-  desert: "desert",
-  parchment: "paper",
-  inkwash: "paper",
-  cobblestone: "details",
-  planks: "details",
-  flagstone: "details",
-};
 /** Words each built-in texture is also found by, in English and Arabic. */
 const BUILTIN_TAGS: Record<string, string[]> = {
   grass: ["green", "field", "lawn", "plain", "أخضر", "حقل", "سهل"],
@@ -120,7 +98,71 @@ const BUILTIN_TAGS: Record<string, string[]> = {
   planks: ["wood", "floor", "boards", "خشب", "أرضية"],
   flagstone: ["floor", "tiles", "paving", "بلاط", "أرضية"],
   inkwash: ["ink", "watercolor", "wash", "حبر", "ألوان مائية"],
+  // The Navigators (all also found by "navigator", "chart", "ملاح", "بحري")
+  navSeaGrid: [
+    "sea",
+    "grid",
+    "squares",
+    "teal",
+    "بحر",
+    "شبكة",
+    "مربعات",
+    "فيروزي",
+  ],
+  navSeaTeal: ["sea", "teal", "water", "بحر", "فيروزي", "ماء"],
+  navWaveMarks: ["sea", "waves", "teal", "بحر", "أمواج", "موج"],
+  navSeaChart: [
+    "sea",
+    "watercolor",
+    "rhumb",
+    "بحر",
+    "ألوان مائية",
+    "خطوط البوصلة",
+  ],
+  navParchment: ["paper", "old", "stains", "ورق", "قديم", "بقع", "رق"],
+  navRhumbParchment: [
+    "paper",
+    "rhumb",
+    "compass",
+    "lines",
+    "ورق",
+    "بوصلة",
+    "خطوط",
+  ],
+  navCreamPaper: ["paper", "crumpled", "cream", "ورق", "مجعد", "كريمي"],
+  navRicePaper: ["paper", "fibres", "white", "ورق", "ألياف", "أبيض", "أرز"],
+  navIslandGrass: ["grass", "island", "green", "عشب", "جزيرة", "أخضر"],
+  navHills: [
+    "hills",
+    "contours",
+    "island",
+    "mountains",
+    "تلال",
+    "خطوط كنتور",
+    "جزيرة",
+    "جبال",
+  ],
+  navOchreLand: ["land", "ochre", "yellow", "أرض", "مغرة", "أصفر"],
+  navShore: [
+    "beach",
+    "sand",
+    "coast",
+    "island",
+    "شاطئ",
+    "رمل",
+    "ساحل",
+    "جزيرة",
+  ],
 };
+const NAVIGATOR_TAGS = [
+  "navigator",
+  "chart",
+  "sea chart",
+  "ملاح",
+  "ملاحون",
+  "بحري",
+  "خريطة بحرية",
+];
 /** The atelier's packs: one per category. */
 export const builtinPackId = (category: string) => `builtin:${category}`;
 
@@ -133,9 +175,15 @@ export function builtinCatalog(names: (labelKey: string) => string[]): {
   textures: CatalogTexture[];
 } {
   const textures = TEXTURES.map((t): CatalogTexture => {
-    const category: CatalogCategory =
-        BUILTIN_CATEGORY[t.id] ?? (t.category as TextureCategory),
-      tags = [category, ...(BUILTIN_TAGS[t.id] ?? [])];
+    const category: CatalogCategory = t.category,
+      // A word may come from both lists (dunes: "desert"): each tag once.
+      tags = [
+        ...new Set([
+          category,
+          ...(BUILTIN_TAGS[t.id] ?? LIBRARY_TAGS[t.id] ?? []),
+          ...(category === "navigators" ? NAVIGATOR_TAGS : []),
+        ]),
+      ];
     return {
       id: t.id,
       labelKey: t.labelKey,
