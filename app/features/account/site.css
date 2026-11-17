@@ -1478,3 +1478,324 @@ dialog.upg-dialog .upg-secondary:focus-visible {
     display: none;
   }
 }
+
+/* ---- home: more of the landing page, and the member's page ------------------------- */
+.home-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.home-try {
+  color: var(--muted);
+  font-size: 13px;
+}
+.home-draft {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--rule);
+  border-radius: 10px;
+  background: rgba(217, 169, 59, 0.08);
+}
+.home-draft div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.home-draft span {
+  color: var(--muted);
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+.home-section {
+  display: grid;
+  gap: 24px;
+  padding: 56px clamp(16px, 6vw, 96px);
+}
+.maps-main .home-section {
+  padding: 0;
+  gap: 16px;
+}
+.home-section-head {
+  display: grid;
+  gap: 6px;
+}
+.home-section-head h2,
+.home-join h2,
+.home-first h2 {
+  font-family: var(--display), serif;
+  font-size: clamp(24px, 3vw, 32px);
+  font-weight: 700;
+}
+.maps-main .home-section-head h2 {
+  font-size: 24px;
+}
+.home-section-head p {
+  color: var(--muted);
+  max-width: 60ch;
+}
+.home-features {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 28px 32px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.home-features li {
+  display: grid;
+  gap: 8px;
+  align-content: start;
+}
+.home-feature-icon {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  border: 1px solid var(--rule);
+  color: var(--gold-pale);
+  background: rgba(217, 169, 59, 0.08);
+}
+.home-features h3 {
+  font-size: 17px;
+  font-weight: 600;
+}
+.home-features p {
+  color: var(--muted);
+  font-size: 15px;
+  max-width: 38ch;
+}
+.home-templates {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 18px;
+}
+.home-template {
+  display: grid;
+  gap: 4px;
+  align-content: start;
+  padding: 10px;
+  text-align: start;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  border: 1px solid var(--rule);
+  border-radius: 10px;
+  background: var(--lapis);
+  transition: border-color 0.15s;
+}
+.home-template:hover:not(:disabled) {
+  border-color: var(--gold);
+}
+.home-template:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+.home-template b {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.home-template small {
+  color: var(--muted);
+  font-size: 13px;
+}
+.home-template-blank {
+  border: 1.5px dashed var(--rule);
+}
+.home-plans {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 18px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.home-plans > li {
+  display: grid;
+  gap: 12px;
+  align-content: start;
+  padding: 22px;
+  border: 1px solid var(--rule);
+  border-radius: 12px;
+  background: var(--lapis);
+}
+.home-plans h3 {
+  font-family: var(--display), serif;
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--gold-pale);
+}
+.home-plans ul {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--muted);
+  font-size: 15px;
+}
+.home-join {
+  display: grid;
+  gap: 14px;
+  justify-items: start;
+  padding: 56px clamp(16px, 6vw, 96px) 72px;
+  border-top: 1px solid var(--rule);
+}
+.home-join p {
+  color: var(--muted);
+  max-width: 60ch;
+}
+
+.home-welcome {
+  font-family: var(--display), serif;
+  font-size: clamp(28px, 3.6vw, 40px);
+  font-weight: 700;
+  line-height: 1.15;
+}
+.home-continue {
+  display: grid;
+  grid-template-columns: minmax(0, 1.7fr) minmax(240px, 1fr);
+  gap: 24px;
+  align-items: start;
+}
+.home-latest {
+  position: relative;
+  display: block;
+  aspect-ratio: 16 / 9;
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--lapis);
+  border: 1px solid var(--rule);
+  color: inherit;
+  transition: border-color 0.15s;
+}
+.home-latest:hover {
+  border-color: var(--gold);
+}
+.home-latest > img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.home-latest-info {
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  display: grid;
+  gap: 2px;
+  padding: 40px 18px 16px;
+  background: linear-gradient(to top, rgba(13, 22, 54, 0.92), transparent);
+}
+.home-latest-info small {
+  color: var(--gold-pale);
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.home-latest-info b {
+  font-family: var(--display), serif;
+  font-size: 24px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.home-latest-info span {
+  color: var(--muted);
+  font-size: 13px;
+}
+.home-first {
+  display: grid;
+  gap: 12px;
+  justify-items: start;
+  align-content: center;
+  min-height: 220px;
+  padding: 28px;
+  border: 1.5px dashed var(--rule);
+  border-radius: 12px;
+}
+.home-first p {
+  color: var(--muted);
+  max-width: 48ch;
+}
+.home-side {
+  display: grid;
+  gap: 18px;
+}
+.home-links {
+  display: grid;
+  border: 1px solid var(--rule);
+  border-radius: 12px;
+  overflow: hidden;
+}
+.home-links a {
+  padding: 13px 16px;
+  color: inherit;
+  background: var(--lapis);
+  transition: background 0.15s;
+}
+.home-links a + a {
+  border-top: 1px solid var(--rule);
+}
+.home-links a:hover {
+  background: var(--lapis-2);
+}
+.home-row-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+.home-wait {
+  border-radius: 12px;
+  background: linear-gradient(
+    100deg,
+    var(--lapis) 30%,
+    var(--lapis-2) 50%,
+    var(--lapis) 70%
+  );
+  background-size: 300% 100%;
+  animation: home-wait 1.4s linear infinite;
+}
+.home-wait-title {
+  width: min(360px, 70%);
+  height: 44px;
+}
+.home-wait-hero {
+  aspect-ratio: 16 / 9;
+}
+.home-wait-side {
+  height: 220px;
+}
+.home-wait-tile {
+  aspect-ratio: 4 / 3;
+}
+@keyframes home-wait {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: 0 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .home-wait {
+    animation: none;
+  }
+}
+@media (max-width: 860px) {
+  .home-continue {
+    grid-template-columns: 1fr;
+  }
+  .home-wait-side {
+    display: none;
+  }
+}

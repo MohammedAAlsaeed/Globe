@@ -393,7 +393,7 @@ export function MapsPage() {
 }
 
 /** "2 of 3 maps" and a meter that turns red when the plan is full. */
-function PlanMeter({ user, count }: { user: User; count: number }) {
+export function PlanMeter({ user, count }: { user: User; count: number }) {
   const { t } = useTranslation();
   const max = user.plan.max_maps,
     full = max !== null && count >= max;
@@ -425,7 +425,7 @@ function PlanMeter({ user, count }: { user: User; count: number }) {
   );
 }
 
-function VerifyNotice({ email }: { email: string }) {
+export function VerifyNotice({ email }: { email: string }) {
   const { t } = useTranslation();
   const [sent, setSent] = useState(false);
   return (

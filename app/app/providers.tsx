@@ -4,7 +4,8 @@
  * and whether the server can be used right now.
  *
  * The language comes from the server (a cookie), so the first render
- * already matches what the browser shows. Each page load gets its own i18n
+ * already matches what the browser shows; so does the hint that this
+ * browser is signed in (lib/session.ts). Each page load gets its own i18n
  * instance, so server renders for different visitors never share one.
  */
 import { useEffect, useState, type ReactNode } from "react";
@@ -22,9 +23,12 @@ import { ServiceStatusProvider } from "@/features/system/ServiceStatus";
 
 export function Providers({
   lang,
+  signedIn = false,
   children,
 }: {
   lang: Language;
+  /** The browser said it is signed in (a hint, checked by AuthProvider). */
+  signedIn?: boolean;
   children: ReactNode;
 }) {
   const [instance] = useState(() => i18n.cloneInstance({ lng: lang }));
@@ -52,7 +56,7 @@ export function Providers({
 
   return (
     <I18nextProvider i18n={instance}>
-      <AuthProvider>
+      <AuthProvider expectSignedIn={signedIn}>
         <ControlsSync />
         {/* Offline / maintenance notices and screen (features/system). */}
         <ServiceStatusProvider>{children}</ServiceStatusProvider>
