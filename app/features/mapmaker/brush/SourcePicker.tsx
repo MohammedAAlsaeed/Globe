@@ -11,6 +11,7 @@
  */
 import { useState, useSyncExternalStore } from "react";
 import { Slider } from "../components/EditorControls";
+import { ColorInput } from "../components/ColorInput";
 import { Glyph } from "../glyphs";
 import {
   ensureTextures,
@@ -205,11 +206,10 @@ export function SourcePicker({
         </>
       ) : (
         <div className="mm-bp-color">
-          <input
-            type="color"
+          <ColorInput
             value={source.color}
-            onChange={(e) => onChange({ color: e.target.value })}
-            onBlur={(e) => onCommitColor(e.target.value)}
+            onChange={(color) => onChange({ color })}
+            onBlur={onCommitColor}
           />
           <div className="mm-recents-row">
             {recentColors.map((c) => (

@@ -27,7 +27,7 @@ export function plainWord(word: string): string {
       .replace(/ؤ/g, "و")
       .replace(/ئ/g, "ي");
     // The article (also after و / ب / ف / ك / ل).
-    w = w.replace(/^(?:[وبفكل])?ال(?=..)/, "");
+    w = w.replace(/^[وبفكل]?ال(?=..)/, "");
     // Sound plurals and the dual.
     if (w.length > 4) w = w.replace(/(?:ات|ون|ين|ان)$/, "");
     return w;

@@ -645,7 +645,7 @@ export function TextureCatalog({
                   <div className="mm-txc-row">
                     <button
                       className="mm-txc-twisty"
-                      aria-expanded={!!open[ck]}
+                      aria-expanded={open[ck] ?? false}
                       aria-label={creatorLabel(creator)}
                       onClick={() => setOpen({ ...open, [ck]: !open[ck] })}
                     >
