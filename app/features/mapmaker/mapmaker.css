@@ -3436,7 +3436,8 @@ dialog.mm-ct-dialog {
     border-color 0.12s ease,
     transform 0.12s ease;
 }
-.mm-txc-tile img {
+.mm-txc-tile img,
+.mm-txc-thumb-wait {
   display: block;
   width: 100%;
   aspect-ratio: 1;

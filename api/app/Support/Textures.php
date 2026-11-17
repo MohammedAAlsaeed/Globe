@@ -17,10 +17,27 @@ final class Textures
         // The Navigators (app/features/mapmaker/brush/navigatorTextures.ts)
         'navSeaGrid', 'navSeaTeal', 'navWaveMarks', 'navSeaChart', 'navParchment', 'navRhumbParchment',
         'navCreamPaper', 'navRicePaper', 'navIslandGrass', 'navHills', 'navOchreLand', 'navShore',
+        // The library (app/features/mapmaker/brush/libraryTextures.ts)
+        'lushGrass', 'dryGrass', 'autumnGrass', 'clover', 'wildflowers', 'lavender', 'wheat', 'ricePaddies',
+        'vineyard', 'orchard', 'autumnForest', 'deadForest', 'bamboo', 'moss', 'clay', 'loam', 'gravel',
+        'pebbles', 'crackedEarth', 'plowedField', 'peatBog', 'steppe', 'redSoil', 'chalk', 'mudFlat', 'heath',
+        'goldenSand', 'whiteSand', 'redSand', 'sandRipples', 'saltFlat', 'badlands', 'mesa', 'stonyDesert',
+        'duneSea', 'desertCrust', 'granite', 'slate', 'basalt', 'sandstone', 'limestone', 'marble', 'scree',
+        'ridgedRock', 'alpineRock', 'mossyRock', 'tropicalSea', 'lagoon', 'calmLake', 'riverFlow', 'stormSea',
+        'arcticSea', 'coralReef', 'kelpForest', 'murkyWater', 'ripples', 'surfFoam', 'nightSea', 'freshSnow',
+        'snowDrifts', 'packedIce', 'glacier', 'frost', 'slush', 'permafrost', 'snowyForest', 'obsidian',
+        'cooledLava', 'magmaFlow', 'sulfurField', 'pumice', 'blackSand', 'embers', 'vellum', 'burntPaper',
+        'linen', 'leather', 'sepiaWash', 'blueprint', 'engraving', 'inkStipple', 'bricks', 'terracotta',
+        'mosaic', 'hexTiles', 'stoneWall', 'roofTiles', 'thatch', 'marbleFloor', 'dirtRoad', 'parquet',
+        'crystal', 'arcane', 'corruption', 'fairyMeadow', 'mushrooms', 'voidSpace', 'goldCoins',
+        'bioluminescence', 'cloudSea',
     ];
 
     /** How uploaded textures are filed (the catalog's categories). */
-    public const CATEGORIES = ['terrain', 'vegetation', 'water', 'mountains', 'desert', 'paper', 'details', 'special', 'navigators'];
+    public const CATEGORIES = [
+        'vegetation', 'terrain', 'desert', 'mountains', 'water', 'snow', 'volcanic', 'paper', 'details',
+        'navigators', 'fantasy', 'special',
+    ];
 
     public static function isId(mixed $id): bool
     {

@@ -61,7 +61,12 @@ import {
 } from "./textureLibrary";
 import {
   ensureTextures,
+  queueThumb,
+  readyThumb,
   subscribeTextures,
+  subscribeThumbs,
+  thumbColor,
+  thumbsVersion,
   textureMatrix,
   textureReady,
   texturesVersion,
@@ -750,15 +755,7 @@ export function TextureCatalog({
                           onFocus={() => setHovered(x.id)}
                           onClick={() => void pick(x)}
                         >
-                          <img
-                            src={textureThumb(x.id)}
-                            alt=""
-                            loading="lazy"
-                            draggable={false}
-                            style={
-                              x.color ? { background: x.color } : undefined
-                            }
-                          />
+                          <GridThumb id={x.id} color={x.color} />
                           {x.locked && (
                             <span className="mm-txc-lock">
                               <Glyph name="lock" size={13} />
@@ -1044,3 +1041,28 @@ export function LookSwatch({
 }
 
 export { sameTextureLook };
+
+/** A grid swatch: its colour until the thumbnail is drawn (in the
+ * background, a few per frame; see queueThumb). */
+function GridThumb({ id, color }: { id: string; color: string | null }) {
+  useSyncExternalStore(subscribeThumbs, thumbsVersion, () => 0);
+  const url = readyThumb(id);
+  useEffect(() => {
+    if (!url) queueThumb(id);
+  }, [id, url]);
+  const [standIn] = useState(() => color ?? thumbColor(id));
+  return url ? (
+    <img
+      src={url}
+      alt=""
+      draggable={false}
+      style={color ? { background: color } : undefined}
+    />
+  ) : (
+    <span
+      className="mm-txc-thumb-wait"
+      style={{ background: standIn }}
+      aria-hidden
+    />
+  );
+}

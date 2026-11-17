@@ -13,7 +13,8 @@
  * Filters of different kinds must all hold (AND); choices within one kind
  * are alternatives (OR): two packs ticked show the textures of either.
  */
-import { TEXTURES, type TextureCategory } from "./textures";
+import { TEXTURE_CATEGORY_KEYS, TEXTURES } from "./textures";
+import { LIBRARY_TAGS } from "./libraryTextures";
 import {
   indexFor,
   labelMatches,
@@ -25,17 +26,7 @@ export type Creator = "atelier" | "official" | "me";
 export const CREATORS: Creator[] = ["atelier", "official", "me"];
 
 /** How textures are filed (built-in and uploaded alike). */
-export const CATALOG_CATEGORIES = [
-  "terrain",
-  "vegetation",
-  "water",
-  "mountains",
-  "desert",
-  "paper",
-  "details",
-  "special",
-  "navigators",
-] as const;
+export const CATALOG_CATEGORIES = TEXTURE_CATEGORY_KEYS;
 export type CatalogCategory = (typeof CATALOG_CATEGORIES)[number];
 
 export interface CatalogPack {
@@ -76,20 +67,6 @@ export interface CatalogTexture {
 // ---- the built-in textures ------------------------------------------------------------
 /** The atelier's own style: textures drawn by code. */
 export const BUILTIN_STYLE = "procedural";
-/** Built-in textures filed more finely than their generator groups. */
-const BUILTIN_CATEGORY: Partial<Record<string, CatalogCategory>> = {
-  rock: "mountains",
-  mountains: "mountains",
-  cliffs: "mountains",
-  sand: "desert",
-  dunes: "desert",
-  desert: "desert",
-  parchment: "paper",
-  inkwash: "paper",
-  cobblestone: "details",
-  planks: "details",
-  flagstone: "details",
-};
 /** Words each built-in texture is also found by, in English and Arabic. */
 const BUILTIN_TAGS: Record<string, string[]> = {
   grass: ["green", "field", "lawn", "plain", "أخضر", "حقل", "سهل"],
@@ -198,12 +175,14 @@ export function builtinCatalog(names: (labelKey: string) => string[]): {
   textures: CatalogTexture[];
 } {
   const textures = TEXTURES.map((t): CatalogTexture => {
-    const category: CatalogCategory =
-        BUILTIN_CATEGORY[t.id] ?? (t.category as TextureCategory),
+    const category: CatalogCategory = t.category,
+      // A word may come from both lists (dunes: "desert"): each tag once.
       tags = [
-        category,
-        ...(BUILTIN_TAGS[t.id] ?? []),
-        ...(category === "navigators" ? NAVIGATOR_TAGS : []),
+        ...new Set([
+          category,
+          ...(BUILTIN_TAGS[t.id] ?? LIBRARY_TAGS[t.id] ?? []),
+          ...(category === "navigators" ? NAVIGATOR_TAGS : []),
+        ]),
       ];
     return {
       id: t.id,
