@@ -11,8 +11,12 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
-/** A group of stamps or textures: the official library (no owner) or a user's uploads. */
-#[Fillable(['name', 'kind', 'tier', 'published', 'sort'])]
+/**
+ * A group of stamps, line art or textures: the official library (no owner)
+ * or a user's uploads. `style` groups official packs in the catalog
+ * (creator → style → pack).
+ */
+#[Fillable(['name', 'kind', 'style', 'tier', 'published', 'sort'])]
 class AssetPack extends Model
 {
     use HasUlids;

@@ -8,7 +8,7 @@
  * solves the exact same problem for the print studio's document format.
  */
 import { ICON_IDS } from "../studio/domain/icons";
-import { TEXTURE_IDS } from "./brush/textures";
+import { isTextureId } from "./brush/textures";
 import { TIP_LIST } from "./brush/tips";
 import type { MMLayer, MMObject, MMProject } from "./types";
 import { validLine } from "./lines/validate";
@@ -63,9 +63,11 @@ function validSource(v: unknown) {
     rec(v) &&
     (v.type === "color" || v.type === "texture") &&
     hexColor(v.color) &&
-    TEXTURE_IDS.includes(v.texture as string) &&
+    isTextureId(v.texture) &&
     finite(v.textureScale, 0.05, 20) &&
     finite(v.textureRotation, -3600, 3600) &&
+    (v.textureOffsetX === undefined || finite(v.textureOffsetX, -1, 1)) &&
+    (v.textureOffsetY === undefined || finite(v.textureOffsetY, -1, 1)) &&
     finite(v.hue, -360, 360) &&
     finite(v.saturation, -1, 1) &&
     finite(v.brightness, -1, 1) &&

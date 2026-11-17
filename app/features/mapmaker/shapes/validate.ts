@@ -6,7 +6,7 @@
  * or hostile data never reaches the renderer. The API checks the same rules
  * (api/app/Support/ShapeRules.php) — keep the two in step.
  */
-import { TEXTURE_IDS } from "../brush/textures";
+import { isTextureId } from "../brush/textures";
 import { validNodes, validStamp, validStroke } from "../lines/validate";
 import { SHAPE_LIMITS } from "./geometry";
 
@@ -45,9 +45,11 @@ function validSource(v: unknown) {
     rec(v) &&
     (v.type === "color" || v.type === "texture") &&
     hex(v.color) &&
-    TEXTURE_IDS.includes(v.texture as string) &&
+    isTextureId(v.texture) &&
     finite(v.textureScale, 0.05, 20) &&
     finite(v.textureRotation, -3600, 3600) &&
+    (v.textureOffsetX === undefined || finite(v.textureOffsetX, -1, 1)) &&
+    (v.textureOffsetY === undefined || finite(v.textureOffsetY, -1, 1)) &&
     finite(v.hue, -360, 360) &&
     finite(v.saturation, -1, 1) &&
     finite(v.brightness, -1, 1) &&

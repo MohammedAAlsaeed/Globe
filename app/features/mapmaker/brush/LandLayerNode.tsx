@@ -11,7 +11,15 @@
  *  - new texture paint: clipped to the current land, erasers restoring the
  *    base texture.
  */
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import { Image as KonvaImage } from "react-konva";
 import { colorize, makeCanvas } from "./engine";
 import {
@@ -23,6 +31,11 @@ import {
   type LandLayerImage,
 } from "./landLayer";
 import { gpuAvailable } from "./gl/glContext";
+import {
+  isUploadedTexture,
+  subscribeTextures,
+  texturesVersion,
+} from "./textures";
 import { GpuLandLayerNode, type StageView } from "./gl/GpuLandLayerNode";
 import type { CoastEffect, MMLand, MMPaint, PaintSource } from "../types";
 
@@ -75,8 +88,31 @@ export const LandLayerNode = memo(function LandLayerNode(
     gpuFailed = true;
     setGpu(false);
   }, []);
-  if (gpu) return <GpuLandLayerNode {...props} onFail={onFail} />;
-  return <CpuLandLayerNode {...props} />;
+  // Uploaded textures arrive after the first draw: the layer is drawn again
+  // (a new `base` makes both engines rebuild the texture) when one it uses does.
+  const version = useSyncExternalStore(
+      subscribeTextures,
+      texturesVersion,
+      () => 0,
+    ),
+    { base, paints } = props,
+    uses = useMemo(
+      () =>
+        isUploadedTexture(base.texture) ||
+        paints.some(
+          (p) =>
+            p.source.type === "texture" && isUploadedTexture(p.source.texture),
+        ),
+      [base, paints],
+    ),
+    drawn = useMemo(
+      () => ({ ...base }),
+      // eslint-disable-next-line react-hooks/exhaustive-deps -- `version` only when an uploaded texture is used
+      [base, uses ? version : 0],
+    ),
+    all = { ...props, base: drawn };
+  if (gpu) return <GpuLandLayerNode {...all} onFail={onFail} />;
+  return <CpuLandLayerNode {...all} />;
 });
 
 /** The CPU path: the coast worker (see ./landLayer.ts). */

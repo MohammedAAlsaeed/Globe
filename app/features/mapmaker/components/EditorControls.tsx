@@ -8,6 +8,7 @@ import { useEffect, useId, useRef, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { ResetButton, ValueEditor } from "@/components/ui/ValueEditor";
 import { Glyph } from "../glyphs";
+import { ColorInput } from "./ColorInput";
 import { shortcutLabel } from "../shortcuts";
 import { DEFAULT_BRUSH } from "../brush/presets";
 import type { MMObject, MMPatch } from "../types";
@@ -216,11 +217,7 @@ export function ColorControl({
   return (
     <div className="mm-color-control">
       <label className="mm-color-input" title={label}>
-        <input
-          type="color"
-          value={color}
-          onChange={(e) => onChange(e.target.value)}
-        />
+        <ColorInput value={color} onChange={onChange} />
       </label>
       {recents.length > 0 && (
         <div className="mm-recents-row" title={recentLabel}>

@@ -13,6 +13,7 @@ import { Group, Image as KonvaImage, Rect } from "react-konva";
 import type Konva from "konva";
 import type { MMStamp, ShadowSettings } from "../types";
 import { catalogVersion, subscribeCatalog } from "./catalog";
+import { subscribeTextures, texturesVersion } from "../brush/textures";
 import { stampExtent } from "./geometry";
 import { stampPicture, stampRaster } from "./render";
 
@@ -57,6 +58,8 @@ export const StampNode = memo(function StampNode({
   const [, loaded] = useReducer((n: number) => n + 1, 0);
   // Uploaded stamps appear once the server's library has been loaded.
   useSyncExternalStore(subscribeCatalog, catalogVersion, catalogVersion);
+  // …and a clip texture once its picture has arrived.
+  useSyncExternalStore(subscribeTextures, texturesVersion, texturesVersion);
   const { w, h } = stampExtent(o, W),
     image = stampPicture(o, w * dpr(), W, H);
   // An uploaded image may still be loading: draw again once it arrives.

@@ -9,6 +9,7 @@
 import type { ReactNode } from "react";
 import { Glyph } from "../glyphs";
 import { Slider } from "../components/EditorControls";
+import { ColorInput } from "../components/ColorInput";
 import {
   COAST_STYLES,
   coastBase,
@@ -56,11 +57,7 @@ function ColorRow({
   return (
     <label className="mm-bp-color-row">
       <span>{label}</span>
-      <input
-        type="color"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-      />
+      <ColorInput value={value} onChange={onChange} />
     </label>
   );
 }

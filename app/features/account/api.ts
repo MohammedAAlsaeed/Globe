@@ -5,6 +5,7 @@
 import type {
   LineLook,
   MMProject,
+  PaintSource,
   ShapeLook,
   TextLook,
 } from "../mapmaker/types";
@@ -17,6 +18,7 @@ import type {
   Plan,
   ShapeStyleRecord,
   TextStyleRecord,
+  TextureLibrary,
   User,
 } from "./types";
 import { api, API_URL } from "@/lib/api/client";
@@ -206,11 +208,15 @@ type AssetDetails = {
   set_key?: string | null;
   category?: string | null;
   tags?: string[];
+  /** Textures: whether it tiles, and its default scale. */
+  meta?: { tile?: boolean; scale?: number } | null;
 };
+/** An upload can also carry a small preview and its average colour. */
+type UploadDetails = AssetDetails & { thumbnail?: Blob; color?: string | null };
 
 export const library = {
-  packs: () =>
-    api.get<Many<AssetPack>>("asset-packs?kind=stamps").then((r) => r.data),
+  packs: (kind: "stamps" | "textures" = "stamps") =>
+    api.get<Many<AssetPack>>(`asset-packs?kind=${kind}`).then((r) => r.data),
   /** A pack's assets (refused with `plan_limit_reached` for a locked pack). */
   assets: (packId: string) =>
     api.get<Many<Asset>>(`asset-packs/${packId}/assets`).then((r) => r.data),
@@ -227,7 +233,8 @@ export const library = {
     api.get<Many<AssetPack>>("asset-packs?kind=lines").then((r) => r.data),
   createPack: (input: {
     name: string;
-    kind?: "stamps" | "lines";
+    kind?: "stamps" | "lines" | "textures";
+    style?: string | null;
     official?: boolean;
     tier?: number;
     published?: boolean;
@@ -237,7 +244,13 @@ export const library = {
       .then((r) => r.data),
   updatePack: (
     id: string,
-    patch: { name?: string; tier?: number; published?: boolean; sort?: number },
+    patch: {
+      name?: string;
+      style?: string | null;
+      tier?: number;
+      published?: boolean;
+      sort?: number;
+    },
   ) =>
     api.patch<One<AssetPack>>(`asset-packs/${id}`, patch).then((r) => r.data),
   removePack: (id: string) => api.delete<void>(`asset-packs/${id}`),
@@ -246,7 +259,7 @@ export const library = {
     packId: string,
     file: Blob,
     filename: string,
-    details: AssetDetails = {},
+    details: UploadDetails = {},
   ) {
     const form = new FormData();
     form.append("file", file, filename);
@@ -254,6 +267,15 @@ export const library = {
     if (details.set_key) form.append("set_key", details.set_key);
     if (details.category) form.append("category", details.category);
     for (const tag of details.tags ?? []) form.append("tags[]", tag);
+    if (details.thumbnail)
+      form.append("thumbnail", details.thumbnail, "preview.webp");
+    if (details.color) form.append("color", details.color);
+    if (details.meta) {
+      if (details.meta.tile !== undefined)
+        form.append("meta[tile]", details.meta.tile ? "1" : "0");
+      if (details.meta.scale !== undefined)
+        form.append("meta[scale]", String(details.meta.scale));
+    }
     return api
       .post<One<Asset>>(`asset-packs/${packId}/assets`, form)
       .then((r) => r.data);
@@ -261,6 +283,29 @@ export const library = {
   updateAsset: (id: string, patch: AssetDetails) =>
     api.patch<One<Asset>>(`assets/${id}`, patch).then((r) => r.data),
   removeAsset: (id: string) => api.delete<void>(`assets/${id}`),
+};
+
+// ---- the Texture Catalog ---------------------------------------------------------------
+export interface TextureFavoritesRecord {
+  items: { id: string; source: PaintSource }[];
+  /** When they last changed (ms), on whichever device. */
+  updated_at: number;
+}
+export const textures = {
+  /** Every texture pack the person (or a guest) can see, with previews. */
+  library: () =>
+    api.get<One<TextureLibrary>>("texture-library").then((r) => r.data),
+  favorites: () =>
+    api
+      .get<One<TextureFavoritesRecord>>("auth/me/texture-favorites")
+      .then((r) => r.data),
+  saveFavorites: (f: TextureFavoritesRecord) =>
+    api
+      .put<One<TextureFavoritesRecord>>("auth/me/texture-favorites", {
+        items: f.items,
+        updated_at: f.updated_at,
+      })
+      .then((r) => r.data),
 };
 
 // ---- Line Tool styles ----------------------------------------------------------------

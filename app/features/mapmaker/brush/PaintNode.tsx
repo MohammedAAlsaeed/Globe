@@ -10,18 +10,34 @@
  * shown scaled immediately and a sharp one is rendered once zooming pauses —
  * so Ctrl+scroll stays smooth even on a map with hundreds of strokes.
  */
-import { memo, useEffect, useState } from "react";
+import { memo, useEffect, useState, useSyncExternalStore } from "react";
 import { Image as KonvaImage } from "react-konva";
 import { paintCompositeOp, renderPaint, type RenderedPaint } from "./engine";
+import { subscribeTextures, textureMisses, texturesVersion } from "./textures";
 import type { MMPaint } from "../types";
 
-type Entry = { W: number; H: number; r: RenderedPaint | null };
+/** `waiting`: drawn with a stand-in for a texture still on its way (see
+ * brush/textures.ts), at texture `version`. */
+type Entry = {
+  W: number;
+  H: number;
+  r: RenderedPaint | null;
+  waiting: boolean;
+  version: number;
+};
+
+function render(o: MMPaint, W: number, H: number): Entry {
+  const misses = textureMisses(),
+    version = texturesVersion(),
+    r = renderPaint(o, W, H);
+  return { W, H, r, waiting: textureMisses() !== misses, version };
+}
 const rasters = new WeakMap<MMPaint, Entry>();
 
 function rasterFor(o: MMPaint, W: number, H: number): Entry {
   let entry = rasters.get(o);
-  if (!entry) {
-    entry = { W, H, r: renderPaint(o, W, H) };
+  if (!entry || (entry.waiting && entry.version !== texturesVersion())) {
+    entry = render(o, W, H);
     rasters.set(o, entry);
   }
   return entry;
@@ -37,12 +53,13 @@ export const PaintNode = memo(function PaintNode({
   H: number;
 }) {
   const [, setVersion] = useState(0);
+  useSyncExternalStore(subscribeTextures, texturesVersion, texturesVersion);
   const entry = rasterFor(o, W, H),
     stale = entry.W !== W || entry.H !== H;
   useEffect(() => {
     if (!stale) return;
     const timer = setTimeout(() => {
-      rasters.set(o, { W, H, r: renderPaint(o, W, H) });
+      rasters.set(o, render(o, W, H));
       setVersion((v) => v + 1);
     }, 140);
     return () => clearTimeout(timer);

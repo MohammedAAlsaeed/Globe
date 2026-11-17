@@ -23,7 +23,12 @@ class AssetResource extends JsonResource
             'bytes' => $this->bytes,
             'width' => $this->width,
             'height' => $this->height,
+            'color' => $this->color,
+            'meta' => $this->meta ?? (object) [],
             'url' => app(FileUrls::class)->temporary($this->disk, $this->path),
+            // A small preview; pictures uploaded before previews existed use their own.
+            'thumb_url' => app(FileUrls::class)->temporary($this->disk, $this->thumb_path ?? $this->path),
+            'created_at' => $this->created_at,
         ];
     }
 }

@@ -138,6 +138,10 @@ export interface PaintSource {
   textureScale: number;
   /** Texture rotation, degrees. */
   textureRotation: number;
+  /** Shift of the texture across / down, as a fraction of one tile (0 when
+   * missing: maps saved before offsets existed). */
+  textureOffsetX?: number;
+  textureOffsetY?: number;
   /** -180..180 degrees. */
   hue: number;
   /** -1..1 (0 = unchanged). */

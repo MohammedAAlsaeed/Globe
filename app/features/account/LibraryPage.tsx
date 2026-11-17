@@ -101,6 +101,9 @@ export function LibraryPage() {
             <Flourish text={t("stLibraryTitle")} />
           </h1>
           <div className="maps-head-actions">
+            <Link className="site-btn quiet" href="/library/textures">
+              {t("tlTitle")}
+            </Link>
             <Link className="site-btn quiet" href="/editor">
               {t("stBackToEditor")}
             </Link>

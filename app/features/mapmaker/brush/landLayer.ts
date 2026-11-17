@@ -22,6 +22,7 @@ import {
 } from "./engine";
 import { coastShapeKey, renderCoastEffect, type CoastInput } from "./coastfx";
 import { renderLand } from "./land";
+import { textureMisses, texturesVersion } from "./textures";
 import type { CoastRequest, CoastResponse } from "./coast.worker";
 import type { CoastEffect, MMLand, MMPaint, PaintSource } from "../types";
 
@@ -43,19 +44,22 @@ export function landScreenSize(
 // ---- object rasters ------------------------------------------------------------
 // Objects are immutable, so a raster is cached per object instance and size
 // (a few sizes per object: the quick pass, the sharp pass, the display).
-const rasters = new WeakMap<
-  MMPaint | MMLand,
-  Map<number, RenderedPaint | null>
->();
+// A raster drawn with a stand-in for an uploaded texture still on its way
+// (brush/textures.ts) is drawn again once a texture arrives.
+type Cached = { r: RenderedPaint | null; waiting: boolean; version: number };
+const rasters = new WeakMap<MMPaint | MMLand, Map<number, Cached>>();
 
 /** A paint or land object rendered at stage size W×H (cached). */
 export function rasterAt(o: MMPaint | MMLand, W: number, H: number) {
   let sizes = rasters.get(o);
   if (!sizes) rasters.set(o, (sizes = new Map()));
-  if (sizes.has(W)) return sizes.get(W)!;
-  const r = o.kind === "land" ? renderLand(o, W, H) : renderPaint(o, W, H);
+  const hit = sizes.get(W);
+  if (hit && !(hit.waiting && hit.version !== texturesVersion())) return hit.r;
+  const misses = textureMisses(),
+    version = texturesVersion(),
+    r = o.kind === "land" ? renderLand(o, W, H) : renderPaint(o, W, H);
   if (sizes.size > 3) sizes.clear();
-  sizes.set(W, r);
+  sizes.set(W, { r, waiting: textureMisses() !== misses, version });
   return r;
 }
 
