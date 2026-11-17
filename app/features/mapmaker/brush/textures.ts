@@ -1,5 +1,6 @@
 /**
- * Textures: the 29 built into the editor — original, procedurally generated,
+ * Textures: the 41 built into the editor (12 of them the Navigators', see
+ * ./navigatorTextures) — original, procedurally generated,
  * seamless terrain textures (no image assets, nothing licensed) — and
  * uploaded ones ("u:<asset id>", from the texture library: official packs
  * and people's own), which arrive as pictures.
@@ -19,8 +20,10 @@
  */
 import { fbm, gradientNoise, hash2, ridged, smoothstep, worley } from "./noise";
 import type { PaintSource } from "../types";
+import { NAVIGATOR_TEXTURES } from "./navigatorTextures";
 
-export type TextureCategory = "terrain" | "vegetation" | "water" | "special";
+export type TextureCategory =
+  "terrain" | "vegetation" | "water" | "special" | "navigators";
 type RGB = [number, number, number];
 type Generator = (u: number, v: number) => RGB;
 
@@ -534,6 +537,8 @@ const TEXTURE_DEFS: TextureDef[] = [
         r(n01(fbm(u * 3 + fbm(u * 2, v * 2, 154, 2, 2), v * 3, 155, 5, 3)));
     })(),
   },
+  // The Navigators: a hand-painted sea chart's materials.
+  ...NAVIGATOR_TEXTURES,
 ];
 
 export const TEXTURES: readonly TextureDef[] = TEXTURE_DEFS;
@@ -544,6 +549,7 @@ export const TEXTURE_CATEGORIES: { key: TextureCategory; labelKey: string }[] =
     { key: "vegetation", labelKey: "mmTexCatVegetation" },
     { key: "water", labelKey: "mmTexCatWater" },
     { key: "special", labelKey: "mmTexCatSpecial" },
+    { key: "navigators", labelKey: "mmTexCatNavigators" },
   ];
 const BY_ID = new Map(TEXTURE_DEFS.map((t) => [t.id, t]));
 /** A built-in texture (the first one for anything else). */

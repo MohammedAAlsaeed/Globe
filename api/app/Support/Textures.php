@@ -14,10 +14,13 @@ final class Textures
         'grass', 'meadow', 'savanna', 'forest', 'pine', 'jungle', 'swamp', 'farmland',
         'sand', 'dunes', 'desert', 'dirt', 'mud', 'rock', 'mountains', 'cliffs', 'snow', 'ice', 'tundra', 'ash',
         'shallows', 'ocean', 'deep', 'lava', 'parchment', 'cobblestone', 'planks', 'flagstone', 'inkwash',
+        // The Navigators (app/features/mapmaker/brush/navigatorTextures.ts)
+        'navSeaGrid', 'navSeaTeal', 'navWaveMarks', 'navSeaChart', 'navParchment', 'navRhumbParchment',
+        'navCreamPaper', 'navRicePaper', 'navIslandGrass', 'navHills', 'navOchreLand', 'navShore',
     ];
 
     /** How uploaded textures are filed (the catalog's categories). */
-    public const CATEGORIES = ['terrain', 'vegetation', 'water', 'mountains', 'desert', 'paper', 'details', 'special'];
+    public const CATEGORIES = ['terrain', 'vegetation', 'water', 'mountains', 'desert', 'paper', 'details', 'special', 'navigators'];
 
     public static function isId(mixed $id): bool
     {

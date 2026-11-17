@@ -87,7 +87,7 @@ test("search: any word order, word starts, both languages", () => {
 });
 
 test("the built-in textures are filed, tagged and findable in Arabic", () => {
-  assert.equal(builtin.textures.length, 29);
+  assert.equal(builtin.textures.length, 41);
   const sand = builtin.textures.find((t) => t.id === "sand");
   assert.equal(sand.category, "desert");
   assert.equal(sand.packId, "builtin:desert");

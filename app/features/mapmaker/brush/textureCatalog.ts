@@ -34,6 +34,7 @@ export const CATALOG_CATEGORIES = [
   "paper",
   "details",
   "special",
+  "navigators",
 ] as const;
 export type CatalogCategory = (typeof CATALOG_CATEGORIES)[number];
 
@@ -120,7 +121,71 @@ const BUILTIN_TAGS: Record<string, string[]> = {
   planks: ["wood", "floor", "boards", "خشب", "أرضية"],
   flagstone: ["floor", "tiles", "paving", "بلاط", "أرضية"],
   inkwash: ["ink", "watercolor", "wash", "حبر", "ألوان مائية"],
+  // The Navigators (all also found by "navigator", "chart", "ملاح", "بحري")
+  navSeaGrid: [
+    "sea",
+    "grid",
+    "squares",
+    "teal",
+    "بحر",
+    "شبكة",
+    "مربعات",
+    "فيروزي",
+  ],
+  navSeaTeal: ["sea", "teal", "water", "بحر", "فيروزي", "ماء"],
+  navWaveMarks: ["sea", "waves", "teal", "بحر", "أمواج", "موج"],
+  navSeaChart: [
+    "sea",
+    "watercolor",
+    "rhumb",
+    "بحر",
+    "ألوان مائية",
+    "خطوط البوصلة",
+  ],
+  navParchment: ["paper", "old", "stains", "ورق", "قديم", "بقع", "رق"],
+  navRhumbParchment: [
+    "paper",
+    "rhumb",
+    "compass",
+    "lines",
+    "ورق",
+    "بوصلة",
+    "خطوط",
+  ],
+  navCreamPaper: ["paper", "crumpled", "cream", "ورق", "مجعد", "كريمي"],
+  navRicePaper: ["paper", "fibres", "white", "ورق", "ألياف", "أبيض", "أرز"],
+  navIslandGrass: ["grass", "island", "green", "عشب", "جزيرة", "أخضر"],
+  navHills: [
+    "hills",
+    "contours",
+    "island",
+    "mountains",
+    "تلال",
+    "خطوط كنتور",
+    "جزيرة",
+    "جبال",
+  ],
+  navOchreLand: ["land", "ochre", "yellow", "أرض", "مغرة", "أصفر"],
+  navShore: [
+    "beach",
+    "sand",
+    "coast",
+    "island",
+    "شاطئ",
+    "رمل",
+    "ساحل",
+    "جزيرة",
+  ],
 };
+const NAVIGATOR_TAGS = [
+  "navigator",
+  "chart",
+  "sea chart",
+  "ملاح",
+  "ملاحون",
+  "بحري",
+  "خريطة بحرية",
+];
 /** The atelier's packs: one per category. */
 export const builtinPackId = (category: string) => `builtin:${category}`;
 
@@ -135,7 +200,11 @@ export function builtinCatalog(names: (labelKey: string) => string[]): {
   const textures = TEXTURES.map((t): CatalogTexture => {
     const category: CatalogCategory =
         BUILTIN_CATEGORY[t.id] ?? (t.category as TextureCategory),
-      tags = [category, ...(BUILTIN_TAGS[t.id] ?? [])];
+      tags = [
+        category,
+        ...(BUILTIN_TAGS[t.id] ?? []),
+        ...(category === "navigators" ? NAVIGATOR_TAGS : []),
+      ];
     return {
       id: t.id,
       labelKey: t.labelKey,
