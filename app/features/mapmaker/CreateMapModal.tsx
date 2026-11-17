@@ -41,7 +41,14 @@ type Template = "blank" | "earth" | (string & {});
  * it starts on this device. Resolutions above what the plan exports are
  * shown but locked.
  */
-export function CreateMapModal({ onClose }: { onClose: () => void }) {
+export function CreateMapModal({
+  onClose,
+  initialTemplate = "blank",
+}: {
+  onClose: () => void;
+  /** The template chosen before the dialog opened (the home page's cards). */
+  initialTemplate?: string;
+}) {
   const { t, i18n } = useTranslation(),
     router = useRouter(),
     { user } = useAuth(),
@@ -69,7 +76,7 @@ export function CreateMapModal({ onClose }: { onClose: () => void }) {
       live = false;
     };
   }, []);
-  const [template, setTemplate] = useState<Template>("blank"),
+  const [template, setTemplate] = useState<Template>(initialTemplate),
     [earthLang, setEarthLang] = useState<"ar" | "en">(uiLang),
     [shown, setShown] =
       useState<Record<EarthLayer, boolean>>(EARTH_DEFAULT_SHOWN),

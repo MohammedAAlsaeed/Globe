@@ -6,6 +6,7 @@ import { Providers } from "./providers";
 // The site's Arabic fonts (thmanyah): importing adds their @font-face.
 import "@/lib/fonts";
 import { LANGUAGE_KEY, parseLanguage } from "@/lib/language";
+import { SIGNED_IN_KEY } from "@/lib/session";
 import { IS_PRODUCTION, SITE_NAME, SITE_URL } from "@/lib/site";
 
 const TITLE = "Al-Idrisi Atelier — Map Maker & Globe Studio",
@@ -37,8 +38,10 @@ export const metadata: Metadata = {
 export default async function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
-  const lang =
-    parseLanguage((await cookies()).get(LANGUAGE_KEY)?.value) ?? "en";
+  const jar = await cookies(),
+    lang = parseLanguage(jar.get(LANGUAGE_KEY)?.value) ?? "en",
+    // A hint only (see lib/session.ts): lets the first paint match the visitor.
+    signedIn = jar.get(SIGNED_IN_KEY)?.value === "1";
   preconnect("https://fonts.googleapis.com");
   preconnect("https://fonts.gstatic.com", { crossOrigin: "anonymous" });
   return (
@@ -58,7 +61,9 @@ export default async function RootLayout({
           href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=IBM+Plex+Sans+Arabic:wght@400;500;600&display=swap"
           precedence="default"
         />
-        <Providers lang={lang}>{children}</Providers>
+        <Providers lang={lang} signedIn={signedIn}>
+          {children}
+        </Providers>
       </body>
     </html>
   );
