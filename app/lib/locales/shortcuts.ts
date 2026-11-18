@@ -35,6 +35,9 @@ export const shortcutsEn = {
   kbStampSmaller: "Smaller stamps",
   kbStampTurnLeft: "Turn stamps left",
   kbStampTurnRight: "Turn stamps right",
+  kbStampCatalog: "Open the Stamp Catalog",
+  kbStampNextVariant: "Next variant of the stamp",
+  kbStampPrevVariant: "Previous variant of the stamp",
 };
 
 export const shortcutsAr: typeof shortcutsEn = {
@@ -69,4 +72,7 @@ export const shortcutsAr: typeof shortcutsEn = {
   kbStampSmaller: "أختام أصغر",
   kbStampTurnLeft: "تدوير الأختام يسارًا",
   kbStampTurnRight: "تدوير الأختام يمينًا",
+  kbStampCatalog: "فتح مكتبة الأختام",
+  kbStampNextVariant: "الشكل التالي من الختم",
+  kbStampPrevVariant: "الشكل السابق من الختم",
 };

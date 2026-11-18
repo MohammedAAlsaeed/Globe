@@ -275,11 +275,12 @@ export function stampThumb(
   ink?: string,
   fill?: string | null,
   onReady?: () => void,
+  size = 128,
 ) {
   const set = setOfAsset(assetKey),
     i = ink ?? set?.ink ?? "#3a2e22",
     f = fill === undefined ? (set?.fill ?? null) : fill,
-    key = `${assetKey}|${i}|${f}`;
+    key = `${assetKey}|${i}|${f}|${size}`;
   const hit = thumbs.get(key);
   if (hit) return hit;
   const r = stampRaster(
@@ -292,7 +293,7 @@ export function stampThumb(
       brightness: 0,
       contrast: 0,
     },
-    128,
+    size,
     onReady,
   );
   if (!r) return null;

@@ -70,8 +70,8 @@ class AssetTest extends TestCase
             $ids[] = $this->post("/api/v1/asset-packs/{$pack['id']}/assets", [
                 'file' => UploadedFile::fake()->image("{$name}.png", 40, 60),
                 'set_key' => 'oaks',
-                'category' => 'vegetation', // ignored: only official stamps are filed
-            ])->assertCreated()->assertJsonPath('data.set_key', 'oaks')->assertJsonPath('data.category', null)->json('data.id');
+                'category' => 'vegetation', // own stamps are filed too (the Stamp Catalog's categories)
+            ])->assertCreated()->assertJsonPath('data.set_key', 'oaks')->assertJsonPath('data.category', 'vegetation')->json('data.id');
         }
         $this->post("/api/v1/asset-packs/{$pack['id']}/assets", [
             'file' => UploadedFile::fake()->image('x.png'),

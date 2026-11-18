@@ -256,7 +256,22 @@ export const EMPTY_QUERY: CatalogQuery = {
 };
 const NEW_DAYS = 30;
 
-function inNode(t: CatalogTexture, node: HierarchyNode) {
+/**
+ * What the catalog queries need of an entry. Textures (here) and stamps
+ * (../stamps/stampCatalog) are both browsed with these.
+ */
+export interface CatalogItem {
+  id: string;
+  creator: Creator;
+  style: string;
+  packId: string;
+  category: string | null;
+  tags: string[];
+  createdAt: number;
+  index: SearchIndex;
+}
+
+function inNode(t: CatalogItem, node: HierarchyNode) {
   switch (node.kind) {
     case "all":
       return true;
@@ -269,14 +284,14 @@ function inNode(t: CatalogTexture, node: HierarchyNode) {
   }
 }
 
-/** The textures a query lists, with their search score (best first only when sorted so). */
-export function queryTextures(
-  textures: CatalogTexture[],
+/** The entries a query lists, with their search score. */
+export function queryItems<I extends CatalogItem>(
+  items: I[],
   q: CatalogQuery,
   ctx: { used: ReadonlySet<string>; now: number; ignoreNode?: boolean },
-): { texture: CatalogTexture; score: number }[] {
-  const out: { texture: CatalogTexture; score: number }[] = [];
-  for (const t of textures) {
+): { item: I; score: number }[] {
+  const out: { item: I; score: number }[] = [];
+  for (const t of items) {
     if (!ctx.ignoreNode && !inNode(t, q.node)) continue;
     if (q.packs.length && !q.packs.includes(t.packId)) continue;
     if (q.creators.length && !q.creators.includes(t.creator)) continue;
@@ -291,25 +306,23 @@ export function queryTextures(
     if (q.usedOnly && !ctx.used.has(t.id)) continue;
     if (q.newOnly && ctx.now - t.createdAt > NEW_DAYS * 86_400_000) continue;
     const score = matchScore(t.index, q.text);
-    if (score > 0) out.push({ texture: t, score });
+    if (score > 0) out.push({ item: t, score });
   }
   return out;
 }
 
 export type CatalogSort = "relevance" | "title" | "newest";
-export function sortTextures(
-  list: { texture: CatalogTexture; score: number }[],
+export function sortItems<I extends CatalogItem>(
+  list: { item: I; score: number }[],
   sort: CatalogSort,
-  label: (t: CatalogTexture) => string,
+  label: (t: I) => string,
   locale?: string,
 ) {
-  const byTitle = (
-    a: { texture: CatalogTexture },
-    b: { texture: CatalogTexture },
-  ) => label(a.texture).localeCompare(label(b.texture), locale);
+  const byTitle = (a: { item: I }, b: { item: I }) =>
+    label(a.item).localeCompare(label(b.item), locale);
   return [...list].sort((a, b) =>
     sort === "newest"
-      ? b.texture.createdAt - a.texture.createdAt || byTitle(a, b)
+      ? b.item.createdAt - a.item.createdAt || byTitle(a, b)
       : sort === "title"
         ? byTitle(a, b)
         : b.score - a.score,
@@ -317,14 +330,14 @@ export function sortTextures(
 }
 
 export type CatalogGroup = "none" | "pack" | "category" | "tag";
-/** Groups in first-seen order; a texture with several tags is under each. */
-export function groupTextures(
-  list: CatalogTexture[],
+/** Groups in first-seen order; an entry with several tags is under each. */
+export function groupItems<I extends CatalogItem>(
+  list: I[],
   by: CatalogGroup,
-): { key: string; items: CatalogTexture[] }[] {
+): { key: string; items: I[] }[] {
   if (by === "none") return [{ key: "", items: list }];
-  const groups = new Map<string, CatalogTexture[]>();
-  const add = (key: string, t: CatalogTexture) =>
+  const groups = new Map<string, I[]>();
+  const add = (key: string, t: I) =>
     groups.set(key, [...(groups.get(key) ?? []), t]);
   for (const t of list) {
     if (by === "pack") add(t.packId, t);
@@ -335,8 +348,8 @@ export function groupTextures(
   return [...groups].map(([key, items]) => ({ key, items }));
 }
 
-/** How many textures each pack, style and creator holds in a result. */
-export function hierarchyCounts(list: CatalogTexture[]) {
+/** How many entries each pack, style and creator holds in a result. */
+export function hierarchyCounts(list: CatalogItem[]) {
   const counts = new Map<string, number>();
   const bump = (k: string) => counts.set(k, (counts.get(k) ?? 0) + 1);
   for (const t of list) {
@@ -346,6 +359,31 @@ export function hierarchyCounts(list: CatalogTexture[]) {
   }
   return counts;
 }
+
+// Textures: the same queries, as the Texture Catalog calls them.
+export const queryTextures = (
+  textures: CatalogTexture[],
+  q: CatalogQuery,
+  ctx: { used: ReadonlySet<string>; now: number; ignoreNode?: boolean },
+) =>
+  queryItems(textures, q, ctx).map((x) => ({
+    texture: x.item,
+    score: x.score,
+  }));
+export const sortTextures = (
+  list: { texture: CatalogTexture; score: number }[],
+  sort: CatalogSort,
+  label: (t: CatalogTexture) => string,
+  locale?: string,
+) =>
+  sortItems(
+    list.map((x) => ({ item: x.texture, score: x.score })),
+    sort,
+    label,
+    locale,
+  ).map((x) => ({ texture: x.item, score: x.score }));
+export const groupTextures = (list: CatalogTexture[], by: CatalogGroup) =>
+  groupItems(list, by);
 
 /** Packs and tags whose names match the search: offered as filters. */
 export function suggestions(

@@ -24,7 +24,9 @@ export type StampCategory =
   | "vegetation"
   | "settlements"
   | "water"
+  | "creatures"
   | "symbols"
+  | "decorations"
   | "library"
   | "custom";
 export const STAMP_CATEGORIES: { key: StampCategory; labelKey: string }[] = [
@@ -32,7 +34,9 @@ export const STAMP_CATEGORIES: { key: StampCategory; labelKey: string }[] = [
   { key: "vegetation", labelKey: "stCatVegetation" },
   { key: "settlements", labelKey: "stCatSettlements" },
   { key: "water", labelKey: "stCatWater" },
+  { key: "creatures", labelKey: "stCatCreatures" },
   { key: "symbols", labelKey: "stCatSymbols" },
+  { key: "decorations", labelKey: "stCatDecorations" },
   { key: "library", labelKey: "stCatLibrary" },
   { key: "custom", labelKey: "stCatCustom" },
 ];
@@ -44,6 +48,8 @@ export type StampAsset =
       set: string;
       kind: "image";
       url: string;
+      /** A small preview for catalogs (the picture itself when missing). */
+      thumbUrl?: string;
       w: number;
       h: number;
     };
@@ -71,6 +77,17 @@ export interface StampSet {
   locked?: boolean;
   /** Not listed in the catalog: uploaded stamps a map uses, loaded only to draw it. */
   hidden?: boolean;
+  // ---- server sets: what the Stamp Catalog shows of them ----
+  /** Official library or the person's own. */
+  creator?: "official" | "me";
+  /** The pack's name and style. */
+  packName?: string;
+  style?: string;
+  /** When it was added (ms), for "newest" and the New filter. */
+  createdAt?: number;
+  /** Each variant's own name and tags (a set of different castles). */
+  variantNames?: string[];
+  variantTags?: string[][];
 }
 
 export const builtinKey = (set: string, variant: number) =>

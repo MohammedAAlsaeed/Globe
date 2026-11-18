@@ -99,13 +99,62 @@ export interface Asset {
   height: number | null;
   /** Average colour (textures): shown while the picture loads. */
   color?: string | null;
-  /** Textures: whether it repeats seamlessly, and its default scale. */
-  meta?: { tile?: boolean; scale?: number };
+  /** Textures: whether it repeats seamlessly, and its default scale.
+   * Stamps: how they are placed by default. */
+  meta?: AssetMeta;
   /** Short-lived signed URL. */
   url: string;
   /** A small preview (the picture itself for older uploads). */
   thumb_url?: string;
   created_at?: string;
+}
+
+/** How an asset is drawn (textures) or placed (stamps) by default. */
+export interface AssetMeta {
+  tile?: boolean;
+  scale?: number;
+  /** Stamps: stands on its base, or turns about its centre. */
+  pivot?: "base" | "center";
+  /** Stamps: width as a fraction of the map width. */
+  size?: number;
+  /** Stamps: a soft ground shadow by default. */
+  shadow?: boolean;
+}
+
+/** A pack as the catalogs list it. */
+export interface CatalogPackRecord {
+  id: string;
+  name: string;
+  style: string | null;
+  official: boolean;
+  mine: boolean;
+  tier: number;
+  published: boolean;
+  /** Above the plan: previews only. */
+  locked: boolean;
+  created_at: string;
+}
+
+/** The Stamp Catalog from the server (GET stamp-library). */
+export interface StampLibrary {
+  packs: CatalogPackRecord[];
+  stamps: {
+    id: string;
+    pack_id: string;
+    name: string;
+    /** Stamps sharing one are variants of one stamp. */
+    set_key: string | null;
+    category: string | null;
+    tags: string[];
+    width: number | null;
+    height: number | null;
+    color: string | null;
+    meta: AssetMeta;
+    thumb_url: string;
+    /** null while the pack is locked. */
+    url: string | null;
+    created_at: string;
+  }[];
 }
 
 /** The Texture Catalog from the server (GET texture-library). */

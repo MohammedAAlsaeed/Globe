@@ -1,23 +1,18 @@
 "use client";
-/* eslint-disable @next/next/no-img-element -- thumbnails are data URLs drawn at runtime */
 /**
  * The Stamp Tool panel (left of the canvas while the Stamp tool is active,
- * or while stamps are selected): the catalog (search, categories, sets and
- * their variants), how stamps are placed and varied, and how they look —
- * size, rotation, flips, colors, color filters, opacity and shadow.
+ * or while stamps are selected). Light on purpose: the stamp in use (its
+ * preview opens the Stamp Catalog, where every stamp is browsed — F), its
+ * variants, the map's recently used stamps and the person's favourites,
+ * each with the way it was placed; then how stamps are placed and varied,
+ * and how they look — size, rotation, flips, colors, color filters,
+ * opacity and shadow.
  *
  * The look controls edit the next stamps placed or, while stamps are
- * selected, those stamps (`editing`).
+ * selected, those stamps (`editing`) — which can also be replaced by
+ * another stamp from the catalog, keeping where and how big they are.
  */
-import {
-  useMemo,
-  useReducer,
-  useRef,
-  useState,
-  useSyncExternalStore,
-  type ReactNode,
-} from "react";
-import Link from "next/link";
+import { useSyncExternalStore, type ReactNode } from "react";
 import { Glyph } from "../glyphs";
 import {
   ColorControl,
@@ -37,22 +32,36 @@ import type {
 import {
   STAMP_CATEGORIES,
   catalogVersion,
-  searchSets,
   stampSet,
   subscribeCatalog,
-  type StampCategory,
   type StampSet,
 } from "./catalog";
-import { DEFAULT_SHADOW, stampThumb } from "./render";
+import { DEFAULT_SHADOW } from "./render";
 import { useContentControls } from "../contentControls";
 import {
   STAMP_TOOL_DEFAULTS,
+  applyLookEntry,
   factoryLook,
   selectSet,
   type StampLook,
   type StampPlacement,
   type StampToolState,
 } from "./state";
+import { StampCatalog } from "./StampCatalog";
+import type { StampChoice } from "./stampCatalog";
+import { StampThumb } from "./StampThumb";
+import {
+  isFavorite,
+  removeFavorite,
+  savedLook,
+  sameLook,
+  toggleFavorite,
+  useStampFavorites,
+  useStampUsage,
+  type SavedLook,
+  type StampLookEntry,
+} from "./stampLooks";
+import { styleLabel } from "../brush/textureLibrary";
 
 type T = (k: string, opts?: Record<string, unknown>) => string;
 
@@ -95,25 +104,6 @@ const CLIPS: { key: StampClip; labelKey: string }[] = [
 const pct = (v: number) => `${Math.round(v * 100)}%`;
 const signed = (v: number) => `${v > 0 ? "+" : ""}${Math.round(v * 100)}`;
 
-/** A catalog thumbnail (uploaded images may arrive a moment later). */
-function Thumb({
-  asset,
-  ink,
-  fill,
-}: {
-  asset: string;
-  ink?: string;
-  fill?: string | null;
-}) {
-  const [, redraw] = useReducer((n: number) => n + 1, 0);
-  const url = stampThumb(asset, ink, fill, redraw);
-  return url ? (
-    <img src={url} alt="" draggable={false} />
-  ) : (
-    <span className="mm-st-thumb-wait" />
-  );
-}
-
 export interface StampUploads {
   signedIn: boolean;
   /** Bytes used / allowed by the plan. */
@@ -121,94 +111,81 @@ export interface StampUploads {
   quota: number;
   busy: boolean;
   error: string | null;
-  onUpload: (files: File[], asSet: boolean) => void;
-}
-
-const mb = (bytes: number) =>
-  `${(bytes / 1024 / 1024).toFixed(bytes < 10 * 1024 * 1024 ? 1 : 0)} MB`;
-
-/** "My stamps": upload your own pictures, within the plan's storage. */
-function UploadBox({ u, t }: { u: StampUploads; t: T }) {
-  const input = useRef<HTMLInputElement>(null),
-    asSet = useRef(false);
-  if (!u.signedIn)
-    return (
-      <div className="mm-st-upload">
-        <p>{t("stUploadSignIn")}</p>
-        <Link
-          className="mm-pill"
-          href={`/login?next=${encodeURIComponent("/editor")}`}
-        >
-          {t("acSignIn")}
-        </Link>
-      </div>
-    );
-  const pick = (set: boolean) => {
-    asSet.current = set;
-    input.current?.click();
-  };
-  return (
-    <div className="mm-st-upload">
-      <input
-        ref={input}
-        type="file"
-        accept="image/png,image/webp,image/jpeg"
-        multiple
-        hidden
-        onChange={(e) => {
-          const files = [...(e.target.files ?? [])];
-          e.target.value = "";
-          if (files.length) u.onUpload(files, asSet.current);
-        }}
-      />
-      <div className="mm-st-upload-actions">
-        <button
-          className="mm-pill"
-          disabled={u.busy}
-          onClick={() => pick(false)}
-        >
-          <Glyph name="upload" size={13} />
-          {t("stUpload")}
-        </button>
-        <button
-          className="mm-pill"
-          disabled={u.busy}
-          onClick={() => pick(true)}
-          title={t("stUploadSetHint")}
-        >
-          {t("stUploadSet")}
-        </button>
-      </div>
-      <p className="mm-bp-hint">
-        {u.busy ? t("stUploading") : t("stUploadHint")}
-      </p>
-      {u.error && (
-        <p className="mm-st-upload-error" role="alert">
-          {u.error}
-        </p>
-      )}
-      {u.quota > 0 && (
-        <div
-          className="mm-st-quota"
-          title={t("stQuota", { used: mb(u.used), quota: mb(u.quota) })}
-        >
-          <span>{t("stQuota", { used: mb(u.used), quota: mb(u.quota) })}</span>
-          <div className={u.used >= u.quota ? "full" : ""}>
-            <i
-              style={{ width: `${Math.min(100, (u.used / u.quota) * 100)}%` }}
-            />
-          </div>
-        </div>
-      )}
-      <Link className="mm-st-manage" href="/library">
-        {t("stManage")}
-      </Link>
-    </div>
-  );
+  /** Uploads to My stamps; the error message, or null when it worked. */
+  onUpload: (files: File[], asSet: boolean) => Promise<string | null>;
 }
 
 export function setLabel(t: T, s: StampSet) {
   return s.labelKey ? t(s.labelKey) : (s.name ?? s.id);
+}
+/** Where a set comes from: its pack (and style), for the current-stamp card. */
+function setPath(t: T, s: StampSet) {
+  if (s.pack === "classic") return t("stcPackClassic");
+  if (s.pack === "atelier" || s.pack === "lines")
+    return [
+      t("stcCreator_atelier"),
+      t(STAMP_CATEGORIES.find((c) => c.key === s.category)?.labelKey ?? ""),
+    ].join(" · ");
+  return [
+    t(`stcCreator_${s.creator ?? "official"}`),
+    s.style ? styleLabel(s.style, t) : "",
+    s.packName ?? "",
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}
+
+/** A remembered stamp (recent or favourite), drawn as it looked. */
+function LookSwatch({
+  entry,
+  title,
+  selected,
+  onClick,
+  onRemove,
+}: {
+  entry: StampLookEntry;
+  title: string;
+  selected: boolean;
+  onClick: () => void;
+  onRemove?: () => void;
+}) {
+  const set = stampSet(entry.set);
+  if (!set) return null;
+  const asset = set.assets[entry.variant ?? 0] ?? set.assets[0];
+  return (
+    <button
+      className={`mm-st-look ${selected ? "selected" : ""}`}
+      title={title}
+      onClick={onClick}
+      onContextMenu={
+        onRemove
+          ? (e) => {
+              e.preventDefault();
+              onRemove();
+            }
+          : undefined
+      }
+    >
+      <span
+        style={{
+          transform: `rotate(${entry.look.rotation}deg) scale(${entry.look.flipX ? -1 : 1}, ${entry.look.flipY ? -1 : 1})`,
+          opacity: entry.look.opacity,
+        }}
+      >
+        <StampThumb
+          asset={asset}
+          ink={set.vector ? entry.look.ink : undefined}
+          fill={set.vector ? entry.look.fill : undefined}
+          size={96}
+        />
+      </span>
+      {entry.variant === null && set.assets.length > 1 && (
+        <i className="mm-st-look-random">
+          <Glyph name="shuffle" size={9} />
+        </i>
+      )}
+    </button>
+  );
 }
 
 export function StampPanel({
@@ -226,6 +203,9 @@ export function StampPanel({
   uploads,
   defaultClipSource,
   layerBlends,
+  catalog,
+  onCatalog,
+  onReplace,
 }: {
   state: StampToolState;
   onChange: (next: StampToolState) => void;
@@ -251,24 +231,19 @@ export function StampPanel({
   defaultClipSource: PaintSource;
   /** The layer blends as a whole: stamps' own blend modes don't apply. */
   layerBlends: boolean;
+  /** The Stamp Catalog: open to pick a stamp, or to replace the selection. */
+  catalog: "pick" | "replace" | null;
+  onCatalog: (mode: "pick" | "replace" | null) => void;
+  /** The selected stamps become this stamp (see the editor). */
+  onReplace: (choice: StampChoice) => void;
 }) {
   useContentControls();
   // Server packs can arrive while the panel is open.
-  const version = useSyncExternalStore(
-    subscribeCatalog,
-    catalogVersion,
-    catalogVersion,
-  );
-  const [query, setQuery] = useState(""),
-    [category, setCategory] = useState<StampCategory | "all">("all");
+  useSyncExternalStore(subscribeCatalog, catalogVersion, catalogVersion);
+  const usage = useStampUsage(),
+    favorites = useStampFavorites();
   const s = state,
     set = stampSet(s.set);
-  const results = useMemo(
-    () => searchSets(query, (x) => setLabel(t, x), query ? "all" : category),
-    // `version` changes when server sets are added.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [query, category, t, version],
-  );
 
   const patch = (p: Partial<StampToolState>) => onChange({ ...s, ...p });
   const look = editing ? editing.look : s.look,
@@ -284,6 +259,43 @@ export function StampPanel({
   const px = (v: number) => `${Math.max(1, Math.round(v * mapWidthPx))} px`;
   const placement = PLACEMENTS.find((p) => p.key === s.placement)!;
 
+  /** How a set would be placed now: as it is (or was last) used, else its own look. */
+  const lookFor = (id: string): SavedLook => {
+    if (id === s.set) return savedLook(s.look);
+    const other = stampSet(id),
+      memory = s.memory[id]?.look;
+    return savedLook({ ...factoryLook(other), ...memory });
+  };
+  const currentEntry: StampLookEntry | null = set
+    ? {
+        set: set.id,
+        variant: s.randomVariant && set.assets.length > 1 ? null : s.variant,
+        look: savedLook(s.look),
+      }
+    : null;
+  const starred = currentEntry ? isFavorite(currentEntry) : false;
+  const using = (e: StampLookEntry) =>
+    e.set === s.set &&
+    sameLook(e.look, savedLook(s.look)) &&
+    (e.variant === null
+      ? s.randomVariant
+      : !s.randomVariant && e.variant === s.variant);
+  const take = (e: StampLookEntry, keepRandom: boolean) => {
+    const target = stampSet(e.set);
+    if (target && !target.locked)
+      onChange(applyLookEntry(s, target, e, keepRandom));
+  };
+  function picked(choice: StampChoice) {
+    if (catalog === "replace") return onReplace(choice);
+    const target = stampSet(choice.set);
+    if (!target) return;
+    const next = selectSet(s, target, choice.variant ?? s.variant);
+    onChange({
+      ...next,
+      randomVariant: choice.variant === null && target.assets.length > 1,
+    });
+  }
+
   return (
     <aside
       className={`mm-brush-panel mm-stamp-panel ${floating ? "floating" : ""}`}
@@ -293,6 +305,14 @@ export function StampPanel({
       {editing && (
         <div className="mm-st-editing">
           <span>{t("stEditing", { count: editing.count })}</span>
+          <button
+            className="mm-pill"
+            title={t("stcReplaceHint")}
+            onClick={() => onCatalog("replace")}
+          >
+            <Glyph name="shuffle" size={12} />
+            {t("stcReplace")}
+          </button>
           <button className="mm-pill" onClick={onDoneEditing}>
             {t("stDone")}
           </button>
@@ -301,66 +321,50 @@ export function StampPanel({
 
       {!editing && (
         <>
-          {/* ---- catalog ---- */}
-          <div className="mm-st-search">
-            <Glyph name="search" size={14} />
-            <input
-              type="search"
-              value={query}
-              placeholder={t("stSearch")}
-              aria-label={t("stSearch")}
-              onChange={(e) => setQuery(e.target.value)}
-            />
-          </div>
-          {!query && (
-            <div
-              className="mm-bp-chips"
-              role="tablist"
-              aria-label={t("stCategories")}
+          {/* ---- the stamp in use; the catalog opens from its preview ---- */}
+          <div className="mm-st-current">
+            <button
+              className="mm-st-current-art"
+              title={t("stcBrowseHint")}
+              onClick={() => onCatalog("pick")}
             >
-              {[
-                { key: "all" as const, labelKey: "stCatAll" },
-                ...STAMP_CATEGORIES,
-              ].map((c) => (
+              {set && (
+                <StampThumb
+                  asset={
+                    set.assets[s.randomVariant ? 0 : s.variant] ?? set.assets[0]
+                  }
+                  ink={vector ? s.look.ink : undefined}
+                  fill={vector ? s.look.fill : undefined}
+                  size={160}
+                />
+              )}
+            </button>
+            <div className="mm-st-current-info">
+              <b>{set ? setLabel(t, set) : t("stcNone")}</b>
+              {set && <small>{setPath(t, set)}</small>}
+              {set && set.assets.length > 1 && (
+                <small>{t("stcVariants", { n: set.assets.length })}</small>
+              )}
+              <div className="mm-st-current-actions">
                 <button
-                  key={c.key}
-                  role="tab"
-                  aria-selected={category === c.key}
-                  className={category === c.key ? "active" : ""}
-                  onClick={() => setCategory(c.key)}
+                  className="mm-pill selected"
+                  onClick={() => onCatalog("pick")}
                 >
-                  {t(c.labelKey)}
+                  <Glyph name="search" size={13} />
+                  {t("stcBrowse")}
                 </button>
-              ))}
-            </div>
-          )}
-          {!query && category === "custom" && <UploadBox u={uploads} t={t} />}
-          <div className="mm-st-sets" role="listbox" aria-label={t("stSets")}>
-            {results.map((x) => (
-              <button
-                key={x.id}
-                role="option"
-                aria-selected={x.id === s.set}
-                className={`mm-st-set ${x.id === s.set ? "selected" : ""} ${x.locked ? "locked" : ""}`}
-                title={x.locked ? t("stLocked") : setLabel(t, x)}
-                disabled={x.locked}
-                onClick={() => onChange(selectSet(s, x))}
-              >
-                <Thumb asset={x.assets[0]} />
-                <span>{setLabel(t, x)}</span>
-                {x.assets.length > 1 && <small>{x.assets.length}</small>}
-                {x.locked && <Glyph name="lock" size={12} />}
-              </button>
-            ))}
-            {results.length === 0 && (
-              <p className="mm-bp-hint">
-                {t(
-                  !query && category === "custom"
-                    ? "stNoUploads"
-                    : "stNoResults",
+                {currentEntry && (
+                  <button
+                    className={`mm-pill ${starred ? "selected" : ""}`}
+                    aria-pressed={starred}
+                    title={t("stcFavoriteHint")}
+                    onClick={() => toggleFavorite(currentEntry)}
+                  >
+                    <Glyph name="star" size={13} />
+                  </button>
                 )}
-              </p>
-            )}
+              </div>
+            </div>
           </div>
 
           {set && set.assets.length > 1 && (
@@ -379,15 +383,53 @@ export function StampPanel({
                   title={t("stVariant", { n: i + 1 })}
                   onClick={() => patch({ variant: i, randomVariant: false })}
                 >
-                  <Thumb
+                  <StampThumb
                     asset={a}
-                    ink={s.look.ink}
+                    ink={vector ? s.look.ink : undefined}
                     fill={vector ? s.look.fill : undefined}
                   />
                 </button>
               ))}
             </div>
           )}
+
+          {usage.recent.length > 0 && (
+            <div className="mm-st-looks">
+              <span className="mm-tx-label">{t("stcRecent")}</span>
+              <div className="mm-st-look-row">
+                {usage.recent.map((e, i) => (
+                  <LookSwatch
+                    key={`${e.set}-${i}`}
+                    entry={e}
+                    title={
+                      stampSet(e.set) ? setLabel(t, stampSet(e.set)!) : e.set
+                    }
+                    selected={using(e)}
+                    onClick={() => take(e, true)}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+          <div className="mm-st-looks">
+            <span className="mm-tx-label">{t("stcFavorites")}</span>
+            {favorites.length ? (
+              <div className="mm-st-look-row">
+                {favorites.map((f) => (
+                  <LookSwatch
+                    key={f.id}
+                    entry={f}
+                    title={`${stampSet(f.set) ? setLabel(t, stampSet(f.set)!) : f.set} — ${t("stcFavoriteRemoveHint")}`}
+                    selected={using(f)}
+                    onClick={() => take(f, false)}
+                    onRemove={() => removeFavorite(f.id)}
+                  />
+                ))}
+              </div>
+            ) : (
+              <p className="mm-bp-hint">{t("stcNoFavorites")}</p>
+            )}
+          </div>
 
           {/* ---- placement ---- */}
           <div
@@ -826,6 +868,22 @@ export function StampPanel({
           </>
         )}
       </Section>
+      {catalog && (
+        <StampCatalog
+          current={{
+            set: s.set,
+            variant:
+              s.randomVariant && (set?.assets.length ?? 1) > 1
+                ? null
+                : s.variant,
+          }}
+          look={lookFor}
+          mode={catalog}
+          uploads={uploads}
+          onPick={picked}
+          onClose={() => onCatalog(null)}
+        />
+      )}
     </aside>
   );
 }

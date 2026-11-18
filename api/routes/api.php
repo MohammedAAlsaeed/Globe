@@ -14,6 +14,8 @@ use App\Http\Controllers\Api\V1\MapThumbnailController;
 use App\Http\Controllers\Api\V1\PlanController;
 use App\Http\Controllers\Api\V1\PreferencesController;
 use App\Http\Controllers\Api\V1\ShapeStyleController;
+use App\Http\Controllers\Api\V1\StampFavoritesController;
+use App\Http\Controllers\Api\V1\StampLibraryController;
 use App\Http\Controllers\Api\V1\SystemController;
 use App\Http\Controllers\Api\V1\TemplateController;
 use App\Http\Controllers\Api\V1\TextStyleController;
@@ -52,6 +54,8 @@ Route::prefix('auth')->group(function () {
         Route::put('me/preferences', [PreferencesController::class, 'update'])->middleware('throttle:api');
         Route::get('me/texture-favorites', [TextureFavoritesController::class, 'show']);
         Route::put('me/texture-favorites', [TextureFavoritesController::class, 'update'])->middleware('throttle:api');
+        Route::get('me/stamp-favorites', [StampFavoritesController::class, 'show']);
+        Route::put('me/stamp-favorites', [StampFavoritesController::class, 'update'])->middleware('throttle:api');
         Route::post('logout', [SessionController::class, 'logout']);
         Route::post('email/verification-notification', [EmailVerificationController::class, 'send'])
             ->middleware('throttle:6,1');
@@ -69,6 +73,8 @@ Route::middleware('throttle:api')->group(function () {
     Route::get('templates/{template}/document', [TemplateController::class, 'document']);
     // The Texture Catalog: packs and textures (previews), for guests too.
     Route::get('texture-library', TextureLibraryController::class);
+    // The Stamp Catalog: packs and stamps (previews), for guests too.
+    Route::get('stamp-library', StampLibraryController::class);
 });
 
 // ---- maps & assets ------------------------------------------------------------
