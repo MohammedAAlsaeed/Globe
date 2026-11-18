@@ -200,6 +200,8 @@ setTextureResolver(async (ids) => {
 /** The style a built-in or server style key is shown as. */
 export function styleLabel(style: string, t: (k: string) => string) {
   if (style === BUILTIN_STYLE) return t("txcStyleProcedural");
+  // The Stamp Catalog's built-in styles.
+  if (style === "atelier" || style === "classic") return t(`stcStyle_${style}`);
   return style || t("txcStyleGeneral");
 }
 

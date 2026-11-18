@@ -2,9 +2,13 @@
 /* eslint-disable @next/next/no-img-element -- stamp pictures are signed URLs from the API */
 /**
  * My stamps (the art manager): your uploaded stamps, organized into sets —
- * pictures in one set are variants the Stamp Tool places at random. Admins
- * also manage the official library here: packs, the plan each needs,
- * publishing, and the catalog category of each stamp.
+ * pictures in one set are variants the Stamp Tool places at random — each
+ * filed for the Stamp Catalog (category and tags) with how it is placed by
+ * default (anchor). Admins also manage the official library here: packs,
+ * their style, the plan each needs, and publishing.
+ *
+ * Many pictures can be chosen (or dropped) at once; each is trimmed, scaled
+ * and sent with a small preview, so the catalog stays light.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
@@ -14,28 +18,35 @@ import { library } from "./api";
 import { useAuth } from "./AuthProvider";
 import type { Asset, AssetPack } from "./types";
 import { CompassLoader, CompassScreen, SiteHeader, errorMessage } from "./ui";
-import { prepareStampImage } from "../mapmaker/stamps/upload";
+import { uploadStampFile } from "../mapmaker/stamps/upload";
 import { loadLibrary } from "../mapmaker/stamps/remote";
+import { STAMP_CATEGORIES } from "../mapmaker/stamps/catalog";
 import { Flourish } from "@/components/ui/Flourish";
 
 type T = (k: string, o?: Record<string, unknown>) => string;
-const CATEGORIES = [
-  "terrain",
-  "vegetation",
-  "settlements",
-  "water",
-  "symbols",
-] as const;
-const CATEGORY_LABEL: Record<string, string> = {
-  terrain: "stCatTerrain",
-  vegetation: "stCatVegetation",
-  settlements: "stCatSettlements",
-  water: "stCatWater",
-  symbols: "stCatSymbols",
-};
+/** The Stamp Catalog's categories a stamp can be filed under. */
+const CATEGORIES = STAMP_CATEGORIES.filter(
+  (c) => c.key !== "library" && c.key !== "custom",
+);
+const tagList = (text: string) =>
+  [
+    ...new Set(
+      text
+        .split(/[,،]/)
+        .map((x) => x.trim().slice(0, 32))
+        .filter(Boolean),
+    ),
+  ].slice(0, 20);
 const PLAN_OF_TIER = ["explorer", "cartographer", "atlas"];
 const mb = (bytes: number) => `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 const newSetKey = () => `set-${Date.now().toString(36)}`;
+
+/** A stamp's own placing settings (what the server keeps for stamps). */
+const pickStampMeta = (m: Asset["meta"]) => ({
+  ...(m?.pivot ? { pivot: m.pivot } : {}),
+  ...(m?.size !== undefined ? { size: m.size } : {}),
+  ...(m?.shadow !== undefined ? { shadow: m.shadow } : {}),
+});
 
 /** Assets grouped by set (ungrouped assets are sets of one), in upload order. */
 function groupSets(assets: Asset[]) {
@@ -297,7 +308,8 @@ function PackEditor({
     [busy, setBusy] = useState(false),
     [confirmDelete, setConfirmDelete] = useState(false),
     input = useRef<HTMLInputElement>(null),
-    target = useRef<string | null | undefined>(undefined);
+    target = useRef<string | null | undefined>(undefined),
+    [progress, setProgress] = useState<string | null>(null);
   const load = useCallback(
     async () => setAssets(await library.assets(pack.id).catch(() => [])),
     [pack.id],
@@ -351,6 +363,22 @@ function PackEditor({
         )}
         {admin && official && (
           <>
+            <label className="lib-inline">
+              {t("tlStyle")}
+              <input
+                defaultValue={pack.style ?? ""}
+                maxLength={40}
+                placeholder={t("tlStyleHint")}
+                onBlur={(e) =>
+                  e.target.value.trim() !== (pack.style ?? "") &&
+                  run(() =>
+                    library.updatePack(pack.id, {
+                      style: e.target.value.trim() || null,
+                    }),
+                  )
+                }
+              />
+            </label>
             <label className="lib-inline">
               {t("stPackPlan")}
               <select
@@ -436,22 +464,20 @@ function PackEditor({
             const setKey = target.current ?? null;
             if (!files.length) return;
             void run(async () => {
-              for (const file of files) {
-                const blob = await prepareStampImage(file),
-                  name =
-                    file.name.replace(/\.[^.]+$/, "").slice(0, 80) || "Stamp";
-                await library.upload(
-                  pack.id,
-                  blob,
-                  `${name}.${blob.type === "image/webp" ? "webp" : "png"}`,
-                  { name, set_key: setKey },
-                );
+              for (const [i, file] of files.entries()) {
+                setProgress(`${i + 1} / ${files.length}`);
+                await uploadStampFile(pack.id, file, { set_key: setKey });
               }
+              setProgress(null);
             });
           }}
         />
       </header>
-      {busy && <p className="maps-section-note">{t("stWorking")}</p>}
+      {busy && (
+        <p className="maps-section-note">
+          {t("stWorking")} {progress}
+        </p>
+      )}
       {assets === null ? (
         <CompassLoader size={48} />
       ) : sets.length === 0 ? (
@@ -481,7 +507,7 @@ function PackEditor({
                     {/* CORS like the editor's canvas, which loads the same
                     URL: a plain copy in the cache would break it there. */}
                     <img
-                      src={a.url}
+                      src={a.thumb_url ?? a.url}
                       alt=""
                       loading="lazy"
                       crossOrigin="anonymous"
@@ -522,26 +548,56 @@ function PackEditor({
                         ))}
                       <option value="__new">{t("stNewSet")}</option>
                     </select>
-                    {official && (
-                      <select
-                        aria-label={t("stCategory")}
-                        value={a.category ?? ""}
-                        onChange={(e) =>
-                          run(() =>
-                            library.updateAsset(a.id, {
-                              category: e.target.value || null,
-                            }),
-                          )
-                        }
-                      >
-                        <option value="">{t("stCatLibrary")}</option>
-                        {CATEGORIES.map((c) => (
-                          <option key={c} value={c}>
-                            {t(CATEGORY_LABEL[c])}
-                          </option>
-                        ))}
-                      </select>
-                    )}
+                    <select
+                      aria-label={t("stCategory")}
+                      title={t("stCategory")}
+                      value={a.category ?? ""}
+                      onChange={(e) =>
+                        run(() =>
+                          library.updateAsset(a.id, {
+                            category: e.target.value || null,
+                          }),
+                        )
+                      }
+                    >
+                      <option value="">
+                        {t(official ? "stCatLibrary" : "stCatCustom")}
+                      </option>
+                      {CATEGORIES.map((c) => (
+                        <option key={c.key} value={c.key}>
+                          {t(c.labelKey)}
+                        </option>
+                      ))}
+                    </select>
+                    <input
+                      defaultValue={a.tags.join(", ")}
+                      placeholder={t("tlTags")}
+                      title={t("stTagsHint")}
+                      aria-label={t("tlTags")}
+                      onBlur={(e) => {
+                        const tags = tagList(e.target.value);
+                        if (tags.join(",") !== a.tags.join(","))
+                          void run(() => library.updateAsset(a.id, { tags }));
+                      }}
+                    />
+                    <select
+                      aria-label={t("stAnchor")}
+                      title={t("stAnchorHint")}
+                      value={a.meta?.pivot ?? "center"}
+                      onChange={(e) =>
+                        run(() =>
+                          library.updateAsset(a.id, {
+                            meta: {
+                              ...pickStampMeta(a.meta),
+                              pivot: e.target.value as "base" | "center",
+                            },
+                          }),
+                        )
+                      }
+                    >
+                      <option value="center">{t("stAnchorCenter")}</option>
+                      <option value="base">{t("stAnchorBase")}</option>
+                    </select>
                     <button
                       className="site-link"
                       disabled={busy}

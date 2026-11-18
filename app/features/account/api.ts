@@ -11,12 +11,14 @@ import type {
 } from "../mapmaker/types";
 import type {
   Asset,
+  AssetMeta,
   AssetPack,
   CloudMap,
   LineStyleRecord,
   MapTemplateInfo,
   Plan,
   ShapeStyleRecord,
+  StampLibrary,
   TextStyleRecord,
   TextureLibrary,
   User,
@@ -208,8 +210,9 @@ type AssetDetails = {
   set_key?: string | null;
   category?: string | null;
   tags?: string[];
-  /** Textures: whether it tiles, and its default scale. */
-  meta?: { tile?: boolean; scale?: number } | null;
+  /** Textures: whether it tiles, and its default scale. Stamps: how they
+   * are placed by default (anchor, width as a fraction of the map, shadow). */
+  meta?: AssetMeta | null;
 };
 /** An upload can also carry a small preview and its average colour. */
 type UploadDetails = AssetDetails & { thumbnail?: Blob; color?: string | null };
@@ -275,6 +278,11 @@ export const library = {
         form.append("meta[tile]", details.meta.tile ? "1" : "0");
       if (details.meta.scale !== undefined)
         form.append("meta[scale]", String(details.meta.scale));
+      if (details.meta.pivot) form.append("meta[pivot]", details.meta.pivot);
+      if (details.meta.size !== undefined)
+        form.append("meta[size]", String(details.meta.size));
+      if (details.meta.shadow !== undefined)
+        form.append("meta[shadow]", details.meta.shadow ? "1" : "0");
     }
     return api
       .post<One<Asset>>(`asset-packs/${packId}/assets`, form)
@@ -302,6 +310,36 @@ export const textures = {
   saveFavorites: (f: TextureFavoritesRecord) =>
     api
       .put<One<TextureFavoritesRecord>>("auth/me/texture-favorites", {
+        items: f.items,
+        updated_at: f.updated_at,
+      })
+      .then((r) => r.data),
+};
+
+// ---- the Stamp Catalog -------------------------------------------------------------------
+/** A favourite stamp: a set (one variant, or any) and how it is placed. */
+export interface StampFavoriteRecord {
+  id: string;
+  set: string;
+  variant: number | null;
+  look: Record<string, string | number | boolean | null>;
+}
+export interface StampFavoritesRecord {
+  items: StampFavoriteRecord[];
+  /** When they last changed (ms), on whichever device. */
+  updated_at: number;
+}
+export const stamps = {
+  /** Every stamp pack the person (or a guest) can see, with previews. */
+  library: () =>
+    api.get<One<StampLibrary>>("stamp-library").then((r) => r.data),
+  favorites: () =>
+    api
+      .get<One<StampFavoritesRecord>>("auth/me/stamp-favorites")
+      .then((r) => r.data),
+  saveFavorites: (f: StampFavoritesRecord) =>
+    api
+      .put<One<StampFavoritesRecord>>("auth/me/stamp-favorites", {
         items: f.items,
         updated_at: f.updated_at,
       })

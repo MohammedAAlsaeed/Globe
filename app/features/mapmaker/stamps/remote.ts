@@ -1,148 +1,52 @@
 /**
  * Stamps from the server's asset library, added to the catalog.
  *
- *   loadLibrary    the signed-in person's library: official packs (those
- *                  above their plan appear locked, as one preview card) and
- *                  their own uploads ("My stamps").
+ *   loadLibrary    the Stamp Catalog's library in one request (GET
+ *                  stamp-library): the published official packs — for
+ *                  guests too — and, signed in, the person's own uploads.
+ *                  Packs above the plan are listed locked: their stamps
+ *                  show a preview but can't be placed.
  *   resolvePlaced  uploaded stamps a map already uses but the library
  *                  doesn't list (a pack locked after a downgrade, say), so
  *                  every map still draws completely.
  *
- * Assets sharing a `set_key` within a pack become one set with variants.
+ * Stamps sharing a `set_key` within a pack become one set with variants.
+ * Pictures are downloaded only when drawn; catalogs show the previews.
  */
-import { library } from "../../account/api";
-import type { Asset, AssetPack } from "../../account/types";
-import {
-  registerRemoteSets,
-  stampAsset,
-  type StampAsset,
-  type StampCategory,
-  type StampSet,
-} from "./catalog";
+import { library, stamps as stampsApi } from "../../account/api";
+import type { StampLibrary } from "../../account/types";
+import { registerRemoteSets, stampAsset } from "./catalog";
+import { imageAsset, imageSet, librarySets, uploadedKey } from "./librarySets";
 
-const CATEGORIES: StampCategory[] = [
-  "terrain",
-  "vegetation",
-  "settlements",
-  "water",
-  "symbols",
-];
-export const uploadedKey = (assetId: string) => `u:${assetId}`;
+export { librarySets, uploadedKey };
 
-/** Defaults for uploaded pictures: as drawn (no recolor), no added shadow. */
-function imageSet(
-  id: string,
-  pack: string,
-  name: string,
-  category: StampCategory,
-  assetKeys: string[],
-  extra: Partial<StampSet> = {},
-): StampSet {
-  return {
-    id,
-    pack,
-    category,
-    name,
-    tags: [],
-    assets: assetKeys,
-    vector: false,
-    ink: "#3a2e22",
-    fill: null,
-    size: 0.05,
-    shadow: false,
-    rotationJitter: 0,
-    randomFlip: false,
-    pivot: "center",
-    ...extra,
-  };
-}
-const imageAsset = (a: Asset, set: string): StampAsset => ({
-  key: uploadedKey(a.id),
-  set,
-  kind: "image",
-  url: a.url,
-  w: a.width ?? 1,
-  h: a.height ?? 1,
-});
-
-/** One pack's assets as sets (grouped by set_key; ungrouped assets stand alone). */
-export function packSets(pack: AssetPack, assets: Asset[]) {
-  const groups = new Map<string, Asset[]>();
-  for (const a of assets) {
-    const key = a.set_key ?? `one-${a.id}`;
-    groups.set(key, [...(groups.get(key) ?? []), a]);
-  }
-  return [...groups].map(([key, list]) => {
-    const id = `s:${pack.id}:${key}`,
-      category: StampCategory = pack.official
-        ? (CATEGORIES.find((c) => c === list[0].category) ?? "library")
-        : "custom";
-    return {
-      set: imageSet(
-        id,
-        pack.id,
-        list[0].name,
-        category,
-        list.map((a) => uploadedKey(a.id)),
-        {
-          tags: [...new Set(list.flatMap((a) => a.tags)), pack.name],
-        },
-      ),
-      assets: list.map((a) => imageAsset(a, id)),
-    };
-  });
-}
-
-let loading: Promise<void> | null = null;
-/** Loads (or reloads) the person's library into the catalog. */
+let loading: Promise<void> | null = null,
+  loaded = false,
+  packs: StampLibrary["packs"] = [];
+/** Loads (or reloads) the library into the catalog (guests too). */
 export function loadLibrary(): Promise<void> {
   loading ??= (async () => {
     try {
-      const packs = await library.packs();
-      const lists = await Promise.all(
-        packs.map(async (pack) => {
-          if (pack.locked) {
-            // Above the plan: one preview card, not placeable.
-            const id = `p:${pack.id}`,
-              cover: StampAsset[] = pack.cover_url
-                ? [
-                    {
-                      key: `c:${pack.id}`,
-                      set: id,
-                      kind: "image",
-                      url: pack.cover_url,
-                      w: 1,
-                      h: 1,
-                    },
-                  ]
-                : [];
-            return [
-              {
-                set: imageSet(
-                  id,
-                  pack.id,
-                  pack.name,
-                  "library",
-                  cover.map((c) => c.key),
-                  { locked: true },
-                ),
-                assets: cover,
-              },
-            ];
-          }
-          return packSets(pack, await library.assets(pack.id).catch(() => []));
-        }),
-      );
-      registerRemoteSets(lists.flat(), true);
+      const lib = await stampsApi.library();
+      packs = lib.packs;
+      registerRemoteSets(librarySets(lib), true);
+    } catch {
+      // Offline or the API is down: the built-in stamps still work.
     } finally {
       loading = null;
+      loaded = true;
     }
   })();
   return loading;
 }
+/** Whether the library was asked for at least once (arrived, or failed). */
+export const libraryLoaded = () => loaded;
+/** The server's stamp packs (the catalog lists empty ones too). */
+export const libraryPacks = () => packs;
 
 /** Signed out: only the built-in stamps remain listed. */
 export function clearLibrary() {
+  packs = [];
   registerRemoteSets([], true);
 }
 

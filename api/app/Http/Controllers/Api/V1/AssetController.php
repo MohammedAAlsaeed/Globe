@@ -11,6 +11,7 @@ use App\Models\User;
 use App\Services\Entitlements;
 use App\Services\FileUrls;
 use App\Services\Regions;
+use App\Support\Stamps;
 use App\Support\Textures;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
@@ -23,8 +24,8 @@ use Illuminate\Validation\Rule;
 /** Uploading, organizing and removing assets in a pack the user manages. */
 class AssetController extends Controller
 {
-    /** The Stamp Tool's catalog categories (official stamps are filed under one). */
-    public const CATEGORIES = ['terrain', 'vegetation', 'settlements', 'water', 'symbols'];
+    /** The Stamp Catalog's categories (see App\Support\Stamps). */
+    public const CATEGORIES = Stamps::CATEGORIES;
 
     /** Line art: which piece of a line a picture is (repeated, start, end, corner). */
     public const LINE_ROLES = ['seg', 'start', 'end', 'corner'];
@@ -91,7 +92,7 @@ class AssetController extends Controller
             'path' => $path,
             'thumb_path' => $thumbPath ?: null,
             'color' => $data['color'] ?? null,
-            'meta' => self::meta($data['meta'] ?? null),
+            'meta' => self::meta($pack, $data['meta'] ?? null),
             'mime' => $file->getMimeType(),
             'bytes' => $file->getSize(),
             'width' => $width,
@@ -107,7 +108,7 @@ class AssetController extends Controller
         Gate::authorize('manage', $asset->pack);
         $data = $request->validate($this->detailRules($asset->pack));
         if (array_key_exists('meta', $data)) {
-            $data['meta'] = self::meta($data['meta']);
+            $data['meta'] = self::meta($asset->pack, $data['meta']);
         }
         $asset->update($data);
 
@@ -125,8 +126,8 @@ class AssetController extends Controller
     /**
      * Name, set, tags — and the category: for line art (any pack) the piece's
      * role; for textures (any pack) the catalog category, with how the
-     * texture is drawn (`meta`); for stamps, the catalog category (official
-     * packs only).
+     * texture is drawn (`meta`); for stamps (any pack) the catalog category,
+     * with how the stamp is placed by default (`meta`).
      */
     private function detailRules(AssetPack $pack): array
     {
@@ -140,8 +141,10 @@ class AssetController extends Controller
                 // The scale it is drawn at by default (1 = the catalog's standard size).
                 'meta.scale' => ['sometimes', 'numeric', 'between:0.1,8'],
             ],
-            $pack->isOfficial() => ['category' => ['sometimes', 'nullable', Rule::in(self::CATEGORIES)]],
-            default => [],
+            default => [
+                'category' => ['sometimes', 'nullable', Rule::in(Stamps::CATEGORIES)],
+                ...Stamps::metaRules(),
+            ],
         };
 
         return [
@@ -153,11 +156,14 @@ class AssetController extends Controller
         ];
     }
 
-    /** A texture's drawing settings with proper types (forms send strings). */
-    private static function meta(?array $meta): ?array
+    /** Drawing (textures) or placing (stamps) settings with proper types (forms send strings). */
+    private static function meta(AssetPack $pack, ?array $meta): ?array
     {
         if ($meta === null) {
             return null;
+        }
+        if ($pack->kind === AssetKind::Stamps) {
+            return Stamps::meta($meta) ?: null;
         }
         $out = [];
         if (array_key_exists('tile', $meta)) {

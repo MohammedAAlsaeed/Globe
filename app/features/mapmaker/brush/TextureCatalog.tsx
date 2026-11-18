@@ -882,7 +882,7 @@ export function TextureCatalog({
   );
 }
 
-function Chip({
+export function Chip({
   children,
   onRemove,
 }: {
@@ -900,7 +900,7 @@ function Chip({
   );
 }
 
-function FiltersPanel({
+export function FiltersPanel({
   t,
   query,
   setQuery,

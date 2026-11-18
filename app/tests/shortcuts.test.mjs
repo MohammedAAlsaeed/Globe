@@ -126,12 +126,13 @@ test("clashes are found where the actions meet", () => {
     [["tool.brush", "tool.line", "KeyN"]],
   );
   // F for the Brush clashes with Free Draw only inside the Line and Shape
-  // tools… still clashes (one with each).
+  // tools, and with the Stamp Catalog in the Stamp tool… still clashes
+  // (one with each).
   assert.deepEqual(
     shortcutConflicts(resolveBindings({ "tool.brush": ["KeyF"] })).map(
       (c) => c.b,
     ),
-    ["line.free", "shape.free"],
+    ["line.free", "shape.free", "stamp.catalog"],
   );
   // W in the Line tool and W for stamps never meet.
   assert.deepEqual(

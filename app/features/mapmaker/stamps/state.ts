@@ -160,6 +160,27 @@ export function selectSet(
   };
 }
 
+/**
+ * Takes up a remembered stamp (recently used, or a favourite): its set, its
+ * look, and its variant — a fixed one, or (null) a random one each time.
+ * Recent stamps leave the random/fixed choice as it is.
+ */
+export function applyLookEntry(
+  s: StampToolState,
+  set: StampSet,
+  entry: { variant: number | null; look: Partial<StampLook> },
+  keepRandom = false,
+): StampToolState {
+  const next = selectSet(s, set, entry.variant ?? s.variant);
+  return {
+    ...next,
+    look: { ...next.look, ...entry.look },
+    ...(keepRandom
+      ? {}
+      : { randomVariant: entry.variant === null && set.assets.length > 1 }),
+  };
+}
+
 /** Scatter and variety settings of a fresh Stamp tool (what their resets return to). */
 export const STAMP_TOOL_DEFAULTS = {
   sizeJitter: 0.25,

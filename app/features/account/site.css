@@ -926,6 +926,7 @@ dialog.mm-modal .dialog-header button {
   font-size: 13px;
 }
 .lib-inline select,
+.lib-inline input,
 .lib-asset select {
   padding: 4px 6px;
   border: 1px solid rgba(217, 169, 59, 0.3);

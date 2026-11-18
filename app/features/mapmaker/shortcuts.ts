@@ -84,7 +84,7 @@ export const SHORTCUTS = [
   tool("select", "mmToolSelect", ["KeyV", "Digit1", "Numpad1"]),
   tool("brush", "mmToolBrush", ["KeyB", "Digit2", "Numpad2"]),
   tool("land", "mmToolLand", ["KeyL", "Digit3", "Numpad3"]),
-  tool("stamp", "mmToolStamp", ["Digit4", "Numpad4"]),
+  tool("stamp", "mmToolStamp", ["KeyO", "Digit4", "Numpad4"]),
   tool("line", "mmToolLine", ["KeyN", "Digit5", "Numpad5"]),
   tool("shape", "mmToolShape", ["KeyU", "Digit6", "Numpad6"]),
   tool("text", "mmToolText", ["KeyT", "Digit7", "Numpad7"]),
@@ -488,6 +488,30 @@ export const SHORTCUTS = [
   },
 
   // ---- Stamps (Alt: fine steps) ----
+  {
+    id: "stamp.catalog",
+    group: "stamp",
+    labelKey: "kbStampCatalog",
+    contexts: ["stamp"],
+    keys: ["KeyF"],
+    customizable: true,
+  },
+  {
+    id: "stamp.nextVariant",
+    group: "stamp",
+    labelKey: "kbStampNextVariant",
+    contexts: ["stamp"],
+    keys: ["Shift+Period"],
+    customizable: true,
+  },
+  {
+    id: "stamp.prevVariant",
+    group: "stamp",
+    labelKey: "kbStampPrevVariant",
+    contexts: ["stamp"],
+    keys: ["Shift+Comma"],
+    customizable: true,
+  },
   {
     id: "stamp.bigger",
     group: "stamp",
