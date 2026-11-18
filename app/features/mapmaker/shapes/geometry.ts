@@ -165,9 +165,6 @@ export function depth(parts: readonly ShapePart[]): number {
   for (const p of parts) if (isGroup(p)) d = Math.max(d, 1 + depth(p.parts));
   return d;
 }
-export function countNodes(parts: readonly ShapePart[]) {
-  return paths(parts).reduce((n, p) => n + p.nodes.length, 0);
-}
 
 // ---------------------------------------------------------------------------
 // Primitives
@@ -359,11 +356,6 @@ export const normalizeDeg = (d: number) => {
   const r = ((((d + 180) % 360) + 360) % 360) - 180;
   return Math.abs(r) < 1e-9 ? 0 : r;
 };
-
-/** A primitive's box size in pixels (for the live dimensions). */
-export function primSizePx(prim: ShapePrim, w: number) {
-  return { width: prim.w * w, height: prim.h * w };
-}
 
 /** Moves / turns / resizes a primitive with an affine map (pixels). Returns
  * null when the map skews it (it then stays a free path). */

@@ -2,9 +2,7 @@
 export const stampsEn = {
   stPanel: "Stamp tool",
   stTarget: "Stamps",
-  stSearch: "Search stamps",
   stCategories: "Categories",
-  stSets: "Stamps",
   stNoResults: "No stamps match. Try another word.",
   stLocked: "Included with a paid plan",
   stCatAll: "All",
@@ -13,7 +11,6 @@ export const stampsEn = {
   stCatSettlements: "Settlements",
   stCatWater: "Water",
   stCatSymbols: "Symbols",
-  stCatCustom: "My stamps",
   stCatLibrary: "Library packs",
   stCatCreatures: "Creatures",
   stCatDecorations: "Decorations",
@@ -144,7 +141,6 @@ export const stampsEn = {
   stToneJitter: "Color variation",
 
   stTransform: "Size & direction",
-  stReset: "Back to default",
   stStretch: "Height",
   stPivot: "Anchor point",
   stPivotBase: "Base",
@@ -237,9 +233,7 @@ export const stampsAr: Record<keyof typeof stampsEn, string> &
   Record<string, string> = {
   stPanel: "أداة الأختام",
   stTarget: "الأختام",
-  stSearch: "ابحث في الأختام",
   stCategories: "الفئات",
-  stSets: "الأختام",
   stNoResults: "لا توجد أختام مطابقة. جرّب كلمة أخرى.",
   stLocked: "متاحة في الخطط المدفوعة",
   stCatAll: "الكل",
@@ -248,7 +242,6 @@ export const stampsAr: Record<keyof typeof stampsEn, string> &
   stCatSettlements: "العمران",
   stCatWater: "الماء",
   stCatSymbols: "الرموز",
-  stCatCustom: "أختامي",
   stCatLibrary: "حزم المكتبة",
   stCatCreatures: "الكائنات",
   stCatDecorations: "الزخارف",
@@ -374,7 +367,6 @@ export const stampsAr: Record<keyof typeof stampsEn, string> &
   stToneJitter: "تنويع اللون",
 
   stTransform: "الحجم والاتجاه",
-  stReset: "العودة للقيمة الافتراضية",
   stStretch: "الارتفاع",
   stPivot: "نقطة الارتكاز",
   stPivotBase: "القاعدة",

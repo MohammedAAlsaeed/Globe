@@ -218,11 +218,6 @@ export function spots(
   const w = worley(u * n, v * n, seed, n);
   return w.id < density ? smoothstep(radius, radius * 0.6, w.f1) : 0;
 }
-/** Crumpled facets: a brightness offset (≈ −0.5…0.2). */
-export function crumple(u: number, v: number, seed: number, n: number) {
-  const c = cells(u, v, seed, n, 0.6);
-  return (c.id - 0.5) * 0.3 - smoothstep(0.04, 0, c.edge) * 0.45;
-}
 /** Light from the upper left on a height field h(u, v). */
 export function lit(
   h: (u: number, v: number) => number,

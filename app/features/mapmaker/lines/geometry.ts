@@ -85,24 +85,6 @@ export function cubicPoint(c: Cubic, t: number): Vec {
     y: a * c.p0.y + b * c.p1.y + d * c.p2.y + e * c.p3.y,
   };
 }
-/** The derivative (direction of travel) at t. */
-export function cubicTangent(c: Cubic, t: number): Vec {
-  const u = 1 - t;
-  let x =
-      3 * u * u * (c.p1.x - c.p0.x) +
-      6 * u * t * (c.p2.x - c.p1.x) +
-      3 * t * t * (c.p3.x - c.p2.x),
-    y =
-      3 * u * u * (c.p1.y - c.p0.y) +
-      6 * u * t * (c.p2.y - c.p1.y) +
-      3 * t * t * (c.p3.y - c.p2.y);
-  // Degenerate handle at an end: fall back to the chord.
-  if (Math.abs(x) < EPS && Math.abs(y) < EPS) {
-    x = c.p3.x - c.p0.x;
-    y = c.p3.y - c.p0.y;
-  }
-  return { x, y };
-}
 
 // ---------------------------------------------------------------------------
 // Flattening & arc length

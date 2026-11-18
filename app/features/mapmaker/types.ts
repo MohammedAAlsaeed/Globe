@@ -821,10 +821,6 @@ export interface MMProject {
   cloud?: CloudBinding;
 }
 
-export function objectCount(layer: MMLayer) {
-  return layer.objects.length;
-}
-
 /** A loose union of every field any object kind can carry; call sites only
  * set fields matching the target object's own kind (see MapCreatorEditor's
  * updateObject/onPatch call sites). */

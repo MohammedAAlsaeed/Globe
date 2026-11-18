@@ -12,6 +12,9 @@ import {
 
 const root = new URL("..", import.meta.url).pathname;
 const { default: i18n } = await import("../lib/i18n.ts");
+// Every section of the interface's words (they load by page in the app).
+const sections = await import("../lib/locales/sections.ts");
+await sections.loadLocales(sections.ALL_SECTIONS);
 const bundles = {
   en: i18n.getResourceBundle("en", "translation"),
   ar: i18n.getResourceBundle("ar", "translation"),

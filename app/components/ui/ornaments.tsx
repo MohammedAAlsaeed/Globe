@@ -94,39 +94,3 @@ export function Icon({ name, size = 20 }: { name: string; size?: number }) {
     </svg>
   );
 }
-export function Astrolabe() {
-  return (
-    <svg className="astrolabe" viewBox="0 0 280 280" aria-hidden="true">
-      <g fill="none" stroke="currentColor" strokeWidth=".8">
-        <circle cx="140" cy="140" r="115" />
-        <circle cx="140" cy="140" r="108" />
-        <circle cx="140" cy="140" r="92" />
-        <circle cx="140" cy="140" r="62" />
-        <ellipse
-          cx="140"
-          cy="140"
-          rx="45"
-          ry="108"
-          transform="rotate(35 140 140)"
-        />
-        <ellipse
-          cx="140"
-          cy="140"
-          rx="45"
-          ry="108"
-          transform="rotate(-35 140 140)"
-        />
-        <path d="M25 140h230M140 25v230M59 59l162 162M59 221 221 59" />
-        {Array.from({ length: 60 }, (_, i) => (
-          <path
-            key={i}
-            d={`M140 25v${i % 5 === 0 ? 10 : 4}`}
-            transform={`rotate(${i * 6} 140 140)`}
-          />
-        ))}
-        <path d="m140 63 16 61 61 16-61 16-16 61-16-61-61-16 61-16Z" />
-        <circle cx="140" cy="140" r="9" />
-      </g>
-    </svg>
-  );
-}

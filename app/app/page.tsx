@@ -3,7 +3,12 @@
  * member (features/home/HomePage.tsx decides, from the first paint).
  */
 import { HomePage } from "@/features/home/HomePage";
+import { Locales } from "@/components/Locales";
 
 export default function Home() {
-  return <HomePage />;
+  return (
+    <Locales sections={["studio", "mapmaker", "stamps", "lines", "text"]}>
+      <HomePage />
+    </Locales>
+  );
 }

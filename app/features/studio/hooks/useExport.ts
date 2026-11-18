@@ -5,7 +5,6 @@ import type { SourceState } from "./useSource";
 import { goreBox } from "../domain/geometry";
 import { planPrint } from "../domain/layout";
 import { renderInWorker, releaseAssets } from "../rendering/client";
-import { makePrintPdf } from "../export/pdf";
 import { goreArchive, standaloneGore } from "../export/files";
 import { printHtml } from "../export/svg";
 export type ExportKind = "print" | "pdf" | "zip" | "single";
@@ -100,6 +99,8 @@ export function useExport(notify: (message: string) => void) {
         setJob({ stage: "assembling", progress: 0.8 + v * 0.2 });
       const name = `al-idrisi-${d.globe.width}x${d.globe.height}mm-${d.globe.gores}gores`;
       if (kind === "pdf" || kind === "print") {
+        // pdf-lib (≈380 KB) loads only when a PDF is made.
+        const { makePrintPdf } = await import("../export/pdf");
         const blob = await makePrintPdf(
           plan,
           d.globe,

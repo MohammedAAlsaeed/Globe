@@ -1,6 +1,5 @@
 import type { mapmakerEn } from "./mapmaker.en";
 export const mapmakerAr: typeof mapmakerEn = {
-  mmLandingEyebrow: "مِرسم الخرّاط",
   mmLandingTitle: "ارسم ^3:عالَماً^. اطبع ==كرة أرضية==.",
   mmLandingIntro:
     "ابدأ خريطة خيالية من لوحة فارغة بطبقات وتضاريس ومعالم توضعها بنفسك، أو انقل خريطة جاهزة مباشرة إلى استوديو الطباعة لتحويلها إلى قطع كروية.",
@@ -78,9 +77,7 @@ export const mapmakerAr: typeof mapmakerEn = {
   mmToolSelect: "تحديد",
   mmToolBrush: "فرشاة",
   mmToolStamp: "رمز",
-  mmToolPath: "مسار",
   mmToolLine: "خط",
-  mmToolLabel: "نص",
 
   mmBrushSize: "حجم الفرشاة",
   mmSizePreview: "{{px}} بكسل · {{pct}}٪ من عرض الخريطة",
@@ -91,17 +88,6 @@ export const mapmakerAr: typeof mapmakerEn = {
   mmColor: "اللون",
   mmRecents: "المستخدمة مؤخراً",
 
-  mmIconRotation: "الدوران",
-
-  mmPathType: "نوع المسار",
-  mmPathRiver: "نهر",
-  mmPathRoad: "طريق",
-  mmPathBorder: "حدود",
-  mmPathWidth: "العرض",
-  mmPathOpacity: "الشفافية",
-  mmPathSoftness: "النعومة",
-
-  mmBiome: "الملمس",
   mmBiomeForest: "غابة",
   mmBiomeMountains: "جبال",
   mmBiomeDesert: "صحراء",
@@ -112,15 +98,6 @@ export const mapmakerAr: typeof mapmakerEn = {
   mmTextureRotation: "الدوران",
   mmFinishShape: "إنهاء الشكل",
 
-  mmLabelText: "نص التسمية",
-  mmLabelPlaceholder: "اكتب التسمية…",
-  mmLabelSize: "الحجم",
-  mmLabelAlign: "المحاذاة",
-  mmAlignStart: "البداية",
-  mmAlignCenter: "الوسط",
-  mmAlignEnd: "النهاية",
-  mmLabelRtl: "من اليمين إلى اليسار",
-  mmAddLabel: "أضف تسمية",
   mmCancelDraft: "إلغاء",
 
   mmPanelObjects: "العناصر",
@@ -128,7 +105,6 @@ export const mapmakerAr: typeof mapmakerEn = {
   mmSearchObjects: "ابحث في العناصر…",
   mmNoObjects: "لا توجد عناصر في هذه الطبقة بعد.",
   mmAddLayer: "أضف طبقة",
-  mmLayerLimit: "تدعم هذه الخريطة حتى 20 طبقة.",
   mmDeleteObject: "حذف",
   mmDuplicateObject: "تكرار",
   mmBringToFront: "إحضار للأمام",
@@ -154,7 +130,6 @@ export const mapmakerAr: typeof mapmakerEn = {
   mmRemoveLayer: "إزالة الطبقة",
   mmMoveUp: "تحريك لأعلى",
   mmMoveDown: "تحريك لأسفل",
-  mmLayerName: "اسم الطبقة",
   mmLayerOpacity: "شفافية الطبقة",
   mmNoSelection: "لا يوجد تحديد.",
   mmBaseLayer: "الخلفية",
@@ -162,22 +137,17 @@ export const mapmakerAr: typeof mapmakerEn = {
   mmZoom: "التكبير",
   mmFitScreen: "ملء الشاشة",
   mmSnapToGrid: "الالتصاق بالشبكة",
-  mmShortcuts: "الاختصارات",
   mmHideShortcuts: "إخفاء شريط الاختصارات",
   mmShowShortcuts: "إظهار شريط الاختصارات",
   mmShortcutHintSelect: "انقر للتحديد · اسحب المقابض للتحويل · Delete للحذف",
   mmShortcutHintBrush: "انقر واسحب للرسم",
   mmShortcutHintStamp:
     "انقر لوضع ختم · اسحب للنثر (تلقائي، متعدد) · انتقل إلى تحديد للتعديل",
-  mmShortcutHintPath: "اسحب للرسم · حرّر للإنهاء",
-  mmShortcutHintLabel: "انقر على اللوحة، ثم اكتب",
 
   mmBackHome: "العودة للرئيسية",
   mmUntitledMap: "خريطة بلا عنوان",
   mmPrintAction: "اطبع هذه الخريطة",
-  mmPrintPreparing: "جارِ تجهيز خريطتك لاستوديو الطباعة…",
   mmPrintReady: "خريطتك جاهزة الآن في استوديو الطباعة.",
-  mmRenameMap: "إعادة تسمية الخريطة",
 
   // ---- Brush Tool 2.0 ----
   mmBrushPanel: "إعدادات الفرشاة",
@@ -238,12 +208,6 @@ export const mapmakerAr: typeof mapmakerEn = {
   mmPaintSource: "القوام واللون",
   mmSourceTexture: "قوام",
   mmSourceColor: "لون",
-  mmTexCatAll: "الكل",
-  mmTexCatTerrain: "تضاريس",
-  mmTexCatVegetation: "نباتات",
-  mmTexCatWater: "مياه",
-  mmTexCatSpecial: "خاص",
-  mmTexCatNavigators: "الملاحون",
   mmTexCat_terrain: "تضاريس",
   mmTexCat_vegetation: "نباتات",
   mmTexCat_water: "مياه",
@@ -557,7 +521,6 @@ export const mapmakerAr: typeof mapmakerEn = {
   mmWaveBreakup: "التقطّع",
   mmDepthShading: "تظليل العمق",
   mmDepthDistance: "العمق الكامل عند",
-  mmResetCoast: "إعادة ضبط النمط",
   mmResetCoastTo: "إعادة إلى {{style}}",
   mmStyleModified: "معدّل من هذا النمط — الإرجاع يعود إليه",
   mmEditCoast: "تعديل الساحل",

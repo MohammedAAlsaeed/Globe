@@ -237,15 +237,6 @@ export const BUILTIN_TEXT_STYLES: TextStyle[] = [
   }),
 ];
 
-export function factoryTextStyle(): TextStyle {
-  return {
-    id: "t:default",
-    source: "builtin",
-    labelKey: "txStyle_default",
-    look: FACTORY_TEXT_LOOK,
-  };
-}
-
 /** What Reset returns to: the style the text (or the tool) came from, else the system default. */
 export function baseTextLook(
   styleId: string | null | undefined,

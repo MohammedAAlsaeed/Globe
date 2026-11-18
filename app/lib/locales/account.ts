@@ -1,6 +1,5 @@
 /** Strings for accounts, My maps and cloud saving (English and Arabic). */
 export const accountEn = {
-  acBrand: "Al-Idrisi Atelier",
   /** The name in the site header (with its flourish, lib/flourish.ts). */
   acBrandMark: "Al-Idrisi Atelier",
   acMyMaps: "My maps",
@@ -131,7 +130,6 @@ export const accountEn = {
   acDeleteConfirm: "Delete this map?",
   acCancel: "Cancel",
   acEmptyCloud: "No maps in the cloud yet. Start one; it saves as you draw.",
-  acEmptyDevice: "No maps on this device yet.",
   acLimitReached:
     "Your {{plan}} plan holds {{max}} maps. Delete one to make room.",
   acUpdated: "Edited {{date}}",
@@ -192,7 +190,6 @@ export const accountEn = {
 };
 
 export const accountAr: typeof accountEn = {
-  acBrand: "مرسم الإدريسي",
   acBrandMark: "^مرسَم^ الإدريسي",
   acMyMaps: "خرائطي",
   hmTryFree: "جرّب بلا حساب. سجّل الدخول لتبقى خرائطك معك على كل جهاز.",
@@ -311,7 +308,6 @@ export const accountAr: typeof accountEn = {
   acDeleteConfirm: "حذف هذه الخريطة؟",
   acCancel: "إلغاء",
   acEmptyCloud: "لا خرائط في السحابة بعد. ابدأ واحدة، وستُحفظ أثناء الرسم.",
-  acEmptyDevice: "لا خرائط على هذا الجهاز بعد.",
   acLimitReached:
     "خطة {{plan}} تتسع لـ {{max}} خرائط. احذف واحدة لتفسح مكاناً.",
   acUpdated: "عُدّلت {{date}}",

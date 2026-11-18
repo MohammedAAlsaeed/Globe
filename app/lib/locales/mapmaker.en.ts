@@ -1,5 +1,4 @@
 export const mapmakerEn = {
-  mmLandingEyebrow: "A CARTOGRAPHER'S WORKSHOP",
   mmLandingTitle: "Draw a world. Print ==a globe==.",
   mmLandingIntro:
     "Sketch a fantasy map from a blank canvas with layers, biomes and hand-placed landmarks, or bring a finished map straight to the print studio to turn it into gores.",
@@ -81,9 +80,7 @@ export const mapmakerEn = {
   mmToolSelect: "Select",
   mmToolBrush: "Brush",
   mmToolStamp: "Stamp",
-  mmToolPath: "Path",
   mmToolLine: "Line",
-  mmToolLabel: "Text",
 
   mmBrushSize: "Brush size",
   mmSizePreview: "{{px}} px · {{pct}}% of map width",
@@ -94,17 +91,6 @@ export const mapmakerEn = {
   mmColor: "Color",
   mmRecents: "Recents",
 
-  mmIconRotation: "Rotation",
-
-  mmPathType: "Path type",
-  mmPathRiver: "River",
-  mmPathRoad: "Road",
-  mmPathBorder: "Border",
-  mmPathWidth: "Width",
-  mmPathOpacity: "Opacity",
-  mmPathSoftness: "Softness",
-
-  mmBiome: "Texture",
   mmBiomeForest: "Forest",
   mmBiomeMountains: "Mountains",
   mmBiomeDesert: "Desert",
@@ -115,15 +101,6 @@ export const mapmakerEn = {
   mmTextureRotation: "Rotation",
   mmFinishShape: "Finish shape",
 
-  mmLabelText: "Label text",
-  mmLabelPlaceholder: "Type the label…",
-  mmLabelSize: "Size",
-  mmLabelAlign: "Alignment",
-  mmAlignStart: "Start",
-  mmAlignCenter: "Center",
-  mmAlignEnd: "End",
-  mmLabelRtl: "Right-to-left",
-  mmAddLabel: "Add label",
   mmCancelDraft: "Cancel",
 
   mmPanelObjects: "Objects",
@@ -131,7 +108,6 @@ export const mapmakerEn = {
   mmSearchObjects: "Search objects…",
   mmNoObjects: "No objects on this layer yet.",
   mmAddLayer: "Add layer",
-  mmLayerLimit: "This map supports up to 20 layers.",
   mmDeleteObject: "Delete",
   mmDuplicateObject: "Duplicate",
   mmBringToFront: "Bring to front",
@@ -158,7 +134,6 @@ export const mapmakerEn = {
   mmRemoveLayer: "Remove layer",
   mmMoveUp: "Move up",
   mmMoveDown: "Move down",
-  mmLayerName: "Layer name",
   mmLayerOpacity: "Layer opacity",
   mmNoSelection: "Nothing selected.",
   mmBaseLayer: "Background",
@@ -166,7 +141,6 @@ export const mapmakerEn = {
   mmZoom: "Zoom",
   mmFitScreen: "Fit screen",
   mmSnapToGrid: "Snap to grid",
-  mmShortcuts: "Shortcuts",
   mmHideShortcuts: "Hide shortcut bar",
   mmShowShortcuts: "Show shortcut bar",
   mmShortcutHintSelect:
@@ -174,15 +148,11 @@ export const mapmakerEn = {
   mmShortcutHintBrush: "Click and drag to paint",
   mmShortcutHintStamp:
     "Click to place one stamp · drag to scatter (Auto, Multiple) · switch to Select to adjust",
-  mmShortcutHintPath: "Drag to draw · release to finish",
-  mmShortcutHintLabel: "Click the canvas, then type",
 
   mmBackHome: "Back home",
   mmUntitledMap: "Untitled map",
   mmPrintAction: "Print this map",
-  mmPrintPreparing: "Rendering your map for the print studio…",
   mmPrintReady: "Your map is ready in the print studio.",
-  mmRenameMap: "Rename map",
 
   // ---- Brush Tool 2.0 ----
   mmBrushPanel: "Brush settings",
@@ -243,12 +213,6 @@ export const mapmakerEn = {
   mmPaintSource: "Texture & color",
   mmSourceTexture: "Texture",
   mmSourceColor: "Color",
-  mmTexCatAll: "All",
-  mmTexCatTerrain: "Terrain",
-  mmTexCatVegetation: "Vegetation",
-  mmTexCatWater: "Water",
-  mmTexCatSpecial: "Special",
-  mmTexCatNavigators: "Navigators",
   mmTexCat_terrain: "Terrain",
   mmTexCat_vegetation: "Vegetation",
   mmTexCat_water: "Water",
@@ -564,7 +528,6 @@ export const mapmakerEn = {
   mmWaveBreakup: "Breakup",
   mmDepthShading: "Depth shading",
   mmDepthDistance: "Full depth at",
-  mmResetCoast: "Reset to style",
   mmResetCoastTo: "Reset to {{style}}",
   mmStyleModified: "Edited from this style — resets return to it",
   mmEditCoast: "Edit coast",

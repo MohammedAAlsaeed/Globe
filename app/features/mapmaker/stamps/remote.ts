@@ -18,7 +18,7 @@ import type { StampLibrary } from "../../account/types";
 import { registerRemoteSets, stampAsset } from "./catalog";
 import { imageAsset, imageSet, librarySets, uploadedKey } from "./librarySets";
 
-export { librarySets, uploadedKey };
+export { uploadedKey };
 
 let loading: Promise<void> | null = null,
   loaded = false,

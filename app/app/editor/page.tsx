@@ -24,12 +24,15 @@ import { maps } from "@/features/account/api";
 import { NetworkError } from "@/lib/api/client";
 import { useAuth } from "@/features/account/AuthProvider";
 import { createProject } from "@/features/mapmaker/domain";
+import { EDITOR_SECTIONS, loadLocales } from "@/lib/locales/sections";
 
+// The editor and its words (lib/locales/sections.ts) arrive together.
 const MapCreatorEditor = dynamic(
   () =>
-    import("../../features/mapmaker/MapCreatorEditor").then(
-      (m) => m.MapCreatorEditor,
-    ),
+    Promise.all([
+      import("../../features/mapmaker/MapCreatorEditor"),
+      loadLocales(EDITOR_SECTIONS),
+    ]).then(([m]) => m.MapCreatorEditor),
   { ssr: false, loading: () => <CompassScreen /> },
 );
 

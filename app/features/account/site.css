@@ -674,11 +674,6 @@ html:has(.site) body {
   justify-self: start;
   margin-top: 6px;
 }
-.landing-foot {
-  padding: 28px clamp(16px, 6vw, 96px) 40px;
-  color: var(--muted);
-  font-size: 13px;
-}
 
 @media (max-width: 860px) {
   .site-nav-secondary {

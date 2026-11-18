@@ -15,13 +15,7 @@
  */
 import { stampRaster } from "../stamps/render";
 import type { LineColorStroke, LineStampStroke, MMLine } from "../types";
-import {
-  flatten,
-  sharpNodes,
-  type LineNode,
-  type Polyline,
-  type Vec,
-} from "./geometry";
+import { flatten, sharpNodes, type LineNode, type Polyline } from "./geometry";
 import { layoutPieces, type Placement } from "./distribute";
 import { pieceAspect } from "./catalog";
 
@@ -310,26 +304,6 @@ export function lineReach(line: Drawable, w: number) {
     );
   const s = line.stroke;
   return (s.width * w) / 2 + s.casing * w + s.blur * s.width * w + 1;
-}
-
-/** Distance from a pixel point to the drawn path (for picking). */
-export function distanceToLine(line: Drawable, w: number, h: number, p: Vec) {
-  const poly = linePoly(line, w, h);
-  let best = Infinity;
-  for (let i = 0; i + 3 < poly.xy.length; i += 2) {
-    const ax = poly.xy[i],
-      ay = poly.xy[i + 1],
-      bx = poly.xy[i + 2],
-      by = poly.xy[i + 3],
-      dx = bx - ax,
-      dy = by - ay,
-      l2 = dx * dx + dy * dy,
-      t = l2
-        ? Math.max(0, Math.min(1, ((p.x - ax) * dx + (p.y - ay) * dy) / l2))
-        : 0;
-    best = Math.min(best, Math.hypot(ax + dx * t - p.x, ay + dy * t - p.y));
-  }
-  return best;
 }
 
 /** A small preview of a look (for the styles list): a gentle S-curve. */
