@@ -3,7 +3,6 @@
  * components/ControlsSettings) and the view actions they introduce.
  */
 export const controlsEn = {
-  ctTitle: "Controls & shortcuts",
   /** The settings page's title (with its flourish, lib/flourish.ts). */
   ctPageTitle: "Controls & shortcuts",
   ctSubtitle:
@@ -159,7 +158,6 @@ export const controlsEn = {
 };
 
 export const controlsAr: typeof controlsEn = {
-  ctTitle: "التحكم والاختصارات",
   ctPageTitle: "^التحَكم^ والاختصارات",
   ctSubtitle:
     "كيف يستجيب المحرر للفأرة ولوحة اللمس والشاشة اللمسية والقلم ولوحة المفاتيح.",

@@ -265,8 +265,6 @@ export function stampCompositeOp(
   return o.blend && o.blend !== "normal" ? o.blend : undefined;
 }
 
-export { stampAspect } from "./geometry";
-
 // ---- thumbnails ----------------------------------------------------------------------
 const thumbs = new Map<string, string>();
 /** A small PNG data URL of an asset in its set's colors, for the catalog. */

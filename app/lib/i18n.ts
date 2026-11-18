@@ -1,59 +1,37 @@
-import { studioEn, studioAr } from "./locales/studio";
-import { mapmakerEn } from "./locales/mapmaker.en";
-import { mapmakerAr } from "./locales/mapmaker.ar";
-import { accountEn, accountAr } from "./locales/account";
-import { stampsEn, stampsAr } from "./locales/stamps";
-import { linesEn, linesAr } from "./locales/lines";
-import { shortcutsEn, shortcutsAr } from "./locales/shortcuts";
-import { printingEn, printingAr } from "./locales/printing";
-import { textEn, textAr } from "./locales/text";
-import { controlsEn, controlsAr } from "./locales/controls";
-import { shapesEn, shapesAr } from "./locales/shapes";
-import { adminEn, adminAr } from "./locales/admin";
-import { systemEn, systemAr } from "./locales/system";
+/**
+ * The interface's words in English and Arabic (react-i18next). The common
+ * words are here; the rest load by section with the pages that need them
+ * (see ./locales/sections.ts).
+ */
 import i18n from "i18next";
 import { initReactI18next } from "react-i18next";
 import { en } from "./locales/en";
 import { ar } from "./locales/ar";
+import { accountEn, accountAr } from "./locales/account";
+import { systemEn, systemAr } from "./locales/system";
+
+let loadingAll = false;
 i18n.use(initReactI18next).init({
   resources: {
-    en: {
-      translation: {
-        ...en,
-        ...studioEn,
-        ...mapmakerEn,
-        ...accountEn,
-        ...stampsEn,
-        ...linesEn,
-        ...shortcutsEn,
-        ...printingEn,
-        ...textEn,
-        ...controlsEn,
-        ...shapesEn,
-        ...adminEn,
-        ...systemEn,
-      },
-    },
-    ar: {
-      translation: {
-        ...ar,
-        ...studioAr,
-        ...mapmakerAr,
-        ...accountAr,
-        ...stampsAr,
-        ...linesAr,
-        ...shortcutsAr,
-        ...printingAr,
-        ...textAr,
-        ...controlsAr,
-        ...shapesAr,
-        ...adminAr,
-        ...systemAr,
-      },
-    },
+    en: { translation: { ...en, ...accountEn, ...systemEn } },
+    ar: { translation: { ...ar, ...accountAr, ...systemAr } },
   },
+  partialBundledLanguages: true,
   lng: "en",
   fallbackLng: "en",
   interpolation: { escapeValue: false },
+  // Pages show words from sections that arrive later: re-render then.
+  react: { bindI18nStore: "added" },
+  // A word from a section the page didn't name: load every section.
+  saveMissing: true,
+  missingKeyHandler: (_lngs, _ns, key) => {
+    if (process.env.NODE_ENV !== "production")
+      console.warn(`[i18n] "${key}" is in a section this page doesn't load`);
+    if (loadingAll) return;
+    loadingAll = true;
+    void import("./locales/sections").then((m) =>
+      m.loadLocales(m.ALL_SECTIONS),
+    );
+  },
 });
 export default i18n;

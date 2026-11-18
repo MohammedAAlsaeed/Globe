@@ -4,7 +4,12 @@
  * changes (features/mapmaker/storage.ts), so the message says so.
  */
 import { ErrorView, type ErrorPageProps } from "@/features/system/ErrorView";
+import { Locales } from "@/components/Locales";
 
 export default function EditorError(props: ErrorPageProps) {
-  return <ErrorView {...props} variant="editor" />;
+  return (
+    <Locales sections={["mapmaker"]}>
+      <ErrorView {...props} variant="editor" />
+    </Locales>
+  );
 }

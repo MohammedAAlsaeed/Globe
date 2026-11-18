@@ -561,7 +561,6 @@ const TEXTURE_DEFS: TextureDef[] = [
 ];
 
 export const TEXTURES: readonly TextureDef[] = TEXTURE_DEFS;
-export const TEXTURE_IDS = TEXTURE_DEFS.map((t) => t.id);
 export const TEXTURE_CATEGORIES: { key: TextureCategory; labelKey: string }[] =
   TEXTURE_CATEGORY_KEYS.map((key) => ({ key, labelKey: `mmTexCat_${key}` }));
 const BY_ID = new Map(TEXTURE_DEFS.map((t) => [t.id, t]));
@@ -701,7 +700,6 @@ export function registerImageTextures(list: ImageTextureInfo[]) {
       loaded.delete(info.id);
   }
 }
-export const imageTextureInfo = (id: string) => infos.get(id);
 /** Where to ask about uploaded textures the library hasn't listed. */
 export function setTextureResolver(
   fn: ((ids: string[]) => Promise<ImageTextureInfo[]>) | null,

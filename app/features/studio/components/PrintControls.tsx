@@ -9,7 +9,6 @@ import {
 import { Icon } from "../../../components/ui/ornaments";
 import type { PrintSettings } from "../domain/types";
 import { PAPER_IDS } from "../domain/paper";
-import { calibrationPdf } from "../export/pdf";
 import { validateDocument } from "../domain/validation";
 import { DEFAULT_DOCUMENT, DEFAULT_PRINT } from "../domain/types";
 import { saveBlob } from "../export/svg";
@@ -148,7 +147,10 @@ export function PrintControls({
           className="secondary-button"
           onClick={async () => {
             try {
-              saveBlob(await calibrationPdf(), "al-idrisi-calibration.pdf");
+              saveBlob(
+                await (await import("../export/pdf")).calibrationPdf(),
+                "al-idrisi-calibration.pdf",
+              );
               notify("downloadCalibration");
             } catch {
               notify("errorGeneric");

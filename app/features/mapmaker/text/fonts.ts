@@ -40,16 +40,6 @@ export const FONT_CATEGORIES: FontCategory[] = [
 export type ScriptSlot =
   "arabic" | "latin" | "greek" | "cyrillic" | "hebrew" | "devanagari" | "cjk";
 
-export const SCRIPT_SLOTS: ScriptSlot[] = [
-  "arabic",
-  "latin",
-  "greek",
-  "cyrillic",
-  "hebrew",
-  "devanagari",
-  "cjk",
-];
-
 export interface FontFile {
   /** Under public/ ("/fonts/amiri/Amiri-Regular.ttf"). */
   path: string;

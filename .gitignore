@@ -1,0 +1,3 @@
+# Scripts and logs for running the project on one Windows machine: they hold
+# that machine's details (paths, accounts), so they stay out of the repository.
+.local-setup/

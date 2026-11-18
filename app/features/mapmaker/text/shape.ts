@@ -25,7 +25,6 @@ import bidiFactory from "bidi-js";
 import type * as HB from "harfbuzzjs";
 import type { TextLook } from "../types";
 import {
-  FONTS,
   SCRIPT_FALLBACK,
   fontDef,
   fontProfile,
@@ -346,7 +345,7 @@ function itemize(
     faceAt[i] = firstFace;
   }
   const runs: Run[] = [];
-  for (let i = 0; i < n; ) {
+  for (let i = 0; i < n;) {
     let j = i + 1;
     while (
       j < n &&
@@ -518,7 +517,7 @@ function visualOrder<T extends { level: number }>(runs: T[]): T[] {
       Infinity,
     );
   for (let lvl = max; lvl >= minOdd && lvl > 0; lvl--) {
-    for (let i = 0; i < out.length; ) {
+    for (let i = 0; i < out.length;) {
       if (out[i].level < lvl) {
         i++;
         continue;
@@ -813,9 +812,4 @@ export function shapeText(
   if (cache.size > 400) cache.clear();
   cache.set(key, out);
   return out;
-}
-
-/** Fonts in the library a text's look can use, for the picker (shipped first). */
-export function libraryFonts() {
-  return FONTS;
 }

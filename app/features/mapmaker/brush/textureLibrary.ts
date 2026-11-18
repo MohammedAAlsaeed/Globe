@@ -176,12 +176,6 @@ export function loadTextureLibrary(signedIn = state.signedIn): Promise<void> {
   return request;
 }
 
-/** The texture library this browser fetched is no longer right (signed out, say). */
-export function resetTextureLibrary(signedIn: boolean) {
-  request = null;
-  set({ packs: [], textures: [], loaded: false, signedIn });
-}
-
 // Textures a map uses that the list doesn't have (a pack since locked, or
 // someone else's upload in a template): asked for by id.
 setTextureResolver(async (ids) => {

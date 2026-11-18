@@ -4,7 +4,6 @@ import type {
   LayerRole,
   MMLayer,
   MMProject,
-  PathKind,
   ResolutionTier,
 } from "./types";
 
@@ -65,17 +64,8 @@ export const BIOME_LABEL_KEY: Record<Biome, string> = {
   grass: "mmBiomeGrass",
   swamp: "mmBiomeSwamp",
 };
-export const PATH_KIND_LIST: PathKind[] = ["river", "road", "border"];
-export const PATH_KIND_LABEL_KEY: Record<PathKind, string> = {
-  river: "mmPathRiver",
-  road: "mmPathRoad",
-  border: "mmPathBorder",
-};
 
 export const DEFAULT_BACKGROUND = "#2c5678";
-
-/** Arabic script block — used to auto-detect right-to-left label text. */
-export const ARABIC_RANGE = /[\u0600-\u06FF]/;
 
 export function createLayer(name: string, role: LayerRole = "custom"): MMLayer {
   return {

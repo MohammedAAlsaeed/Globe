@@ -81,11 +81,7 @@
   letter-spacing: 0.02em;
   border: none;
 }
-.mm-cta-button.secondary {
-  background: transparent;
-  border: 1px solid var(--ink);
-  color: var(--ink);
-}
+
 .mm-landing-footer-note {
   text-align: center;
   color: var(--muted);

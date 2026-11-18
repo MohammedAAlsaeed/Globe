@@ -9,8 +9,10 @@ import { SiteHeader } from "@/features/account/ui";
 import { ControlsSettings } from "@/features/mapmaker/components/ControlsSettings";
 import "../../../features/mapmaker/mapmaker.css";
 import { Flourish } from "@/components/ui/Flourish";
+import { Locales } from "@/components/Locales";
+import { EDITOR_SECTIONS } from "@/lib/locales/sections";
 
-export default function Page() {
+function ControlsPage() {
   const { t } = useTranslation();
   return (
     <div className="site">
@@ -32,5 +34,13 @@ export default function Page() {
         </div>
       </main>
     </div>
+  );
+}
+
+export default function Page() {
+  return (
+    <Locales sections={EDITOR_SECTIONS}>
+      <ControlsPage />
+    </Locales>
   );
 }
